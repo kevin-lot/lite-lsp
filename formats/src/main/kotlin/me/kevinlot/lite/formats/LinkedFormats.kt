@@ -189,45 +189,6 @@ object Css : StyleFormat("Css", "CSS", "css", scss = false)
 object Scss : StyleFormat("Scss", "SCSS", "scss", scss = true)
 object Sass : StyleFormat("Sass", "Sass", "sass", scss = true, indented = true)
 
-/** Makefile: `$(VAR)` → its assignment, prerequisites → their rule, `include` → the file. */
-object Make : Format("Make", "Makefile", "mk") {
-    override val lineComment = "#"
-    override val rules = listOf(
-        Rule(R.HASH, Cat.COMMENT),
-        Rule("""(?:-?include|sinclude|ifeq|ifneq|ifdef|ifndef|else|endif|define|endef|export|unexport|override|vpath|undefine)\b""", Cat.KEYWORD, lineStart = true),
-        Rule("""(?<=include[ \t])[^\s#][^\n#]*""", Cat.STRING),
-        Rule("""\.(?:PHONY|DEFAULT|SUFFIXES|PRECIOUS|INTERMEDIATE|SECONDARY|DELETE_ON_ERROR|SILENT|ONESHELL|NOTPARALLEL|EXPORT_ALL_VARIABLES|DEFAULT_GOAL)\b""", Cat.META),
-        Rule("""(?<![^\n])[A-Za-z_][\w.-]*(?=\s*(?:::=|:=|\?=|\+=|!=|=))""", Cat.DECL),
-        Rule("""(?<![^\n])[^\s:=#.][^:=#\n]*?(?=:(?!=))""", Cat.DECL),
-        Rule("""\$[({][^)}\s]*[)}]?|\$[A-Za-z@<^?*%+|]""", Cat.VARIABLE),
-        Rule(R.DQ, Cat.STRING),
-        Rule(R.SQ, Cat.STRING),
-    )
-    override val linker = object : Linker() {
-        override fun links(text: CharSequence, fileName: String): Links {
-            val decls = mutableListOf<Decl>()
-            val refs = mutableListOf<Ref>()
-            ranges("""(?m)^(?:override\s+|export\s+)?([A-Za-z_][\w.-]*)\s*(?:::=|:=|\?=|\+=|!=|=)""", text).forEach { (r, n) -> decls += Decl(r, "var:$n") }
-            Regex("""(?m)^([^\s:=#.][^:=#\n]*?):(?!=)([^\n#;]*)""").findAll(text).forEach { m ->
-                val targets = m.groups[1]!!
-                Regex("""[^\s]+""").findAll(targets.value).filter { '%' !in it.value && '$' !in it.value }.forEach { t ->
-                    decls += Decl(TextRange(targets.range.first + t.range.first, targets.range.first + t.range.last + 1), "target:${t.value}")
-                }
-                val prereqs = m.groups[2]!!
-                Regex("""[^\s|]+""").findAll(prereqs.value).filter { '$' !in it.value && '%' !in it.value }.forEach { p ->
-                    refs += Ref(TextRange(prereqs.range.first + p.range.first, prereqs.range.first + p.range.last + 1), listOf("target:${p.value}"))
-                }
-            }
-            ranges("""\$[({]([A-Za-z_][\w.-]*)[)}]""", text).forEach { (r, n) -> refs += Ref(r, listOf("var:$n")) }
-            val paths = Regex("""(?m)^-?s?include\s+([^\n#]+)""").findAll(text).flatMap { m ->
-                val g = m.groups[1]!!
-                Regex("""[^\s]+""").findAll(g.value).filter { '$' !in it.value }.map { PathLink(TextRange(g.range.first + it.range.first, g.range.first + it.range.last + 1), it.value) }
-            }.toList()
-            return Links(decls, refs, paths)
-        }
-    }
-}
-
 /**
  * HCL (Terraform, Terragrunt): `var.x`, `local.x`, `module.x`, `data.t.n`, `t.n` (resources), `dependency.x`
  * → their blocks, across the `.tf` files of the folder (a Terraform module); `.tfvars` keys → `variable`;

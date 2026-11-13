@@ -1,0 +1,15 @@
+<!-- Lua support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Lua (Lite)" implementationClass="me.kevinlot.lite.lua.LuaFileType" fieldName="INSTANCE" language="LiteLua"
+                  extensions="lua;rockspec;luacheckrc" fileNames=".luacheckrc;.luarc.lua" hashBangs="lua;luajit"/>
+        <lang.parserDefinition language="LiteLua" implementationClass="me.kevinlot.lite.lua.LuaParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteLua" implementationClass="me.kevinlot.lite.lua.LuaSyntaxHighlighterFactory"/>
+        <annotator language="LiteLua" implementationClass="me.kevinlot.lite.lua.LuaHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteLua" implementationClass="me.kevinlot.lite.lua.LuaBraceMatcher"/>
+        <lang.commenter language="LiteLua" implementationClass="me.kevinlot.lite.lua.LuaCommenter"/>
+        <lang.findUsagesProvider language="LiteLua" implementationClass="me.kevinlot.lite.lua.LuaFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteLua" implementationClass="me.kevinlot.lite.lua.LuaRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteLua" implementationClass="me.kevinlot.lite.lua.LuaNamesValidator"/>
+    </extensions>
+</idea-plugin>

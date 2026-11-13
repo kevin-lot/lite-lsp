@@ -1,0 +1,7 @@
+<!-- Test-only descriptor: loads this language module alone. -->
+<idea-plugin xmlns:xi="http://www.w3.org/2001/XInclude">
+    <id>me.kevinlot.lite.lua.test</id>
+    <name>Lite lua (tests)</name>
+    <depends>com.intellij.modules.platform</depends>
+    <xi:include href="/META-INF/lite-lua.xml" xpointer="xpointer(/idea-plugin/*)"/>
+</idea-plugin>

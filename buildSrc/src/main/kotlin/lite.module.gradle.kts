@@ -26,7 +26,7 @@ tasks.test {
     // LITE_JFR=<file.jfr>: profile the test JVM with Java Flight Recorder.
     providers.environmentVariable("LITE_JFR").orNull?.let { jvmArgs("-XX:StartFlightRecording=filename=$it,settings=profile") }
     // Optional inputs of the "real world" tests (skipped when absent).
-    for (name in listOf("RUST_SRC_LIBRARY", "LITE_REAL_MAIN", "LITE_REAL_METADATA", "LITE_KOTLIN_STDLIB", "LITE_KOTLIN_CORPUS", "LITE_PYTHON_CORPUS", "LITE_PYTHON_PROJECT", "LITE_PYTHON_STDLIB", "LITE_TS_LIB", "LITE_TS_CORPUS", "LITE_TS_PROJECT", "LITE_SHOW", "LITE_QML_CORPUS", "LITE_QML_PROJECT", "LITE_SH_CORPUS", "LITE_MD_CORPUS", "LITE_FMT_CORPUS", "LITE_PROTO_CORPUS")) {
+    for (name in listOf("RUST_SRC_LIBRARY", "LITE_REAL_MAIN", "LITE_REAL_METADATA", "LITE_KOTLIN_STDLIB", "LITE_KOTLIN_CORPUS", "LITE_PYTHON_CORPUS", "LITE_PYTHON_PROJECT", "LITE_PYTHON_STDLIB", "LITE_TS_LIB", "LITE_TS_CORPUS", "LITE_TS_PROJECT", "LITE_SHOW", "LITE_QML_CORPUS", "LITE_QML_PROJECT", "LITE_SH_CORPUS", "LITE_MD_CORPUS", "LITE_FMT_CORPUS", "LITE_PROTO_CORPUS", "LITE_LUA_CORPUS")) {
         providers.environmentVariable(name).orNull?.let { environment(name, it) }
     }
 }

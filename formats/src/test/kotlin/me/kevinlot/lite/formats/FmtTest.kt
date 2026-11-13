@@ -112,6 +112,97 @@ class FmtTest : BasePlatformTestCase() {
     fun `test make variable`() = check("Makefile" to "<def>CC := gcc\nall:\n\t$(<ref>CC) main.c\n")
     fun `test make target`() = check("Makefile" to "all: <ref>build\n<def>build:\n\techo\n")
     fun `test make include`() = check("rules.mk" to "x = 1", "Makefile" to "include <ref>rules.mk\n")
+    fun `test make substitution reference`() = check("Makefile" to "<def>SRCS := a.c\nOBJS := $(<ref>SRCS:.c=.o)\n")
+    fun `test make call`() = check("Makefile" to "define <def>greet\n\techo $(1)\nendef\nall:\n\t$(call <ref>greet,world)\n")
+    fun `test make ifdef`() = check("Makefile" to "<def>DEBUG ?= 1\nifdef <ref>DEBUG\nX = 1\nendif\n")
+    fun `test make prerequisite file`() = check("src/main.c" to "int main;", "Makefile" to "main.o: <ref>src/main.c\n\tcc -c $<\n")
+    fun `test make phony`() = check("Makefile" to ".PHONY: <ref>test\n<def>test:\n\techo\n")
+    fun `test make shell variable is not make`() {
+        myFixture.configureByText("Makefile", "HOME := x\nall:\n\techo $$" + "{HOME}\n")
+        val refs = Fmt.links(myFixture.file).refs
+        assertTrue(refs.toString(), refs.none { "var:HOME" in it.keys })
+    }
+    fun `test make variable of the including makefile`() = check(
+        "Makefile" to "<def>APP := lite\ninclude build/common.mk\n",
+        "build/common.mk" to "show:\n\techo $(<ref>APP)\n",
+    )
+    fun `test make coloring`() = tokens("Makefile", "CC := gcc\nall: main.o\n\t$(CC) $(wildcard *.c) $$" + "HOME\n").let {
+        assertToken(it, Cat.DECL, "CC"); assertToken(it, Cat.FUNCTION, "$(wildcard"); assertToken(it, Cat.VARIABLE, "$(CC)")
+    }
+
+    fun `test just dependency`() = check("justfile" to "<def>build:\n    cargo build\ntest: <ref>build\n    cargo test\n")
+    fun `test just quiet recipe and dependency with arguments`() = check("justfile" to "@<def>greet who:\n    echo {{who}}\nall: (<ref>greet \"x\")\n")
+    fun `test just variable in body`() = check("justfile" to "<def>version := \"1.0\"\nrelease:\n    git tag v{{ <ref>version }}\n")
+    fun `test just parameter wins over variable`() = check("justfile" to "target := \"x\"\nbuild <def>target=\"debug\":\n    echo {{<ref>target}}\n")
+    fun `test just exported parameter`() = check("justfile" to "run \$<def>PORT=\"8080\":\n    ./serve --port \$<ref>PORT\n")
+    fun `test just variable in expression`() = check("justfile" to "<def>root := justfile_directory()\nout := <ref>root / \"out\"\n")
+    fun `test just alias`() = check("justfile" to "<def>build:\n    make\nalias b := <ref>build\n")
+    fun `test just recipe from an import`() = check("common.just" to "<def>lint:\n    echo", "justfile" to "import 'common.just'\nci: <ref>lint\n")
+    fun `test just import`() = check("common.just" to "x := '1'", "justfile" to "import '<ref>common.just'\n")
+    fun `test just module`() = check("docs/mod.just" to "x := '1'", "justfile" to "mod <ref>docs\n")
+    fun `test just function call is not a variable`() {
+        myFixture.configureByText("justfile", "os := os()\nx := env_var('HOME')\n")
+        assertTrue(Fmt.links(myFixture.file).refs.none { it.keys.any { k -> k == "var:os" || k == "var:env_var" } })
+    }
+    fun `test just coloring`() = tokens("justfile", "set shell := [\"bash\", \"-c\"]\n# c\n[private]\n@build target='x': lint\n    #!/usr/bin/env bash\n    echo {{target}}\n").let {
+        assertToken(it, Cat.KEYWORD, "set"); assertToken(it, Cat.KEY, "shell"); assertToken(it, Cat.META, "[private]")
+        assertToken(it, Cat.DECL, "@build"); assertToken(it, Cat.VARIABLE, "{{target}}"); assertToken(it, Cat.META, "#!/usr/bin/env bash")
+    }
+    fun `test rename just recipe`() {
+        myFixture.configureByText("justfile", "bu<caret>ild:\n    make\ntest: build\nalias b := build\n")
+        myFixture.renameElementAtCaret("compile")
+        myFixture.checkResult("compile:\n    make\ntest: compile\nalias b := compile\n")
+    }
+
+    private val oas3 = """
+        openapi: 3.1.0
+        paths:
+          /pets/{id}:
+            get:
+              responses:
+                '200':
+                  content:
+                    application/json:
+                      schema:
+                        ${'$'}ref: '#/components/schemas/<ref>Pet'
+        components:
+          schemas:
+            <def>Pet:
+              type: object
+    """
+    fun `test openapi 3 local ref`() = check("api.yaml" to oas3)
+    fun `test openapi ref to a path item`() = check("api.yaml" to "openapi: 3.0.0\npaths:\n  /pets/{id}:\n    <def>get: {}\nx:\n  \$ref: '#/paths/~1pets~1{id}/<ref>get'\n")
+    fun `test openapi unquoted ref to another file`() = check(
+        "schemas/common.yaml" to "<def>Error:\n  type: object\n",
+        "api.yaml" to "openapi: 3.0.0\ncomponents:\n  responses:\n    E:\n      \$ref: schemas/common.yaml#/<ref>Error\n",
+    )
+    fun `test openapi ref to a whole file`() = check("pet.yaml" to "type: object", "api.yaml" to "schema:\n  \$ref: './<ref>pet.yaml'\n")
+    fun `test openapi flow ref in a sequence`() = check("api.yaml" to "components:\n  schemas:\n    <def>Cat: {}\n    Pet:\n      oneOf:\n        - { \$ref: '#/components/schemas/<ref>Cat' }\n")
+    fun `test openapi discriminator mapping`() = check("api.yaml" to "components:\n  schemas:\n    <def>Dog: {}\n    Pet:\n      discriminator:\n        mapping:\n          dog: '#/components/schemas/<ref>Dog'\n")
+    fun `test swagger 2 definitions`() = check("swagger.yaml" to "swagger: '2.0'\ndefinitions:\n  <def>Tag:\n    type: object\n  Pet:\n    properties:\n      tags:\n        type: array\n        items:\n          \$ref: '#/definitions/<ref>Tag'\n")
+    fun `test swagger 2 bare model name`() = check("swagger.yaml" to "swagger: '2.0'\ndefinitions:\n  <def>Tag: {}\nx:\n  \$ref: <ref>Tag\n")
+    fun `test yaml pointer into a sequence`() = check("a.yaml" to "tags:\n  - name: a\n  - <def>name: b\nx:\n  \$ref: '#/tags/1/<ref>name'\n")
+    fun `test yaml keys after a block scalar`() = check("a.yaml" to "info:\n  description: |\n    text: not a key\n  <def>title: x\ny:\n  \$ref: '#/info/<ref>title'\n")
+    fun `test json openapi local ref`() = check("api.json" to "{\"openapi\": \"3.0.0\", \"components\": {\"schemas\": {<def>\"Pet\": {}}},\n \"x\": {\"\$ref\": \"#/components/schemas/<ref>Pet\"}}")
+    fun `test json ref to a yaml file`() = check("pet.yaml" to "<def>Pet:\n  type: object\n", "api.json" to "{\"x\": {\"\$ref\": \"pet.yaml#/<ref>Pet\"}}")
+    fun `test yaml ref to a json file`() = check("defs.json" to "{<def>\"Pet\": {}}", "api.yaml" to "x:\n  \$ref: 'defs.json#/<ref>Pet'\n")
+    fun `test swagger 1 models`() = check("pet.json" to "{\"swaggerVersion\": \"1.2\", \"models\": {<def>\"Tag\": {\"id\": \"Tag\"},\n \"Pet\": {\"properties\": {\"tags\": {\"type\": \"array\", \"items\": {\"\$ref\": \"<ref>Tag\"}}}}}}")
+    fun `test swagger 1 type`() = check("pet.json" to "{\"swaggerVersion\": \"1.2\", \"models\": {<def>\"Category\": {},\n \"Pet\": {\"properties\": {\"category\": {\"type\": \"<ref>Category\"}}}}}")
+    fun `test rename openapi schema`() {
+        val other = myFixture.addFileToProject("other.json", "{\"\$ref\": \"api.yaml#/components/schemas/Pet\"}")
+        myFixture.configureByText("api.yaml", "components:\n  schemas:\n    P<caret>et: {}\n    List:\n      items:\n        \$ref: '#/components/schemas/Pet'\n")
+        myFixture.renameElementAtCaret("Animal")
+        myFixture.checkResult("components:\n  schemas:\n    Animal: {}\n    List:\n      items:\n        \$ref: '#/components/schemas/Animal'\n")
+        assertEquals("{\"\$ref\": \"api.yaml#/components/schemas/Animal\"}", other.text)
+    }
+    fun `test find usages of an openapi schema`() {
+        myFixture.addFileToProject("a.yaml", "x:\n  \$ref: 'api.yaml#/components/schemas/Pet'\n")
+        myFixture.addFileToProject("b.json", "{\"\$ref\": \"api.yaml#/components/schemas/Pet\"}")
+        val api = myFixture.addFileToProject("api.yaml", "components:\n  schemas:\n    Pet: {}\n    L:\n      \$ref: '#/components/schemas/Pet'\n")
+        val pet = PsiTreeUtil.findChildrenOfType(api, FmtWord::class.java).first { it.name == "Pet" }
+        assertEquals(3, ReferencesSearch.search(pet, GlobalSearchScope.projectScope(project)).findAll().size)
+    }
+
     fun `test terraform variable across files`() = check("vars.tf" to "variable \"<def>region\" {}", "main.tf" to "provider \"aws\" { region = var.<ref>region }")
     fun `test terraform local`() = check("main.tf" to "locals {\n  <def>name = \"x\"\n  tags = { a = 1 }\n}\noutput \"o\" { value = local.<ref>name }")
     fun `test terraform resource`() = check("main.tf" to "resource \"aws_s3_bucket\" \"<def>logs\" {}\noutput \"o\" { value = aws_s3_bucket.<ref>logs.arn }")

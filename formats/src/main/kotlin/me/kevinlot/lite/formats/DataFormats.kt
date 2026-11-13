@@ -1,6 +1,7 @@
 package me.kevinlot.lite.formats
 
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiFile
 import com.intellij.psi.TokenType
 import com.intellij.psi.tree.IElementType
 import java.util.regex.Pattern
@@ -46,17 +47,22 @@ object Yaml : Format("Yaml", "YAML", "yaml") {
         Rule("""<<(?=\s*:)""", Cat.OPERATOR),
         Rule("""(?:"(?:\\.|[^"\\\n])*"|'(?:''|[^'\n])*')(?=\s*:(?:\s|$))""", Cat.KEY),
         Rule("""[^\s#:'"{}\[\],&*!|>%@`][^:#\n{}\[\],]*?(?=\s*:(?:\s|$))""", Cat.KEY),
+        Rule("""(?<=\${'$'}ref['"]?:[ \t]{1,8})(?:[^\s#'"{\[]|\{[^}\s]*})(?:[^\s,{}\]]|\{[^}\s]*})*""", Cat.STRING),
         Rule(R.DQ, Cat.STRING),
         Rule("""'(?:''|[^'\n])*'?""", Cat.STRING),
         Rule("""[|>][-+]?\d*(?=[ \t]*(?:#[^\n]*)?$)""", Cat.OPERATOR, flags = Pattern.MULTILINE),
         Rule("""\b(?:true|false|True|False|TRUE|FALSE|null|Null|NULL)\b|~(?=\s|$)""", Cat.CONSTANT),
         Rule(R.NUMBER, Cat.NUMBER),
     )
+    /** Anchors; and, for `$ref` (OpenAPI, AsyncAPI, JSON Schema), every key as a JSON pointer target. */
     override val linker = object : Linker() {
         override fun links(text: CharSequence, fileName: String) = Links(
-            decls = Regex("""&([\w.-]+)""").ranges(text).map { (r, n) -> Decl(r, "anchor:$n") }.toList(),
-            refs = Regex("""(?<![\w*])\*([\w.-]+)""").ranges(text).map { (r, n) -> Ref(r, listOf("anchor:$n")) }.toList(),
+            decls = Regex("""&([\w.-]+)""").ranges(text).map { (r, n) -> Decl(r, "anchor:$n") }.toList() +
+                Pointers.yamlKeys(text).map { (r, p) -> Decl(r, "key:$p") },
+            refs = Regex("""(?<![\w*])\*([\w.-]+)""").ranges(text).map { (r, n) -> Ref(r, listOf("anchor:$n")) }.toList() +
+                Pointers.yamlRefs(text),
         )
+        override fun resolve(file: PsiFile, ref: Ref) = Pointers.resolveYaml(file, ref, this)
     }
 }
 

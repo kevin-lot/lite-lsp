@@ -1,0 +1,17 @@
+{
+  "swagger": "2.0",
+  "info": { "title": "Shapes API (Swagger 2.0)", "version": "0.9" },
+  "paths": {
+    "/shapes": {
+      "get": {
+        "responses": {
+          "200": { "description": "All shapes", "schema": { "type": "array", "items": { "$ref": "#/definitions/Shape" } } }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Shape": { "type": "object", "properties": { "center": { "$ref": "#/definitions/Point" } } },
+    "Point": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
+  }
+}

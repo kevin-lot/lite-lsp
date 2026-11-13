@@ -1,0 +1,9 @@
+<!-- `$ref` in JSON files (OpenAPI, AsyncAPI, JSON Schema) and JSON targets of YAML `$ref`: needs the JSON plugin. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <psi.referenceContributor language="JSON" implementation="me.kevinlot.lite.formats.JsonRefContributor"/>
+    </extensions>
+    <extensions defaultExtensionNs="me.kevinlot.lite">
+        <pointerTargets implementation="me.kevinlot.lite.formats.JsonPointerTargets"/>
+    </extensions>
+</idea-plugin>

@@ -1,0 +1,4 @@
+type: object
+properties:
+  kind: { type: string }
+  side: { type: number }
