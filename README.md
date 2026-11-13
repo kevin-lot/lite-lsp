@@ -140,6 +140,7 @@ kotlin/   Kotlin: PSI, Gradle classpath, resolve (+ Java bridge), types
           kotlin/src/upstream/java: parser imported from the Kotlin compiler (generated, do not edit)
 src/      the plugin descriptor only: includes META-INF/lite-<language>.xml of each module
 buildSrc/ `lite.module` convention (local IDE, JBR 25, platform test framework)
+playground/ manual test project: one small project per language and format (see its README)
 tools/    import scripts for the upstream grammars, plugin diet script
 ```
 

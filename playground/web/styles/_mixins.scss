@@ -1,0 +1,4 @@
+@mixin card($radius: 4px) {
+  border-radius: $radius;
+  padding: var(--gap);
+}

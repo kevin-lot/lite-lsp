@@ -1,0 +1,14 @@
+{
+  // NodeNext: relative imports end with `.js` (they point at the `.ts` sources).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "jsx": "preserve",
+    "allowJs": true,
+    "outDir": "dist",
+    "rootDir": ".",
+  },
+  "include": ["src", "tests"],
+}

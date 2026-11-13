@@ -1,0 +1,7 @@
+:root {
+  --brand: #3178C6;
+  --gap: 8px;
+}
+
+body { font-family: sans-serif; padding: var(--gap); }
+@import "components.css";

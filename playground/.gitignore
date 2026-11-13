@@ -1,0 +1,10 @@
+# Build outputs
+/backend/rust/target/
+/backend/kotlin/build/
+/web/node_modules/
+/web/dist/
+*.log
+
+# Local settings
+.env
+!.env.example

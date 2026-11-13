@@ -1,0 +1,9 @@
+@use "mixins";
+
+$accent: var(--brand);
+
+.card {
+  @include card(6px);
+  color: $accent;
+  &:hover { opacity: 0.8; }
+}

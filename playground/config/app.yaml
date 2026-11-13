@@ -1,0 +1,11 @@
+defaults: &defaults
+  retries: 3
+  timeout: 30s
+
+services:
+  api:
+    <<: *defaults
+    image: playground/api:latest
+  worker:
+    <<: *defaults
+    timeout: 120s
