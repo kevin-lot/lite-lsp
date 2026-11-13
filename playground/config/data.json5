@@ -1,0 +1,5 @@
+{
+  // JSON5: comments, unquoted keys, trailing commas
+  name: 'playground',
+  limits: { max: Infinity, min: 0x10, },
+}

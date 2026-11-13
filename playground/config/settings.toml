@@ -1,0 +1,9 @@
+# Application settings
+[server]
+host = "0.0.0.0"
+port = 8080
+
+[[workers]]
+name = "archiver"
+schedule = "0 3 * * *"
+started = 2026-01-01T03:00:00Z

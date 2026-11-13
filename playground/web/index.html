@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Playground</title>
+  <link rel="stylesheet" href="styles/theme.css">
+  <style>
+    :root { --brand: #3178C6; }
+    h1 { color: var(--brand); }
+  </style>
+</head>
+<body style="margin: 0">
+  <h1>Shapes</h1>
+  <ul id="list"></ul>
+  <button onclick="refresh(document.getElementById('list'))">Refresh</button>
+  <script type="module">
+    const names = ["circle", "rectangle"];
+    function refresh(list) {
+      list.innerHTML = names.map((n) => `<li>${n.toUpperCase()}</li>`).join("");
+    }
+    refresh(document.getElementById("list"));
+  </script>
+</body>
+</html>

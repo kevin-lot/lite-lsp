@@ -2,3 +2,6 @@ build/
 .gradle/
 .kotlin/
 .intellijPlatform/
+
+# playground/build holds sources (build/common.mk), not build outputs
+!/playground/build/

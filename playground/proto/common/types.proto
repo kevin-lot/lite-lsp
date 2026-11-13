@@ -1,0 +1,9 @@
+syntax = "proto3";
+package playground.common;
+
+message Id { string value = 1; }
+
+enum Status {
+  STATUS_UNKNOWN = 0;
+  STATUS_ACTIVE = 1;
+}

@@ -1,0 +1,8 @@
+[project]
+name = "shapes"
+version = "0.1.0"
+description = "Template project to try the Lite plugin (navigation, rename, imports)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

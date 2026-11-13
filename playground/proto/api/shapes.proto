@@ -1,0 +1,21 @@
+syntax = "proto3";
+package playground.api;
+
+import "common/types.proto";
+
+message Point {
+  double x = 1;
+  double y = 2;
+}
+
+message Shape {
+  playground.common.Id id = 1;
+  playground.common.Status status = 2;
+  repeated Point points = 3;
+  map<string, Point> named = 4;
+}
+
+service ShapeService {
+  rpc Get(playground.common.Id) returns (Shape);
+  rpc List(playground.common.Id) returns (stream Shape);
+}
