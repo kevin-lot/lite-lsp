@@ -207,12 +207,24 @@ class MdCodeInjector : MultiHostInjector {
     override fun getLanguagesToInject(registrar: MultiHostRegistrar, context: PsiElement) {
         val block = context as? MdCodeBlock ?: return
         val range = block.codeRange ?: return
-        val language = LANGUAGES[block.info.lowercase()]?.let { Language.findLanguageByID(it) } ?: return
+        val language = languageOf(block.info) ?: return
         registrar.startInjecting(language).addPlace(null, null, block, range).doneInjecting()
     }
 
-    private companion object {
-        val LANGUAGES = mapOf(
+    companion object {
+        /** The language of a fence's info string: known names, else a file extension or name (`toml`, `Dockerfile`). */
+        fun languageOf(info: String): Language? {
+            val id = info.trim().substringBefore(' ').substringBefore('{').lowercase()
+            if (id.isEmpty()) return null
+            LANGUAGES[id]?.let { Language.findLanguageByID(it) }?.let { return it }
+            val types = com.intellij.openapi.fileTypes.FileTypeManager.getInstance()
+            val type = types.getFileTypeByExtension(id).takeIf { it !is com.intellij.openapi.fileTypes.UnknownFileType }
+                ?: types.getFileTypeByFileName(id).takeIf { it !is com.intellij.openapi.fileTypes.UnknownFileType }
+                ?: types.getFileTypeByFileName(id.replaceFirstChar { it.uppercase() })
+            return (type as? com.intellij.openapi.fileTypes.LanguageFileType)?.language
+        }
+
+        private val LANGUAGES = mapOf(
             "rust" to "LiteRust", "rs" to "LiteRust",
             "kotlin" to "LiteKotlin", "kt" to "LiteKotlin", "kts" to "LiteKotlin",
             "python" to "LitePython", "py" to "LitePython", "python3" to "LitePython",
@@ -222,6 +234,7 @@ class MdCodeInjector : MultiHostInjector {
             "bash" to "LiteShell", "sh" to "LiteShell", "shell" to "LiteShell", "zsh" to "LiteShell",
             "json" to "JSON", "jsonc" to "JSON", "xml" to "XML", "html" to "HTML",
             "markdown" to "LiteMarkdown", "md" to "LiteMarkdown",
+            "lua" to "LiteLua", "luajit" to "LiteLua", "proto" to "LiteProto", "protobuf" to "LiteProto",
         )
     }
 }

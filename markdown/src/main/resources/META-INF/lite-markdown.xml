@@ -13,5 +13,6 @@
         <lang.namesValidator language="LiteMarkdown" implementationClass="me.kevinlot.lite.markdown.MdNamesValidator"/>
         <multiHostInjector implementation="me.kevinlot.lite.markdown.MdCodeInjector"/>
         <referencesSearch implementation="me.kevinlot.lite.markdown.MdAnchorSearcher"/>
+        <fileEditorProvider implementation="me.kevinlot.lite.markdown.MdSplitEditorProvider"/>
     </extensions>
 </idea-plugin>
