@@ -27,7 +27,7 @@ formatting, run/debug and build tool windows: none, by design.
 | | [QML](#qml) | with types | yes | QML (Marketplace) |
 | | [Lua](#lua) | with tables | yes | EmmyLua, Luanalysis (third-party) |
 | | [Shell: sh, bash, zsh](#shell) | yes | yes | Shell Script |
-| **Markup** | [Markdown](#markdown) | links, anchors | yes | Markdown |
+| **Markup** | [Markdown](#markdown), with a preview | links, anchors | yes | Markdown |
 | | [HTML `<script>` / `<style>`](#html) | as JavaScript / CSS | yes | JavaScript and CSS inside HTML |
 | **Interfaces** | [Protocol Buffers](#protocol-buffers) | with packages | yes | Protocol Buffers |
 | | [OpenAPI v1, v2, v3 (YAML, JSON)](#openapi-asyncapi-json-schema) | `$ref` | yes | OpenAPI Specifications |
@@ -135,13 +135,20 @@ sh, bash and zsh.
 
 ### Markdown
 
-- **Highlighting**: code blocks are colored by the Lite language of their fence (` ```rust `, ` ```bash `, ` ```lua `…).
+- **Highlighting**: code blocks are colored by the Lite language of their fence (` ```rust `, ` ```bash `, ` ```lua `…;
+  any file extension or name works too: ` ```toml `, ` ```Dockerfile `).
 - **Click**: links to files and folders (relative, `~/`, `/`), images, `#anchors` (same or other document, `-1`
   duplicates, URL-encoded), `[ref]` / `[text][ref]` → `[ref]: …`.
 - **Rename**: headers (their anchors follow), linked files (links follow), link labels. Find Usages of a header finds the
   links to its anchor.
-- **Limits**: no rendered preview (by design: the source is what agents write); setext headers (`===` underlines) and
-  indented code blocks are plain text.
+- **Preview**: Markdown files open as editor + preview (the editor toolbar switches to editor only or preview only),
+  updated as you type. GitHub-flavoured Markdown (tables, task lists, strikethrough, autolinks) through JetBrains'
+  intellij-markdown, which ships with the IDE; YAML front matter shown as a block; code blocks colored like the editor;
+  light and dark themes follow the color scheme. Links: `#anchors` scroll the preview, project files open in the
+  editor, web links in the browser. Shown by Swing, without an embedded browser (JCEF can stay disabled).
+- **Limits**: in the editor, setext headers (`===` underlines) and indented code blocks are plain text. In the
+  preview: remote images are not downloaded and SVG images are not drawn (both become links), CSS is basic (Swing's
+  HTML 3.2), no Mermaid or math, no scroll synchronization with the editor.
 
 ### HTML
 
@@ -214,7 +221,7 @@ One short declaration each (`formats` module). Click, rename and Find Usages onl
 
 ## Install
 
-1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.13.0.zip`.
+1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.14.0.zip`.
 2. Disable the plugins in the *Replaces* column of [the table above](#supported-languages-and-formats): they register
    the same file extensions. [`tools/ide_diet.py`](tools/ide_diet.py) does it, together with every other non-essential
    plugin.
@@ -244,7 +251,8 @@ qml/        QML (+ `.qmltypes`): object/binding parser extending the JavaScript 
             resolve (types, bindings, attached properties, JavaScript names); depends on core and typescript
 lua/        Lua: lexer, recursive-descent parser, scopes, `require` and table-field resolution
 shell/      Shell (sh, bash, zsh): context-tracking lexer (quotes, expansions, heredocs), command parser, resolve
-markdown/   Markdown: line lexer, links/anchors/definitions, code blocks injected with the Lite language of their fence
+markdown/   Markdown: line lexer, links/anchors/definitions, code blocks injected with the Lite language of their fence,
+            preview (intellij-markdown → HTML → Swing, beside the editor)
 protobuf/   Protocol Buffers: PSI over the imported grammar, protoc-style package/scope resolution, imports
             protobuf/src/upstream/java + src/main/grammars: lexer/grammar imported from protoeditor (do not edit)
 formats/    configuration and data formats: a rule-based lexer and a generic declaration/reference linker, one short

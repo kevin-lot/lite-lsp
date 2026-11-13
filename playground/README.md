@@ -16,7 +16,7 @@ real repositories. Everything below is a **Ctrl+Click** target.
 | [ui/qml](ui/qml/Main.qml) | QML | `Card { … }` → Card.qml, `onPicked` → `signal picked`, `first.count`, `Theme.spacing` (singleton, qmldir), `Layout.fillWidth` (Qt) |
 | [scripts](scripts/README.md) | Shell | see its README: functions across `source`d files, `local`, `getopts` |
 | [lua](lua/init.lua) | Lua | `require("app.util")` → lua/app/util.lua, `util.trim`, `rex:bark()` (setmetatable / `__index`), `self.name`, `VERSION` (global) |
-| [docs](docs/markdown-tour.md) | Markdown | the tour: links, anchors, references, code blocks in their language |
+| [docs](docs/markdown-tour.md) | Markdown | the tour: links, anchors, references, code blocks in their language; the preview beside it |
 
 ## Configuration and data formats
 
