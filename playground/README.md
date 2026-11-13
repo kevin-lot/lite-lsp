@@ -15,13 +15,16 @@ real repositories. Everything below is a **Ctrl+Click** target.
 | [web/index.html](web/index.html) | HTML `<script>` / `<style>` | `refresh(…)` and `var(--brand)` inside the HTML (official JavaScript/CSS plugins disabled) |
 | [ui/qml](ui/qml/Main.qml) | QML | `Card { … }` → Card.qml, `onPicked` → `signal picked`, `first.count`, `Theme.spacing` (singleton, qmldir), `Layout.fillWidth` (Qt) |
 | [scripts](scripts/README.md) | Shell | see its README: functions across `source`d files, `local`, `getopts` |
+| [lua](lua/init.lua) | Lua | `require("app.util")` → lua/app/util.lua, `util.trim`, `rex:bark()` (setmetatable / `__index`), `self.name`, `VERSION` (global) |
 | [docs](docs/markdown-tour.md) | Markdown | the tour: links, anchors, references, code blocks in their language |
 
 ## Configuration and data formats
 
 | File | Format | Try |
 |---|---|---|
-| [Makefile](Makefile), [build/common.mk](build/common.mk) | Makefile | `$(IMAGE)` → common.mk, `check` prerequisites → their rules |
+| [Makefile](Makefile), [build/common.mk](build/common.mk) | Makefile | `$(IMAGE)` → common.mk, `check` prerequisites → their rules, `.PHONY` names, source files in prerequisites |
+| [justfile](justfile), [build/common.just](build/common.just) | just | `check-web` dependencies → their recipes, `(check-rust "--quiet")`, `{{flags}}` → parameter, `{{tag}}` → variable, `alias c`, `import` |
+| [api](api/openapi.yaml) | OpenAPI 3.1, Swagger 2.0 and 1.2 | `$ref: '#/components/schemas/Circle'`, `schemas/common.yaml#/Error`, `schemas/point.json#/Point`, `./paths/shape.yaml`, discriminator `mapping`; [swagger.json](api/legacy/swagger.json) `#/definitions/…`; [shapes-1.2.json](api/legacy/shapes-1.2.json) `"type": "Tag"` → its model |
 | [docker/Dockerfile](docker/Dockerfile) | Dockerfile | `${RUST_VERSION}` → `ARG`, `--from=build` → `FROM … AS build`, `$APP_HOME` → `ENV` |
 | [infra/terraform](infra/terraform/main.tf) | Terraform | `var.region` → variables.tf, `local.prefix`, `module.network` (outputs.tf), `aws_s3_bucket.archives`, `./modules/network`, prod.tfvars keys |
 | [infra/terragrunt](infra/terragrunt/prod/app/terragrunt.hcl) | Terragrunt | `dependency.vpc` → its block, `config_path` / `source` → the folders |
@@ -36,6 +39,6 @@ real repositories. Everything below is a **Ctrl+Click** target.
 ## Checks
 
 ```bash
-make check        # bash -n on the scripts, tsc on web, cargo check on backend/rust
+make check        # bash -n on the scripts, tsc on web, cargo check on backend/rust (or: just check)
 make test         # + the shell smoke test
 ```

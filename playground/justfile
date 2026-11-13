@@ -1,0 +1,25 @@
+# Playground tasks for `just`. Ctrl+Click: recipes, {{variables}}, parameters, import/mod.
+import 'build/common.just'
+
+image := "lite-playground"
+tag := "dev"
+
+alias c := check
+
+# bash -n, tsc and cargo check
+check: check-shell check-web (check-rust "--quiet")
+
+check-shell:
+    for f in scripts/*.sh scripts/lib/*.sh; do bash -n "$f"; done
+
+check-web:
+    npm --prefix web run check
+
+check-rust flags="":
+    cargo check {{flags}} --manifest-path backend/rust/Cargo.toml
+
+docker name=image:
+    docker build -f docker/Dockerfile -t {{name}}:{{tag}} .
+
+lua:
+    cd lua && LUA_PATH="lua/?.lua;lua/?/init.lua;;" lua init.lua

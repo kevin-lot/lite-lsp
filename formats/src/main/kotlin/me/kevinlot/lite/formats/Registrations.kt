@@ -116,6 +116,14 @@ class MakeCommenter : FmtCommenter(Make)
 class MakeBraceMatcher : FmtBraceMatcher(Make)
 class MakeFindUsagesProvider : FmtFindUsagesProvider(Make)
 
+object JustLanguage : FmtLanguage("Just", "Just")
+object JustFileType : FmtFileType(Just)
+class JustParserDefinition : FmtParserDefinition(Just)
+class JustHighlighterFactory : FmtHighlighterFactory(Just)
+class JustCommenter : FmtCommenter(Just)
+class JustBraceMatcher : FmtBraceMatcher(Just)
+class JustFindUsagesProvider : FmtFindUsagesProvider(Just)
+
 object HclLanguage : FmtLanguage("Hcl", "HCL")
 object HclFileType : FmtFileType(Hcl)
 class HclParserDefinition : FmtParserDefinition(Hcl)
@@ -124,5 +132,5 @@ class HclCommenter : FmtCommenter(Hcl)
 class HclBraceMatcher : FmtBraceMatcher(Hcl)
 class HclFindUsagesProvider : FmtFindUsagesProvider(Hcl)
 
-val ALL_FILE_TYPES: List<FmtFileType> by lazy { listOf(TomlFileType, YamlFileType, KdlFileType, IniFileType, EnvFileType, Json5FileType, CsvFileType, SqlFileType, HoconFileType, DockerfileFileType, CssFileType, ScssFileType, SassFileType, IgnoreFileType, MakeFileType, HclFileType) }
-val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy { listOf(TomlLanguage, YamlLanguage, KdlLanguage, IniLanguage, EnvLanguage, Json5Language, CsvLanguage, SqlLanguage, HoconLanguage, DockerfileLanguage, CssLanguage, ScssLanguage, SassLanguage, IgnoreLanguage, MakeLanguage, HclLanguage).associateBy { it.id.removePrefix("Lite") } }
+val ALL_FILE_TYPES: List<FmtFileType> by lazy { listOf(TomlFileType, YamlFileType, KdlFileType, IniFileType, EnvFileType, Json5FileType, CsvFileType, SqlFileType, HoconFileType, DockerfileFileType, CssFileType, ScssFileType, SassFileType, IgnoreFileType, MakeFileType, JustFileType, HclFileType) }
+val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy { listOf(TomlLanguage, YamlLanguage, KdlLanguage, IniLanguage, EnvLanguage, Json5Language, CsvLanguage, SqlLanguage, HoconLanguage, DockerfileLanguage, CssLanguage, ScssLanguage, SassLanguage, IgnoreLanguage, MakeLanguage, JustLanguage, HclLanguage).associateBy { it.id.removePrefix("Lite") } }

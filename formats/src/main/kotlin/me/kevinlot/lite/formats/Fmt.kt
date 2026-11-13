@@ -86,6 +86,8 @@ abstract class Linker {
         val manager = PsiManager.getInstance(file.project)
         return if (vf.isDirectory) manager.findDirectory(vf) else manager.findFile(vf)
     }
+    /** Own resolution of [ref] (e.g. a JSON pointer), or null for the generic one: declarations by key in [scope]. */
+    open fun resolve(file: PsiFile, ref: Ref): List<PsiElement>? = null
 }
 
 abstract class Format(val id: String, val displayName: String, val extension: String) {
@@ -239,9 +241,11 @@ class FmtWord(node: ASTNode) : ASTWrapperPsiElement(node), PsiNameIdentifierOwne
     }
 
     /** Replaces [range] (file offsets, inside this token) by [text]. */
-    fun replaceIn(range: TextRange, text: String) {
+    fun replaceIn(range: TextRange, text: String) = replaceLocal(range.shiftLeft(textRange.startOffset), text)
+
+    /** Replaces [local] (offsets in this token) by [text]. */
+    fun replaceLocal(local: TextRange, text: String) {
         val leaf = node.firstChildNode as? LeafElement ?: return
-        val local = range.shiftLeft(textRange.startOffset)
         leaf.replaceWithText(local.replace(leaf.text, text))
     }
 }
@@ -249,7 +253,11 @@ class FmtWord(node: ASTNode) : ASTWrapperPsiElement(node), PsiNameIdentifierOwne
 class FmtReference(element: FmtWord, private val ref: Ref) :
     PsiPolyVariantReferenceBase<FmtWord>(element, ref.range.shiftLeft(element.textRange.startOffset), true) {
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> = PsiElementResolveResult.createResults(Fmt.resolve(element, ref))
-    override fun handleElementRename(newElementName: String): PsiElement { element.replaceIn(ref.nameRange, newElementName); return element }
+    /** Offsets relative to the element: earlier renames in the same file may have moved it. */
+    override fun handleElementRename(newElementName: String): PsiElement {
+        element.replaceLocal(ref.nameRange.shiftLeft(ref.range.startOffset).shiftRight(rangeInElement.startOffset), newElementName)
+        return element
+    }
 }
 
 class FmtPathReference(element: FmtWord, private val link: PathLink) :
@@ -259,9 +267,9 @@ class FmtPathReference(element: FmtWord, private val link: PathLink) :
         return PsiElementResolveResult.createResults(listOfNotNull(file.format.linker?.resolvePath(file, link.path)))
     }
     override fun handleElementRename(newElementName: String): PsiElement {
-        val old = link.range.substring(element.containingFile.text)
+        val old = rangeInElement.substring(element.text)
         val renamed = old.substringBeforeLast('/', "").let { if (it.isEmpty()) newElementName else "$it/$newElementName" }
-        element.replaceIn(link.range, renamed)
+        element.replaceLocal(rangeInElement, renamed)
         return element
     }
 }
@@ -282,6 +290,7 @@ object Fmt {
     /** Declarations with the first key that has any, in the reference's file and its scope. */
     fun resolve(place: FmtWord, ref: Ref): List<PsiElement> {
         val file = place.containingFile as? FmtFile ?: return emptyList()
+        file.format.linker?.resolve(file, ref)?.let { return it }
         val scope = file.format.linker?.scope(file).orEmpty().distinct()
         for (key in ref.keys) {
             val found = scope.flatMap { f ->

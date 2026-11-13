@@ -1,0 +1,15 @@
+{
+  "swaggerVersion": "1.2",
+  "resourcePath": "/shapes",
+  "apis": [
+    { "path": "/shapes/{id}", "operations": [{ "method": "GET", "nickname": "getShape", "type": "Shape" }] }
+  ],
+  "models": {
+    "Shape": {
+      "id": "Shape",
+      "properties": { "center": { "$ref": "Point" }, "tags": { "type": "array", "items": { "type": "Tag" } } }
+    },
+    "Point": { "id": "Point", "properties": { "x": { "type": "number" } } },
+    "Tag": { "id": "Tag", "properties": { "name": { "type": "string" } } }
+  }
+}

@@ -1,0 +1,19 @@
+get:
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    '200':
+      description: One shape
+      content:
+        application/json:
+          schema:
+            $ref: '../openapi.yaml#/components/schemas/Shape'
+    '404':
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/common.yaml#/Error'

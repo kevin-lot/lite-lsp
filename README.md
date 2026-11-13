@@ -14,15 +14,15 @@ open, and there is less to maintain.
 
 ## Features
 
-| Feature | Rust | Kotlin | Python | TypeScript / JavaScript | QML | Shell (sh, bash, zsh) | Markdown |
-|---|---|---|---|---|---|---|---|
-| Syntax highlighting (lexer + structural annotator) | yes | yes | yes | yes (JSX/TSX included) | yes (JavaScript parts too) | yes (heredocs, `$( )`, `${ }`, `$(( ))`) | yes (code blocks colored by the Lite language of their fence: ` ```rust `, ` ```bash `…) |
-| Ctrl/Cmd+Click: locals, parameters, items, modules/packages, imports (groups, aliases, globs/star) | yes | yes | yes (LEGB, `import`/`from`/relative/`*`) | yes (ES imports/re-exports, `export *`, `require`, `module.exports`, module paths) | yes (`id`s, properties, signals, `function`s, enums, inline components, `Foo.qml` types, `import "dir"`, Qt modules, `qs.*` of Quickshell, `import "x.js" as X`) | yes (functions, `$VAR`/`${VAR}`/`$(( VAR ))` → assignment, `local`, `read`, `for`, later assignments → first; `source`/`.` files and what they define) | yes (links to files and folders, `#anchors` (same or other document, `-1` duplicates, encoded), `[ref]`/`[text][ref]` → `[ref]: …`, images, `~/` and `/` paths) |
-| Ctrl/Cmd+Click on members with type inference (generics, supertypes, extensions/traits, `Deref`/scope functions) | yes | yes | yes (annotations, `self.x`, bases, `Optional`/`list[...]`) | yes (annotations, generics, inferred returns, callbacks `xs.map(x => x.id)`, `await`, unions, mapped types, `this.x =` in JS) | yes (`root.x`, `anchors.fill`, `Layout.fillWidth`, `onXChanged` → `x`, `Component.onCompleted`, `Math.max`, `Text.AlignLeft`) | n/a | n/a |
-| Navigation into dependencies | std (rust-src) + Cargo crates (sources) | JDK + jars of the Gradle cache (decompiled) + Java sources | project (`.`/`src/`) + venv `site-packages` + stdlib (sources) | declared packages of `node_modules` (+ `@types`) + TypeScript `lib.*.d.ts` |Qt type descriptions (`.qmltypes`, `qmldir`) and QML files of the Qt import paths | sourced scripts (relative, `$(dirname "$0")/…`, `~/…`) | n/a |
-| Rename (in place for locals) | yes | yes | yes | yes | yes (handlers follow: `onCountChanged` → `onTotalChanged`) | yes | yes (headers: their anchors follow; renamed files: links follow; link labels) |
-| Find Usages, honouring the scope picked in the dialog (locals/private: searched in their container only) | yes | yes (+ Kotlin `p.name` usages of Java `getName()`) | yes | yes | yes (handlers included) | yes | yes (headers: by anchor) |
-| Completion, import management, inspections, formatting, run/debug, build tool windows | no (by design) | no (by design) | no (by design) | no (by design) |no (by design) | no (by design) | no (by design) |
+| Feature | Rust | Kotlin | Python | TypeScript / JavaScript | QML | Shell (sh, bash, zsh) | Markdown | Lua |
+|---|---|---|---|---|---|---|---|---|
+| Syntax highlighting (lexer + structural annotator) | yes | yes | yes | yes (JSX/TSX included) | yes (JavaScript parts too) | yes (heredocs, `$( )`, `${ }`, `$(( ))`) | yes (code blocks colored by the Lite language of their fence: ` ```rust `, ` ```bash `…) | yes (long strings/comments, labels, `<const>`) |
+| Ctrl/Cmd+Click: locals, parameters, items, modules/packages, imports (groups, aliases, globs/star) | yes | yes | yes (LEGB, `import`/`from`/relative/`*`) | yes (ES imports/re-exports, `export *`, `require`, `module.exports`, module paths) | yes (`id`s, properties, signals, `function`s, enums, inline components, `Foo.qml` types, `import "dir"`, Qt modules, `qs.*` of Quickshell, `import "x.js" as X`) | yes (functions, `$VAR`/`${VAR}`/`$(( VAR ))` → assignment, `local`, `read`, `for`, later assignments → first; `source`/`.` files and what they define) | yes (links to files and folders, `#anchors` (same or other document, `-1` duplicates, encoded), `[ref]`/`[text][ref]` → `[ref]: …`, images, `~/` and `/` paths) | yes (lexical scopes, `local function` in its body, loop variables, `goto` labels, globals across files, `require("a.b")` → `a/b.lua` / `a/b/init.lua` under the root, `lua/`, `src/`, `dofile`) |
+| Ctrl/Cmd+Click on members with type inference (generics, supertypes, extensions/traits, `Deref`/scope functions) | yes | yes | yes (annotations, `self.x`, bases, `Optional`/`list[...]`) | yes (annotations, generics, inferred returns, callbacks `xs.map(x => x.id)`, `await`, unions, mapped types, `this.x =` in JS) | yes (`root.x`, `anchors.fill`, `Layout.fillWidth`, `onXChanged` → `x`, `Component.onCompleted`, `Math.max`, `Text.AlignLeft`) | n/a | n/a | yes (tables through locals, `require` + `return M`, `M.f = …` / `function M:f()`, `self`, `setmetatable(t, M)` with `__index`, function returns) |
+| Navigation into dependencies | std (rust-src) + Cargo crates (sources) | JDK + jars of the Gradle cache (decompiled) + Java sources | project (`.`/`src/`) + venv `site-packages` + stdlib (sources) | declared packages of `node_modules` (+ `@types`) + TypeScript `lib.*.d.ts` |Qt type descriptions (`.qmltypes`, `qmldir`) and QML files of the Qt import paths | sourced scripts (relative, `$(dirname "$0")/…`, `~/…`) | n/a | project modules (no Lua runtime library) |
+| Rename (in place for locals) | yes | yes | yes | yes | yes (handlers follow: `onCountChanged` → `onTotalChanged`) | yes | yes (headers: their anchors follow; renamed files: links follow; link labels) | yes (renamed module files: `require` strings follow) |
+| Find Usages, honouring the scope picked in the dialog (locals/private: searched in their container only) | yes | yes (+ Kotlin `p.name` usages of Java `getName()`) | yes | yes | yes (handlers included) | yes | yes (headers: by anchor) | yes |
+| Completion, import management, inspections, formatting, run/debug, build tool windows | no (by design) | no (by design) | no (by design) | no (by design) |no (by design) | no (by design) | no (by design) | no (by design) |
 
 ### Configuration and data formats (`formats` module)
 
@@ -31,7 +31,8 @@ Coloring for all of them; Ctrl/Cmd+Click, rename and Find Usages only where name
 | Format | Files | Ctrl/Cmd+Click |
 |---|---|---|
 | TOML | `.toml`, `Cargo.lock`, `Pipfile` | — |
-| YAML | `.yaml`, `.yml` | `*alias` → `&anchor` |
+| YAML | `.yaml`, `.yml` | `*alias` → `&anchor`; `$ref` (below) |
+| OpenAPI v1 (Swagger 1.2), v2 (Swagger 2.0), v3.x — also AsyncAPI, JSON Schema | YAML and JSON files | `$ref: '#/components/schemas/Pet'` → the key, `common.yaml#/Error` / `point.json#/Point` → the key in that file, `./pet.yaml` → the file, discriminator `mapping` values, `operationRef`; `$ref: Pet` (Swagger 2.0 shorthand); Swagger 1.2 `"$ref": "Pet"` / `"type": "Pet"` → `models.Pet`. Rename of a key updates the `$ref`s of every file (YAML and JSON) |
 | KDL | `.kdl` | — |
 | INI and relatives | `.ini`, `.cfg`, `.conf`, `.properties`, `.editorconfig`, `.gitconfig`, systemd units, `.desktop` | — |
 | Dotenv | `.env`, `.env.*` | `${VAR}` / `$VAR` → `VAR=` |
@@ -40,7 +41,8 @@ Coloring for all of them; Ctrl/Cmd+Click, rename and Find Usages only where name
 | Dockerfile | `Dockerfile`, `Containerfile`, `*.dockerfile` | `$VAR` → `ARG`/`ENV`, `COPY --from=build` / `FROM build` → `FROM … AS build` |
 | SQL | `.sql` | — (would need the database schema) |
 | CSS, SCSS, Sass | `.css`, `.scss`, `.sass` (indented syntax) | `var(--x)` → `--x:` (any stylesheet of the project), `$x`, `@include`/`+mixin` → `@mixin`/`=mixin`, `@import`/`@use`/`url()` → file (partials `_x.scss`/`_x.sass`) |
-| Makefile | `Makefile`, `GNUmakefile`, `.mk` | `$(VAR)` → assignment, prerequisites → their rule, `include` → file |
+| Makefile | `Makefile`, `GNUmakefile`, `.mk` | `$(VAR)`, `${VAR}`, `$(VAR:.c=.o)`, `$(call fn,…)`, `$(value VAR)`, `ifdef VAR`, `export VAR` → assignment or `define`; prerequisites and `.PHONY` names → their rule, else the source file; `include` → file. Names are shared with included makefiles and with the makefiles that include this one; `$$VAR` (shell) is left alone |
+| just | `justfile`, `.justfile`, `*.just` | dependencies (`build`, `(build "x")`, after `&&`) and `alias` → recipe; `{{name}}`, `$name`, defaults and dependency arguments → the recipe's parameter, else the variable; `import 'x.just'` → file (its names shared), `mod name` → `name.just` / `name/mod.just` |
 | HCL: Terraform, Terragrunt | `.tf`, `.tfvars`, `.hcl` | `var.`, `local.`, `module.`, `data.t.n`, `t.n` (resources), `dependency.` → their block, across the folder's `.tf` files; `.tfvars` keys → `variable`; local `source`/`config_path` → folder |
 | CSV, TSV | `.csv`, `.tsv` | — (one color per column, delimiter guessed) |
 | Ignore files | `.gitignore`, `.dockerignore`, `.npmignore`, `.helmignore`, `.prettierignore`, `.gitattributes`… | literal patterns (`/build/`, `config.local.json`) → the file or folder |
@@ -62,9 +64,9 @@ official JavaScript/TypeScript plugin ~220 MB).
 
 ## Install
 
-1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.12.0.zip`.
+1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.13.0.zip`.
 2. Disable the official Rust, Kotlin, Python, JavaScript, Shell Script and Markdown plugins, and the plugins of the
-   formats above (TOML, YAML, INI, .env, HOCON, KDL, Dockerfile, Makefile, Terraform, Protocol Buffers, CSS, Sass, SQL, .ignore):
+   formats above (TOML, YAML, INI, .env, HOCON, KDL, Dockerfile, Makefile, Just, OpenAPI Specifications, Terraform, Protocol Buffers, CSS, Sass, SQL, .ignore) and Lua (EmmyLua…):
    they register the same file extensions.
    QML: JetBrains' own QML plugin (Marketplace, closed source, uses the qmlls language server) is not needed;
    if installed, disable it too.
@@ -112,6 +114,8 @@ Build outputs are ignored (`target/`; `bin/`, `build/`, `out/`; `build/`, `dist/
   space) is read as arithmetic, as bash itself first tries.
 - Markdown: no rendered preview (by design: the source is what agents write); setext headers (`===` underlines)
   and indented code blocks are plain text.
+- Lua: the runtime library (`string`, `table`, `vim.*`…) has no source in the project and is left unresolved; fields
+  added by other files, dynamic `__index` functions and untyped parameters are not followed.
 - Python: built-ins written in C (`str`, `float`, `math`…) have no source to navigate to; types come from
   annotations, constructors and `self` only (no inference through untyped calls).
 - Kotlin: no full overload resolution (filtered by argument count), no smart casts, generic inference only for
@@ -132,6 +136,7 @@ formats/  Configuration and data formats: a rule-based lexer and a generic decla
 markdown/ Markdown: line lexer, links/anchors/definitions, code blocks injected with the Lite language of their fence
 protobuf/ Protocol Buffers: PSI over the imported grammar, protoc-style package/scope resolution, imports
           protobuf/src/upstream/java + src/main/grammars: lexer/grammar imported from protoeditor (do not edit)
+lua/      Lua: lexer, recursive-descent parser, scopes, `require` and table-field resolution
 shell/    Shell (sh, bash, zsh): context-tracking lexer (quotes, expansions, heredocs), command parser, resolve
 qml/      QML (+ `.qmltypes`): object/binding parser extending the JavaScript one, Qt import paths, qmldir/qmltypes,
           resolve (types, bindings, attached properties, JavaScript names); depends on core and typescript
@@ -173,6 +178,6 @@ Optional real-world inputs (read-only): `RUST_SRC_LIBRARY=<sysroot>/lib/rustlib/
 parsing), `LITE_KOTLIN_CORPUS=<dir>` (parse + highlight every `.kt`), `LITE_KOTLIN_PROJECT=<dir>` (resolution rate of a
 whole project with its Gradle-cache jars; use `--no-configuration-cache --rerun`), `LITE_PYTHON_CORPUS`/`LITE_PYTHON_PROJECT`
 (+ `LITE_PYTHON_STDLIB`), `LITE_TS_CORPUS=<dir>` (parse every `.ts`/`.js`), `LITE_TS_PROJECT=<dir>` (resolution rate,
-`LITE_SHOW=1` lists the misses) with `LITE_TS_LIB=<typescript/lib>`, `LITE_QML_CORPUS=<dir:dir>`, `LITE_QML_PROJECT=<dir>` `LITE_SH_CORPUS=<dir:dir>`, `LITE_MD_CORPUS=<dir:dir>` , `LITE_FMT_CORPUS=<dir:dir>` and `LITE_PROTO_CORPUS=<dir>`.
+`LITE_SHOW=1` lists the misses) with `LITE_TS_LIB=<typescript/lib>`, `LITE_QML_CORPUS=<dir:dir>`, `LITE_QML_PROJECT=<dir>` `LITE_SH_CORPUS=<dir:dir>`, `LITE_MD_CORPUS=<dir:dir>` , `LITE_FMT_CORPUS=<dir:dir>` and `LITE_PROTO_CORPUS=<dir>` and `LITE_LUA_CORPUS=<dir:dir>`.
 
 `gradle.properties` → `localIdePath` points at the local IDE (nothing downloaded); Gradle runs on its JBR 25.

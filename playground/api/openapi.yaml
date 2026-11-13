@@ -1,0 +1,38 @@
+# OpenAPI 3.1: every $ref is a Ctrl+Click target (same file, other files, JSON pointers).
+openapi: 3.1.0
+info:
+  title: Shapes API
+  version: 1.0.0
+paths:
+  /shapes:
+    get:
+      responses:
+        '200':
+          description: All shapes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Shape'
+  /shapes/{id}:
+    $ref: './paths/shape.yaml'
+components:
+  schemas:
+    Shape:
+      oneOf:
+        - $ref: '#/components/schemas/Circle'
+        - $ref: schemas/square.yaml
+      discriminator:
+        propertyName: kind
+        mapping:
+          circle: '#/components/schemas/Circle'
+    Circle:
+      type: object
+      properties:
+        kind: { type: string }
+        radius: { type: number }
+        center:
+          $ref: 'schemas/point.json#/Point'
+    Error:
+      $ref: schemas/common.yaml#/Error

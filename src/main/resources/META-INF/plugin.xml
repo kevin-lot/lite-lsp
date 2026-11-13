@@ -26,6 +26,7 @@
   <tr><td>QML</td><td>yes</td><td>yes (ids, properties, types, Qt .qmltypes, qs.* of Quickshell)</td><td>yes</td><td>QML</td></tr>
   <tr><td>Shell (sh, bash, zsh)</td><td>yes</td><td>functions, variables, sourced scripts</td><td>yes</td><td>Shell Script</td></tr>
   <tr><td>Markdown</td><td>yes (code blocks in their Lite language)</td><td>links, #anchors, [references]</td><td>headers, linked files</td><td>Markdown</td></tr>
+  <tr><td>Lua</td><td>yes</td><td>scopes, globals, require &rarr; file, table fields (modules, self, setmetatable)</td><td>yes</td><td>EmmyLua, Luanalysis (third-party)</td></tr>
   <tr><td>Protocol Buffers</td><td>yes (protoeditor grammar)</td><td>package-qualified and nested types, options, imports, well-known types</td><td>yes</td><td>Protocol Buffers</td></tr>
 </table>
 
@@ -33,7 +34,8 @@
 <table>
   <tr><th>Format</th><th>Ctrl+Click / Rename / Usages</th><th>Replaces</th></tr>
   <tr><td>TOML</td><td>&ndash;</td><td>Toml</td></tr>
-  <tr><td>YAML</td><td>*alias &rarr; &amp;anchor</td><td>YAML</td></tr>
+  <tr><td>YAML</td><td>*alias &rarr; &amp;anchor, $ref</td><td>YAML</td></tr>
+  <tr><td>OpenAPI v1 (Swagger 1.2), v2, v3 &mdash; YAML and JSON</td><td>$ref &rarr; key / file (JSON pointers, other files, mapping), Swagger 1.2 models; rename follows</td><td>OpenAPI Specifications</td></tr>
   <tr><td>KDL</td><td>&ndash;</td><td>KDL Document Language</td></tr>
   <tr><td>INI, .properties, .editorconfig, .gitconfig, systemd units</td><td>&ndash;</td><td>Ini, Properties</td></tr>
   <tr><td>.env</td><td>${VAR} &rarr; VAR=</td><td>.env files support</td></tr>
@@ -42,7 +44,8 @@
   <tr><td>Dockerfile</td><td>$VAR &rarr; ARG/ENV, --from &rarr; stage</td><td>Docker (language part)</td></tr>
   <tr><td>SQL</td><td>&ndash;</td><td>Database Tools and SQL (language part)</td></tr>
   <tr><td>CSS, SCSS, Sass</td><td>var(--x), $x, mixins, @use/@import/url() &rarr; file</td><td>CSS, Sass</td></tr>
-  <tr><td>Makefile</td><td>$(VAR), prerequisites, include</td><td>Makefile Language</td></tr>
+  <tr><td>Makefile</td><td>$(VAR), $(call f), ifdef, prerequisites (rules, source files), .PHONY, include (both ways)</td><td>Makefile Language</td></tr>
+  <tr><td>just</td><td>recipes, dependencies, alias, {{variables}}, parameters, import, mod</td><td>Just (third-party)</td></tr>
   <tr><td>HCL: Terraform, Terragrunt</td><td>var., local., module., data., resources, dependency., .tfvars, source paths</td><td>Terraform and HCL</td></tr>
   <tr><td>CSV, TSV</td><td>&ndash; (a color per column)</td><td>&ndash;</td></tr>
   <tr><td>.gitignore, .dockerignore, .gitattributes&hellip;</td><td>literal patterns &rarr; file or folder</td><td>.ignore</td></tr>
@@ -51,7 +54,8 @@
 <p>With Lite, TextMate Bundles is not needed for these. Disable the plugins Lite replaces: Lite takes their file types.</p>
 
 <p>Rust grammar derived from intellij-rust (MIT); Kotlin lexer/parser derived from the Kotlin compiler (Apache 2.0);
-Python lexer/parser from intellij-community (Apache 2.0). Everything else written for Lite.</p>
+Python lexer/parser from intellij-community (Apache 2.0); Protocol Buffers lexer/grammar from protoeditor (Apache 2.0)
+and Google's well-known types (BSD-3). Everything else written for Lite.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -65,9 +69,11 @@ Python lexer/parser from intellij-community (Apache 2.0). Everything else writte
     <xi:include href="/META-INF/lite-typescript.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-qml.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-shell.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-lua.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-markdown.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-formats.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-protobuf.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <!-- `<script>`/`<style>` of HTML: only with the XML and HTML plugin (always there in IntelliJ IDEA). -->
     <depends optional="true" config-file="lite-html.xml">com.intellij.xml</depends>
+    <depends optional="true" config-file="lite-json.xml">com.intellij.modules.json</depends>
 </idea-plugin>

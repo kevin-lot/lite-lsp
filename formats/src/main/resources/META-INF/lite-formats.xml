@@ -1,5 +1,9 @@
 <!-- Configuration and data formats (formats module): included by the plugin descriptor. Generated layout: one block per format. -->
 <idea-plugin>
+    <extensionPoints>
+        <!-- JSON pointer targets in files of other languages (JSON: lite-json.xml) -->
+        <extensionPoint qualifiedName="me.kevinlot.lite.pointerTargets" interface="me.kevinlot.lite.formats.PointerTargets" dynamic="true"/>
+    </extensionPoints>
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="TOML (Lite)" implementationClass="me.kevinlot.lite.formats.TomlFileType" fieldName="INSTANCE" language="LiteToml"
                   extensions="toml" fileNames="Cargo.lock;uv.lock;poetry.lock;Pipfile"/>
@@ -86,6 +90,13 @@
         <lang.commenter language="LiteSass" implementationClass="me.kevinlot.lite.formats.SassCommenter"/>
         <lang.braceMatcher language="LiteSass" implementationClass="me.kevinlot.lite.formats.SassBraceMatcher"/>
         <lang.findUsagesProvider language="LiteSass" implementationClass="me.kevinlot.lite.formats.SassFindUsagesProvider"/>
+        <fileType name="Just (Lite)" implementationClass="me.kevinlot.lite.formats.JustFileType" fieldName="INSTANCE" language="LiteJust"
+                  extensions="just" fileNames="justfile;Justfile;.justfile;JUSTFILE"/>
+        <lang.parserDefinition language="LiteJust" implementationClass="me.kevinlot.lite.formats.JustParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteJust" implementationClass="me.kevinlot.lite.formats.JustHighlighterFactory"/>
+        <lang.commenter language="LiteJust" implementationClass="me.kevinlot.lite.formats.JustCommenter"/>
+        <lang.braceMatcher language="LiteJust" implementationClass="me.kevinlot.lite.formats.JustBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteJust" implementationClass="me.kevinlot.lite.formats.JustFindUsagesProvider"/>
         <fileType name="Makefile (Lite)" implementationClass="me.kevinlot.lite.formats.MakeFileType" fieldName="INSTANCE" language="LiteMake"
                   extensions="mk;mak" fileNames="Makefile;makefile;GNUmakefile"/>
         <lang.parserDefinition language="LiteMake" implementationClass="me.kevinlot.lite.formats.MakeParserDefinition"/>
