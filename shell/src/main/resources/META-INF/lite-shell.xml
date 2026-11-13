@@ -1,0 +1,17 @@
+<!-- Shell (sh, bash, zsh) support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Shell (Lite)" implementationClass="me.kevinlot.lite.shell.ShFileType" fieldName="INSTANCE" language="LiteShell"
+                  extensions="sh;bash;zsh;ksh;command"
+                  fileNames=".bashrc;.bash_profile;.bash_aliases;.bash_logout;.profile;.zshrc;.zshenv;.zprofile;.zlogin;.zlogout;.envrc"
+                  hashBangs="sh;bash;zsh;dash;ksh"/>
+        <lang.parserDefinition language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShSyntaxHighlighterFactory"/>
+        <annotator language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShBraceMatcher"/>
+        <lang.commenter language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShCommenter"/>
+        <lang.findUsagesProvider language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShNamesValidator"/>
+    </extensions>
+</idea-plugin>

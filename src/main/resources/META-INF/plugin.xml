@@ -1,0 +1,73 @@
+<idea-plugin xmlns:xi="http://www.w3.org/2001/XInclude">
+    <id>me.kevinlot.lite</id>
+    <name>Lite</name>
+    <vendor email="mail@kevinlot.me">Kevin Lot</vendor>
+    <description><![CDATA[
+<p>Lightweight language support for reading and checking code written by agents. Everything runs inside the IDE
+(no language server), and only what reading needs is there.</p>
+
+<h3>Features</h3>
+<ul>
+  <li><b>Highlighting</b>: lexer colors plus structure (declarations, calls, types, parameters).</li>
+  <li><b>Ctrl/Cmd+Click</b>: go to the definition, with enough type inference to follow <code>a.b().c</code>;
+      into dependencies (std, Cargo crates, Gradle cache, venv, node_modules, Qt) and linked files.</li>
+  <li><b>Rename</b>: declarations and every use (in place for locals).</li>
+  <li><b>Find Usages</b>: honouring the scope picked in the dialog.</li>
+  <li>Left out on purpose: completion, import management, inspections, formatting, run/debug, tool windows.</li>
+</ul>
+
+<h3>Programming languages</h3>
+<table>
+  <tr><th>Language</th><th>Highlighting</th><th>Ctrl+Click</th><th>Rename / Usages</th><th>Replaces</th></tr>
+  <tr><td>Rust</td><td>yes</td><td>yes, with types (std, Cargo crates)</td><td>yes</td><td>Rust (RustRover plugin)</td></tr>
+  <tr><td>Kotlin</td><td>yes</td><td>yes, with types (JDK, Gradle-cache jars)</td><td>yes</td><td>Kotlin</td></tr>
+  <tr><td>Python</td><td>yes</td><td>yes, with annotation types (venv, stdlib)</td><td>yes</td><td>Python / Python Community</td></tr>
+  <tr><td>TypeScript, JavaScript, JSX/TSX</td><td>yes</td><td>yes, with types (node_modules, @types, lib.d.ts, tsconfig paths)</td><td>yes</td><td>JavaScript and TypeScript</td></tr>
+  <tr><td>QML</td><td>yes</td><td>yes (ids, properties, types, Qt .qmltypes, qs.* of Quickshell)</td><td>yes</td><td>QML</td></tr>
+  <tr><td>Shell (sh, bash, zsh)</td><td>yes</td><td>functions, variables, sourced scripts</td><td>yes</td><td>Shell Script</td></tr>
+  <tr><td>Markdown</td><td>yes (code blocks in their Lite language)</td><td>links, #anchors, [references]</td><td>headers, linked files</td><td>Markdown</td></tr>
+  <tr><td>Protocol Buffers</td><td>yes (protoeditor grammar)</td><td>package-qualified and nested types, options, imports, well-known types</td><td>yes</td><td>Protocol Buffers</td></tr>
+</table>
+
+<h3>Configuration and data formats</h3>
+<table>
+  <tr><th>Format</th><th>Ctrl+Click / Rename / Usages</th><th>Replaces</th></tr>
+  <tr><td>TOML</td><td>&ndash;</td><td>Toml</td></tr>
+  <tr><td>YAML</td><td>*alias &rarr; &amp;anchor</td><td>YAML</td></tr>
+  <tr><td>KDL</td><td>&ndash;</td><td>KDL Document Language</td></tr>
+  <tr><td>INI, .properties, .editorconfig, .gitconfig, systemd units</td><td>&ndash;</td><td>Ini, Properties</td></tr>
+  <tr><td>.env</td><td>${VAR} &rarr; VAR=</td><td>.env files support</td></tr>
+  <tr><td>JSON5</td><td>&ndash;</td><td>&ndash;</td></tr>
+  <tr><td>HOCON</td><td>${a.b} &rarr; key, include &rarr; file</td><td>HOCON</td></tr>
+  <tr><td>Dockerfile</td><td>$VAR &rarr; ARG/ENV, --from &rarr; stage</td><td>Docker (language part)</td></tr>
+  <tr><td>SQL</td><td>&ndash;</td><td>Database Tools and SQL (language part)</td></tr>
+  <tr><td>CSS, SCSS, Sass</td><td>var(--x), $x, mixins, @use/@import/url() &rarr; file</td><td>CSS, Sass</td></tr>
+  <tr><td>Makefile</td><td>$(VAR), prerequisites, include</td><td>Makefile Language</td></tr>
+  <tr><td>HCL: Terraform, Terragrunt</td><td>var., local., module., data., resources, dependency., .tfvars, source paths</td><td>Terraform and HCL</td></tr>
+  <tr><td>CSV, TSV</td><td>&ndash; (a color per column)</td><td>&ndash;</td></tr>
+  <tr><td>.gitignore, .dockerignore, .gitattributes&hellip;</td><td>literal patterns &rarr; file or folder</td><td>.ignore</td></tr>
+  <tr><td>HTML &lt;script&gt; / &lt;style&gt;, style= / on…=</td><td>as Lite JavaScript / CSS</td><td>JavaScript and CSS inside HTML (HTML itself stays with XML and HTML)</td></tr>
+</table>
+<p>With Lite, TextMate Bundles is not needed for these. Disable the plugins Lite replaces: Lite takes their file types.</p>
+
+<p>Rust grammar derived from intellij-rust (MIT); Kotlin lexer/parser derived from the Kotlin compiler (Apache 2.0);
+Python lexer/parser from intellij-community (Apache 2.0). Everything else written for Lite.</p>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <!-- Kotlin -> Java navigation (JDK, Java sources). Java is an essential plugin of IntelliJ IDEA. -->
+    <depends>com.intellij.java</depends>
+
+    <!-- One fragment per language module (see rust/, kotlin/). -->
+    <xi:include href="/META-INF/lite-rust.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-kotlin.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-python.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-typescript.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-qml.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-shell.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-markdown.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-formats.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-protobuf.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <!-- `<script>`/`<style>` of HTML: only with the XML and HTML plugin (always there in IntelliJ IDEA). -->
+    <depends optional="true" config-file="lite-html.xml">com.intellij.xml</depends>
+</idea-plugin>

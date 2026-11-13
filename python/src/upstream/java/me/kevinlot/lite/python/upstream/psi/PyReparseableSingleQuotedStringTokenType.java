@@ -1,0 +1,35 @@
+// Derived from intellij-community python-parser (Apache 2.0, see python/THIRD_PARTY_LICENSE-intellij-community.txt).
+package me.kevinlot.lite.python.upstream.psi;
+
+import com.intellij.psi.tree.IElementType;
+import me.kevinlot.lite.python.upstream.PyTokenTypes;
+import me.kevinlot.lite.python.upstream.lexer.PythonLexer;
+import org.jetbrains.annotations.NotNull;
+
+public class PyReparseableSingleQuotedStringTokenType extends PyReparseableTokenTypeWithSimpleCheck {
+
+  public PyReparseableSingleQuotedStringTokenType(@NotNull String debugName) {
+    super(debugName);
+  }
+
+  @Override
+  public boolean isReparseable(@NotNull String newText) {
+    if (!isSingleQuotedString(newText)) { // fail-fast
+      return false;
+    }
+    PythonLexer lexer = new PythonLexer();
+    lexer.start(newText);
+    IElementType firstTokenType = lexer.getTokenType();
+    lexer.advance();
+    IElementType nextTokenType = lexer.getTokenType();
+    return firstTokenType == PyTokenTypes.DOCSTRING && nextTokenType == null;
+  }
+
+  private static boolean isSingleQuotedString(@NotNull String newText) {
+    return newText.length() > 1
+           && ((newText.startsWith("\"") && newText.endsWith("\""))
+               || (newText.startsWith("'") && newText.endsWith("'")))
+           && !(newText.startsWith("'''") || newText.startsWith("\"\"\""))
+           && !(newText.endsWith("'''") || newText.endsWith("\"\"\""));
+  }
+}

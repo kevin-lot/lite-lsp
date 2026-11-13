@@ -1,0 +1,134 @@
+package me.kevinlot.lite.typescript.parser
+
+import com.intellij.psi.tree.IElementType
+import com.intellij.psi.tree.TokenSet
+import me.kevinlot.lite.typescript.TsLanguage
+
+class TsElementType(debugName: String) : IElementType(debugName, TsLanguage)
+
+/** Composite nodes. Only what navigation, typing and editing need gets its own node. */
+object TsElementTypes {
+    private fun t(name: String) = TsElementType(name)
+
+    // declarations
+    val VAR_STATEMENT = t("VAR_STATEMENT")
+    val VARIABLE = t("VARIABLE")
+    val BINDING = t("BINDING")                   // a name inside a destructuring pattern
+    val OBJECT_PATTERN = t("OBJECT_PATTERN")
+    val ARRAY_PATTERN = t("ARRAY_PATTERN")
+    val PATTERN_PROPERTY = t("PATTERN_PROPERTY") // `key: binding` inside an object pattern
+    val PROPERTY_KEY = t("PROPERTY_KEY")         // the `key` of a pattern property (a reference to a member)
+    val FUNCTION_DECLARATION = t("FUNCTION_DECLARATION")
+    val CLASS_DECLARATION = t("CLASS_DECLARATION")
+    val INTERFACE_DECLARATION = t("INTERFACE_DECLARATION")
+    val TYPE_ALIAS = t("TYPE_ALIAS")
+    val ENUM_DECLARATION = t("ENUM_DECLARATION")
+    val ENUM_MEMBER = t("ENUM_MEMBER")
+    val NAMESPACE_DECLARATION = t("NAMESPACE_DECLARATION")
+    val AMBIENT_MODULE = t("AMBIENT_MODULE")     // declare module "x" { }
+    val GLOBAL_DECLARATION = t("GLOBAL_DECLARATION") // declare global { }
+    val MODULE_BLOCK = t("MODULE_BLOCK")
+    val EXTENDS_CLAUSE = t("EXTENDS_CLAUSE")
+    val IMPLEMENTS_CLAUSE = t("IMPLEMENTS_CLAUSE")
+    val CLASS_BODY = t("CLASS_BODY")
+    val DECORATOR = t("DECORATOR")
+
+    // class / type members
+    val PROPERTY = t("PROPERTY")
+    val METHOD = t("METHOD")
+    val CALL_SIGNATURE = t("CALL_SIGNATURE")
+    val CONSTRUCT_SIGNATURE = t("CONSTRUCT_SIGNATURE")
+    val INDEX_SIGNATURE = t("INDEX_SIGNATURE")
+    val STATIC_BLOCK = t("STATIC_BLOCK")
+    val COMPUTED_NAME = t("COMPUTED_NAME")
+    val PARAMETER_LIST = t("PARAMETER_LIST")
+    val PARAMETER = t("PARAMETER")
+    val TYPE_PARAMETER_LIST = t("TYPE_PARAMETER_LIST")
+    val TYPE_PARAMETER = t("TYPE_PARAMETER")
+    val TYPE_ARGUMENT_LIST = t("TYPE_ARGUMENT_LIST")
+    val TYPE_ANNOTATION = t("TYPE_ANNOTATION")
+
+    // modules
+    val IMPORT_DECLARATION = t("IMPORT_DECLARATION")
+    val IMPORT_SPECIFIER = t("IMPORT_SPECIFIER")
+    val IMPORT_DEFAULT = t("IMPORT_DEFAULT")
+    val IMPORT_NAMESPACE = t("IMPORT_NAMESPACE")
+    val IMPORT_EQUALS = t("IMPORT_EQUALS")
+    val EXPORT_DECLARATION = t("EXPORT_DECLARATION")  // export { a, b as c } [from "x"]
+    val EXPORT_SPECIFIER = t("EXPORT_SPECIFIER")
+    val EXPORT_STAR = t("EXPORT_STAR")                // export * [as ns] from "x"
+    val EXPORT_ASSIGNMENT = t("EXPORT_ASSIGNMENT")    // export default expr / export = expr
+    val MODULE_SPECIFIER = t("MODULE_SPECIFIER")
+
+    // statements
+    val BLOCK = t("BLOCK")
+    val STATEMENT = t("STATEMENT")
+    val EXPRESSION_STATEMENT = t("EXPRESSION_STATEMENT")
+    val FOR_STATEMENT = t("FOR_STATEMENT")
+    val CATCH_CLAUSE = t("CATCH_CLAUSE")
+    val SWITCH_STATEMENT = t("SWITCH_STATEMENT")
+    val CASE_CLAUSE = t("CASE_CLAUSE")
+    val RETURN_STATEMENT = t("RETURN_STATEMENT")
+
+    // expressions
+    val REFERENCE = t("REFERENCE")
+    val THIS_EXPRESSION = t("THIS_EXPRESSION")
+    val SUPER_EXPRESSION = t("SUPER_EXPRESSION")
+    val LITERAL = t("LITERAL")
+    val TEMPLATE_EXPRESSION = t("TEMPLATE_EXPRESSION")
+    val PAREN_EXPRESSION = t("PAREN_EXPRESSION")
+    val ARRAY_LITERAL = t("ARRAY_LITERAL")
+    val OBJECT_LITERAL = t("OBJECT_LITERAL")
+    val PROPERTY_ASSIGNMENT = t("PROPERTY_ASSIGNMENT")
+    val SHORTHAND_PROPERTY = t("SHORTHAND_PROPERTY")
+    val SPREAD = t("SPREAD")
+    val FUNCTION_EXPRESSION = t("FUNCTION_EXPRESSION")
+    val ARROW_FUNCTION = t("ARROW_FUNCTION")
+    val CLASS_EXPRESSION = t("CLASS_EXPRESSION")
+    val CALL_EXPRESSION = t("CALL_EXPRESSION")
+    val NEW_EXPRESSION = t("NEW_EXPRESSION")
+    val ARGUMENT_LIST = t("ARGUMENT_LIST")
+    val INDEX_EXPRESSION = t("INDEX_EXPRESSION")
+    val NON_NULL_EXPRESSION = t("NON_NULL_EXPRESSION")
+    val AS_EXPRESSION = t("AS_EXPRESSION")
+    val TYPE_ASSERTION = t("TYPE_ASSERTION")
+    val AWAIT_EXPRESSION = t("AWAIT_EXPRESSION")
+    val UNARY_EXPRESSION = t("UNARY_EXPRESSION")
+    val BINARY_EXPRESSION = t("BINARY_EXPRESSION")
+    val CONDITIONAL_EXPRESSION = t("CONDITIONAL_EXPRESSION")
+    val ASSIGNMENT_EXPRESSION = t("ASSIGNMENT_EXPRESSION")
+    val IMPORT_CALL = t("IMPORT_CALL")
+    val JSX_ELEMENT = t("JSX_ELEMENT")
+    val JSX_ATTRIBUTE = t("JSX_ATTRIBUTE")
+    val JSX_EXPRESSION = t("JSX_EXPRESSION")
+
+    // types
+    val TYPE_REFERENCE = t("TYPE_REFERENCE")
+    val UNION_TYPE = t("UNION_TYPE")
+    val INTERSECTION_TYPE = t("INTERSECTION_TYPE")
+    val ARRAY_TYPE = t("ARRAY_TYPE")
+    val TUPLE_TYPE = t("TUPLE_TYPE")
+    val FUNCTION_TYPE = t("FUNCTION_TYPE")
+    val CONSTRUCTOR_TYPE = t("CONSTRUCTOR_TYPE")
+    val OBJECT_TYPE = t("OBJECT_TYPE")
+    val MAPPED_TYPE = t("MAPPED_TYPE")
+    val PAREN_TYPE = t("PAREN_TYPE")
+    val TYPEOF_TYPE = t("TYPEOF_TYPE")
+    val TYPE_OPERATOR = t("TYPE_OPERATOR")
+    val INDEXED_ACCESS_TYPE = t("INDEXED_ACCESS_TYPE")
+    val CONDITIONAL_TYPE = t("CONDITIONAL_TYPE")
+    val INFER_TYPE = t("INFER_TYPE")
+    val LITERAL_TYPE = t("LITERAL_TYPE")
+    val TEMPLATE_TYPE = t("TEMPLATE_TYPE")
+    val TYPE_PREDICATE = t("TYPE_PREDICATE")
+    val THIS_TYPE = t("THIS_TYPE")
+    val IMPORT_TYPE = t("IMPORT_TYPE")
+
+    val FUNCTIONS = TokenSet.create(FUNCTION_DECLARATION, FUNCTION_EXPRESSION, ARROW_FUNCTION, METHOD)
+    val CLASSES = TokenSet.create(CLASS_DECLARATION, CLASS_EXPRESSION)
+    val TYPES = TokenSet.create(
+        TYPE_REFERENCE, UNION_TYPE, INTERSECTION_TYPE, ARRAY_TYPE, TUPLE_TYPE, FUNCTION_TYPE, CONSTRUCTOR_TYPE, OBJECT_TYPE,
+        MAPPED_TYPE, PAREN_TYPE, TYPEOF_TYPE, TYPE_OPERATOR, INDEXED_ACCESS_TYPE, CONDITIONAL_TYPE, INFER_TYPE, LITERAL_TYPE,
+        TEMPLATE_TYPE, TYPE_PREDICATE, THIS_TYPE, IMPORT_TYPE,
+    )
+}

@@ -1,0 +1,9 @@
+<!-- Test-only descriptor: loads this module alone (plus the HTML part). -->
+<idea-plugin xmlns:xi="http://www.w3.org/2001/XInclude">
+    <id>me.kevinlot.lite.formats.test</id>
+    <name>Lite formats (tests)</name>
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.xml</depends>
+    <xi:include href="/META-INF/lite-formats.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-html.xml" xpointer="xpointer(/idea-plugin/*)"/>
+</idea-plugin>

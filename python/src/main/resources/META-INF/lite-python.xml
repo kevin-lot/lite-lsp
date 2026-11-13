@@ -1,0 +1,29 @@
+<!-- Python support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensionPoints>
+        <extensionPoint qualifiedName="me.kevinlot.lite.pythonDialectsTokenSetContributor"
+                        interface="me.kevinlot.lite.python.upstream.PythonDialectsTokenSetContributor" dynamic="true"/>
+    </extensionPoints>
+    <extensions defaultExtensionNs="me.kevinlot.lite">
+        <pythonDialectsTokenSetContributor implementation="me.kevinlot.lite.python.upstream.PythonTokenSetContributor"/>
+    </extensions>
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceInterface="me.kevinlot.lite.python.upstream.PyElementTypesFacade"
+                            serviceImplementation="me.kevinlot.lite.python.parser.LitePyElementTypes"/>
+        <applicationService serviceImplementation="me.kevinlot.lite.python.upstream.PythonDialectsTokenSetProvider"/>
+        <fileType name="Python (Lite)" implementationClass="me.kevinlot.lite.python.upstream.PythonFileType" fieldName="INSTANCE"
+                  language="LitePython" extensions="py;pyw" hashBangs="python"/>
+        <fileType name="LitePythonStub" implementationClass="me.kevinlot.lite.python.upstream.pyi.PyiFileType" fieldName="INSTANCE"
+                  language="LitePythonStub" extensions="pyi"/>
+        <lang.parserDefinition language="LitePython" implementationClass="me.kevinlot.lite.python.parser.PyParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PySyntaxHighlighterFactory"/>
+        <annotator language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PyHighlightingAnnotator"/>
+        <lang.braceMatcher language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PyBraceMatcher"/>
+        <lang.commenter language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PyCommenter"/>
+        <lang.findUsagesProvider language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PyFindUsagesProvider"/>
+        <lang.refactoringSupport language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PyRefactoringSupportProvider"/>
+        <lang.namesValidator language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PyNamesValidator"/>
+        <additionalLibraryRootsProvider implementation="me.kevinlot.lite.python.resolve.PyLibraryRootsProvider"/>
+        <postStartupActivity implementation="me.kevinlot.lite.python.resolve.PyStartupActivity"/>
+    </extensions>
+</idea-plugin>

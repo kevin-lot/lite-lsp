@@ -1,0 +1,6 @@
+<!-- HTML `<script>` / `<style>` (and `style=` / `on…=` attributes) colored and navigable by Lite: needs the XML and HTML plugin. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <multiHostInjector implementation="me.kevinlot.lite.formats.HtmlInjector"/>
+    </extensions>
+</idea-plugin>
