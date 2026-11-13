@@ -1,0 +1,23 @@
+<!-- Kotlin support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Kotlin (Lite)" implementationClass="me.kevinlot.lite.kotlin.KtFileType" fieldName="INSTANCE"
+                  language="LiteKotlin" extensions="kt;kts"/>
+        <lang.parserDefinition language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.parser.KtParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.ide.KtSyntaxHighlighterFactory"/>
+        <annotator language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.ide.KtHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.ide.KtBraceMatcher"/>
+        <lang.commenter language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.ide.KtCommenter"/>
+
+        <lang.findUsagesProvider language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.ide.KtFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.ide.KtRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.ide.KtNamesValidator"/>
+
+        <referencesSearch implementation="me.kevinlot.lite.kotlin.resolve.KtJavaPropertySearcher"/>
+
+        <fileBasedIndex implementation="me.kevinlot.lite.kotlin.resolve.KtPackageIndex"/>
+        <fileBasedIndex implementation="me.kevinlot.lite.kotlin.resolve.KtTopLevelNameIndex"/>
+        <additionalLibraryRootsProvider implementation="me.kevinlot.lite.kotlin.gradle.KtLibraryRootsProvider"/>
+        <postStartupActivity implementation="me.kevinlot.lite.kotlin.gradle.GradleStartupActivity"/>
+    </extensions>
+</idea-plugin>

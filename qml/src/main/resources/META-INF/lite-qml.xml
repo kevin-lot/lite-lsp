@@ -1,0 +1,18 @@
+<!-- QML support (needs the TypeScript/JavaScript module for the JavaScript it embeds): included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="QML (Lite)" implementationClass="me.kevinlot.lite.qml.QmlFileType" fieldName="INSTANCE"
+                  language="LiteQml" extensions="qml"/>
+        <fileType name="QML types (Lite)" implementationClass="me.kevinlot.lite.qml.QmlTypesFileType" fieldName="INSTANCE"
+                  extensions="qmltypes"/>
+        <lang.parserDefinition language="LiteQml" implementationClass="me.kevinlot.lite.qml.parser.QmlParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteQml" implementationClass="me.kevinlot.lite.qml.ide.QmlSyntaxHighlighterFactory"/>
+        <annotator language="LiteQml" implementationClass="me.kevinlot.lite.qml.ide.QmlHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteQml" implementationClass="me.kevinlot.lite.qml.ide.QmlBraceMatcher"/>
+        <lang.commenter language="LiteQml" implementationClass="me.kevinlot.lite.qml.ide.QmlCommenter"/>
+        <lang.findUsagesProvider language="LiteQml" implementationClass="me.kevinlot.lite.qml.ide.QmlFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteQml" implementationClass="me.kevinlot.lite.qml.ide.QmlRefactoringSupportProvider"/>
+        <referencesSearch implementation="me.kevinlot.lite.qml.resolve.QmlHandlerSearcher"/>
+        <lang.namesValidator language="LiteQml" implementationClass="me.kevinlot.lite.qml.ide.QmlNamesValidator"/>
+    </extensions>
+</idea-plugin>

@@ -1,0 +1,17 @@
+<!-- Markdown support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Markdown (Lite)" implementationClass="me.kevinlot.lite.markdown.MdFileType" fieldName="INSTANCE"
+                  language="LiteMarkdown" extensions="md;markdown;mdown;mkd"/>
+        <lang.parserDefinition language="LiteMarkdown" implementationClass="me.kevinlot.lite.markdown.MdParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteMarkdown" implementationClass="me.kevinlot.lite.markdown.MdSyntaxHighlighterFactory"/>
+        <annotator language="LiteMarkdown" implementationClass="me.kevinlot.lite.markdown.MdHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteMarkdown" implementationClass="me.kevinlot.lite.markdown.MdBraceMatcher"/>
+        <lang.commenter language="LiteMarkdown" implementationClass="me.kevinlot.lite.markdown.MdCommenter"/>
+        <lang.findUsagesProvider language="LiteMarkdown" implementationClass="me.kevinlot.lite.markdown.MdFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteMarkdown" implementationClass="me.kevinlot.lite.markdown.MdRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteMarkdown" implementationClass="me.kevinlot.lite.markdown.MdNamesValidator"/>
+        <multiHostInjector implementation="me.kevinlot.lite.markdown.MdCodeInjector"/>
+        <referencesSearch implementation="me.kevinlot.lite.markdown.MdAnchorSearcher"/>
+    </extensions>
+</idea-plugin>

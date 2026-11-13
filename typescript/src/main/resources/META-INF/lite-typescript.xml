@@ -1,0 +1,21 @@
+<!-- TypeScript / JavaScript support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="TypeScript (Lite)" implementationClass="me.kevinlot.lite.typescript.TsFileType" fieldName="INSTANCE"
+                  language="LiteTypeScript" extensions="ts;tsx;mts;cts"/>
+        <fileType name="JavaScript (Lite)" implementationClass="me.kevinlot.lite.typescript.JsFileType" fieldName="INSTANCE"
+                  extensions="js;jsx;mjs;cjs" hashBangs="node"/>
+        <lang.parserDefinition language="LiteTypeScript" implementationClass="me.kevinlot.lite.typescript.parser.TsParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteTypeScript" implementationClass="me.kevinlot.lite.typescript.ide.TsSyntaxHighlighterFactory"/>
+        <annotator language="LiteTypeScript" implementationClass="me.kevinlot.lite.typescript.ide.TsHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteTypeScript" implementationClass="me.kevinlot.lite.typescript.ide.TsBraceMatcher"/>
+        <lang.commenter language="LiteTypeScript" implementationClass="me.kevinlot.lite.typescript.ide.TsCommenter"/>
+        <lang.findUsagesProvider language="LiteTypeScript" implementationClass="me.kevinlot.lite.typescript.ide.TsFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteTypeScript" implementationClass="me.kevinlot.lite.typescript.ide.TsRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteTypeScript" implementationClass="me.kevinlot.lite.typescript.ide.TsNamesValidator"/>
+        <fileBasedIndex implementation="me.kevinlot.lite.typescript.resolve.TsGlobalIndex"/>
+        <additionalLibraryRootsProvider implementation="me.kevinlot.lite.typescript.resolve.TsLibraryRootsProvider"/>
+        <directoryIndexExcludePolicy implementation="me.kevinlot.lite.typescript.resolve.TsExcludePolicy"/>
+        <postStartupActivity implementation="me.kevinlot.lite.typescript.resolve.TsStartupActivity"/>
+    </extensions>
+</idea-plugin>

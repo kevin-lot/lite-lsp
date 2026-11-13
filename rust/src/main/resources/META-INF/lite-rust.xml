@@ -1,0 +1,21 @@
+<!-- Rust support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Rust (Lite)" implementationClass="me.kevinlot.lite.rust.RsFileType" fieldName="INSTANCE"
+                  language="LiteRust" extensions="rs"/>
+        <lang.parserDefinition language="LiteRust" implementationClass="me.kevinlot.lite.rust.parser.RustParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteRust" implementationClass="me.kevinlot.lite.rust.ide.RsSyntaxHighlighterFactory"/>
+        <annotator language="LiteRust" implementationClass="me.kevinlot.lite.rust.ide.RsHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteRust" implementationClass="me.kevinlot.lite.rust.ide.RsBraceMatcher"/>
+        <lang.commenter language="LiteRust" implementationClass="me.kevinlot.lite.rust.ide.RsCommenter"/>
+
+        <lang.findUsagesProvider language="LiteRust" implementationClass="me.kevinlot.lite.rust.ide.RsFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteRust" implementationClass="me.kevinlot.lite.rust.ide.RsRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteRust" implementationClass="me.kevinlot.lite.rust.ide.RsNamesValidator"/>
+
+        <fileBasedIndex implementation="me.kevinlot.lite.rust.resolve.RsItemNameIndex"/>
+        <fileBasedIndex implementation="me.kevinlot.lite.rust.resolve.RsImplIndex"/>
+        <additionalLibraryRootsProvider implementation="me.kevinlot.lite.rust.cargo.RsLibraryRootsProvider"/>
+        <postStartupActivity implementation="me.kevinlot.lite.rust.cargo.CargoStartupActivity"/>
+    </extensions>
+</idea-plugin>

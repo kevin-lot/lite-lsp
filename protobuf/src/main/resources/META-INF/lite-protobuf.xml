@@ -1,0 +1,15 @@
+<!-- Protocol Buffers support (grammar from JetBrains' protoeditor): included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Protocol Buffers (Lite)" implementationClass="me.kevinlot.lite.proto.PbFileType" fieldName="INSTANCE"
+                  language="LiteProto" extensions="proto"/>
+        <lang.parserDefinition language="LiteProto" implementationClass="me.kevinlot.lite.proto.PbParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteProto" implementationClass="me.kevinlot.lite.proto.PbSyntaxHighlighterFactory"/>
+        <annotator language="LiteProto" implementationClass="me.kevinlot.lite.proto.PbHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteProto" implementationClass="me.kevinlot.lite.proto.PbBraceMatcher"/>
+        <lang.commenter language="LiteProto" implementationClass="me.kevinlot.lite.proto.PbCommenter"/>
+        <lang.findUsagesProvider language="LiteProto" implementationClass="me.kevinlot.lite.proto.PbFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteProto" implementationClass="me.kevinlot.lite.proto.PbRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteProto" implementationClass="me.kevinlot.lite.proto.PbNamesValidator"/>
+    </extensions>
+</idea-plugin>

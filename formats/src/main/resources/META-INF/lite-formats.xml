@@ -1,0 +1,112 @@
+<!-- Configuration and data formats (formats module): included by the plugin descriptor. Generated layout: one block per format. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="TOML (Lite)" implementationClass="me.kevinlot.lite.formats.TomlFileType" fieldName="INSTANCE" language="LiteToml"
+                  extensions="toml" fileNames="Cargo.lock;uv.lock;poetry.lock;Pipfile"/>
+        <lang.parserDefinition language="LiteToml" implementationClass="me.kevinlot.lite.formats.TomlParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteToml" implementationClass="me.kevinlot.lite.formats.TomlHighlighterFactory"/>
+        <lang.commenter language="LiteToml" implementationClass="me.kevinlot.lite.formats.TomlCommenter"/>
+        <lang.braceMatcher language="LiteToml" implementationClass="me.kevinlot.lite.formats.TomlBraceMatcher"/>
+        <fileType name="YAML (Lite)" implementationClass="me.kevinlot.lite.formats.YamlFileType" fieldName="INSTANCE" language="LiteYaml"
+                  extensions="yaml;yml"/>
+        <lang.parserDefinition language="LiteYaml" implementationClass="me.kevinlot.lite.formats.YamlParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteYaml" implementationClass="me.kevinlot.lite.formats.YamlHighlighterFactory"/>
+        <lang.commenter language="LiteYaml" implementationClass="me.kevinlot.lite.formats.YamlCommenter"/>
+        <lang.braceMatcher language="LiteYaml" implementationClass="me.kevinlot.lite.formats.YamlBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteYaml" implementationClass="me.kevinlot.lite.formats.YamlFindUsagesProvider"/>
+        <fileType name="KDL (Lite)" implementationClass="me.kevinlot.lite.formats.KdlFileType" fieldName="INSTANCE" language="LiteKdl"
+                  extensions="kdl"/>
+        <lang.parserDefinition language="LiteKdl" implementationClass="me.kevinlot.lite.formats.KdlParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteKdl" implementationClass="me.kevinlot.lite.formats.KdlHighlighterFactory"/>
+        <lang.commenter language="LiteKdl" implementationClass="me.kevinlot.lite.formats.KdlCommenter"/>
+        <lang.braceMatcher language="LiteKdl" implementationClass="me.kevinlot.lite.formats.KdlBraceMatcher"/>
+        <fileType name="INI (Lite)" implementationClass="me.kevinlot.lite.formats.IniFileType" fieldName="INSTANCE" language="LiteIni"
+                  extensions="ini;cfg;conf;properties;service;socket;timer;mount;target;desktop" fileNames=".editorconfig;.gitconfig;.gitmodules;.npmrc;.flake8;.coveragerc"/>
+        <lang.parserDefinition language="LiteIni" implementationClass="me.kevinlot.lite.formats.IniParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteIni" implementationClass="me.kevinlot.lite.formats.IniHighlighterFactory"/>
+        <lang.commenter language="LiteIni" implementationClass="me.kevinlot.lite.formats.IniCommenter"/>
+        <lang.braceMatcher language="LiteIni" implementationClass="me.kevinlot.lite.formats.IniBraceMatcher"/>
+        <fileType name="Dotenv (Lite)" implementationClass="me.kevinlot.lite.formats.EnvFileType" fieldName="INSTANCE" language="LiteEnv"
+                  extensions="env" fileNames=".env" patterns=".env.*"/>
+        <lang.parserDefinition language="LiteEnv" implementationClass="me.kevinlot.lite.formats.EnvParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteEnv" implementationClass="me.kevinlot.lite.formats.EnvHighlighterFactory"/>
+        <lang.commenter language="LiteEnv" implementationClass="me.kevinlot.lite.formats.EnvCommenter"/>
+        <lang.braceMatcher language="LiteEnv" implementationClass="me.kevinlot.lite.formats.EnvBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteEnv" implementationClass="me.kevinlot.lite.formats.EnvFindUsagesProvider"/>
+        <fileType name="JSON5 (Lite)" implementationClass="me.kevinlot.lite.formats.Json5FileType" fieldName="INSTANCE" language="LiteJson5"
+                  extensions="json5"/>
+        <lang.parserDefinition language="LiteJson5" implementationClass="me.kevinlot.lite.formats.Json5ParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteJson5" implementationClass="me.kevinlot.lite.formats.Json5HighlighterFactory"/>
+        <lang.commenter language="LiteJson5" implementationClass="me.kevinlot.lite.formats.Json5Commenter"/>
+        <lang.braceMatcher language="LiteJson5" implementationClass="me.kevinlot.lite.formats.Json5BraceMatcher"/>
+        <fileType name="CSV (Lite)" implementationClass="me.kevinlot.lite.formats.CsvFileType" fieldName="INSTANCE" language="LiteCsv"
+                  extensions="csv;tsv"/>
+        <lang.parserDefinition language="LiteCsv" implementationClass="me.kevinlot.lite.formats.CsvParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteCsv" implementationClass="me.kevinlot.lite.formats.CsvHighlighterFactory"/>
+        <lang.commenter language="LiteCsv" implementationClass="me.kevinlot.lite.formats.CsvCommenter"/>
+        <lang.braceMatcher language="LiteCsv" implementationClass="me.kevinlot.lite.formats.CsvBraceMatcher"/>
+        <fileType name="SQL (Lite)" implementationClass="me.kevinlot.lite.formats.SqlFileType" fieldName="INSTANCE" language="LiteSql"
+                  extensions="sql"/>
+        <lang.parserDefinition language="LiteSql" implementationClass="me.kevinlot.lite.formats.SqlParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteSql" implementationClass="me.kevinlot.lite.formats.SqlHighlighterFactory"/>
+        <lang.commenter language="LiteSql" implementationClass="me.kevinlot.lite.formats.SqlCommenter"/>
+        <lang.braceMatcher language="LiteSql" implementationClass="me.kevinlot.lite.formats.SqlBraceMatcher"/>
+        <fileType name="HOCON (Lite)" implementationClass="me.kevinlot.lite.formats.HoconFileType" fieldName="INSTANCE" language="LiteHocon"
+                  extensions="hocon" fileNames="application.conf;reference.conf"/>
+        <lang.parserDefinition language="LiteHocon" implementationClass="me.kevinlot.lite.formats.HoconParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteHocon" implementationClass="me.kevinlot.lite.formats.HoconHighlighterFactory"/>
+        <lang.commenter language="LiteHocon" implementationClass="me.kevinlot.lite.formats.HoconCommenter"/>
+        <lang.braceMatcher language="LiteHocon" implementationClass="me.kevinlot.lite.formats.HoconBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteHocon" implementationClass="me.kevinlot.lite.formats.HoconFindUsagesProvider"/>
+        <fileType name="Dockerfile (Lite)" implementationClass="me.kevinlot.lite.formats.DockerfileFileType" fieldName="INSTANCE" language="LiteDockerfile"
+                  extensions="dockerfile;containerfile" fileNames="Dockerfile;Containerfile" patterns="Dockerfile.*;*.Dockerfile"/>
+        <lang.parserDefinition language="LiteDockerfile" implementationClass="me.kevinlot.lite.formats.DockerfileParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteDockerfile" implementationClass="me.kevinlot.lite.formats.DockerfileHighlighterFactory"/>
+        <lang.commenter language="LiteDockerfile" implementationClass="me.kevinlot.lite.formats.DockerfileCommenter"/>
+        <lang.braceMatcher language="LiteDockerfile" implementationClass="me.kevinlot.lite.formats.DockerfileBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteDockerfile" implementationClass="me.kevinlot.lite.formats.DockerfileFindUsagesProvider"/>
+        <fileType name="CSS (Lite)" implementationClass="me.kevinlot.lite.formats.CssFileType" fieldName="INSTANCE" language="LiteCss"
+                  extensions="css"/>
+        <lang.parserDefinition language="LiteCss" implementationClass="me.kevinlot.lite.formats.CssParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteCss" implementationClass="me.kevinlot.lite.formats.CssHighlighterFactory"/>
+        <lang.commenter language="LiteCss" implementationClass="me.kevinlot.lite.formats.CssCommenter"/>
+        <lang.braceMatcher language="LiteCss" implementationClass="me.kevinlot.lite.formats.CssBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteCss" implementationClass="me.kevinlot.lite.formats.CssFindUsagesProvider"/>
+        <fileType name="SCSS (Lite)" implementationClass="me.kevinlot.lite.formats.ScssFileType" fieldName="INSTANCE" language="LiteScss"
+                  extensions="scss"/>
+        <lang.parserDefinition language="LiteScss" implementationClass="me.kevinlot.lite.formats.ScssParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteScss" implementationClass="me.kevinlot.lite.formats.ScssHighlighterFactory"/>
+        <lang.commenter language="LiteScss" implementationClass="me.kevinlot.lite.formats.ScssCommenter"/>
+        <lang.braceMatcher language="LiteScss" implementationClass="me.kevinlot.lite.formats.ScssBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteScss" implementationClass="me.kevinlot.lite.formats.ScssFindUsagesProvider"/>
+        <fileType name="Sass (Lite)" implementationClass="me.kevinlot.lite.formats.SassFileType" fieldName="INSTANCE" language="LiteSass"
+                  extensions="sass"/>
+        <lang.parserDefinition language="LiteSass" implementationClass="me.kevinlot.lite.formats.SassParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteSass" implementationClass="me.kevinlot.lite.formats.SassHighlighterFactory"/>
+        <lang.commenter language="LiteSass" implementationClass="me.kevinlot.lite.formats.SassCommenter"/>
+        <lang.braceMatcher language="LiteSass" implementationClass="me.kevinlot.lite.formats.SassBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteSass" implementationClass="me.kevinlot.lite.formats.SassFindUsagesProvider"/>
+        <fileType name="Makefile (Lite)" implementationClass="me.kevinlot.lite.formats.MakeFileType" fieldName="INSTANCE" language="LiteMake"
+                  extensions="mk;mak" fileNames="Makefile;makefile;GNUmakefile"/>
+        <lang.parserDefinition language="LiteMake" implementationClass="me.kevinlot.lite.formats.MakeParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteMake" implementationClass="me.kevinlot.lite.formats.MakeHighlighterFactory"/>
+        <lang.commenter language="LiteMake" implementationClass="me.kevinlot.lite.formats.MakeCommenter"/>
+        <lang.braceMatcher language="LiteMake" implementationClass="me.kevinlot.lite.formats.MakeBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteMake" implementationClass="me.kevinlot.lite.formats.MakeFindUsagesProvider"/>
+        <fileType name="HCL (Lite)" implementationClass="me.kevinlot.lite.formats.HclFileType" fieldName="INSTANCE" language="LiteHcl"
+                  extensions="tf;tfvars;hcl"/>
+        <lang.parserDefinition language="LiteHcl" implementationClass="me.kevinlot.lite.formats.HclParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteHcl" implementationClass="me.kevinlot.lite.formats.HclHighlighterFactory"/>
+        <lang.commenter language="LiteHcl" implementationClass="me.kevinlot.lite.formats.HclCommenter"/>
+        <lang.braceMatcher language="LiteHcl" implementationClass="me.kevinlot.lite.formats.HclBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteHcl" implementationClass="me.kevinlot.lite.formats.HclFindUsagesProvider"/>
+        <fileType name="Ignore (Lite)" implementationClass="me.kevinlot.lite.formats.IgnoreFileType" fieldName="INSTANCE" language="LiteIgnore"
+                  extensions="gitignore"
+                  fileNames=".gitignore;.dockerignore;.npmignore;.helmignore;.prettierignore;.eslintignore;.stylelintignore;.ignore;.rgignore;.fdignore;.gcloudignore;.vscodeignore;.slugignore;.gitattributes;.containerignore"/>
+        <lang.parserDefinition language="LiteIgnore" implementationClass="me.kevinlot.lite.formats.IgnoreParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteIgnore" implementationClass="me.kevinlot.lite.formats.IgnoreHighlighterFactory"/>
+        <lang.commenter language="LiteIgnore" implementationClass="me.kevinlot.lite.formats.IgnoreCommenter"/>
+        <lang.braceMatcher language="LiteIgnore" implementationClass="me.kevinlot.lite.formats.IgnoreBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteIgnore" implementationClass="me.kevinlot.lite.formats.IgnoreFindUsagesProvider"/>
+    </extensions>
+</idea-plugin>
