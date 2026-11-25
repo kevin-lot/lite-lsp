@@ -345,14 +345,17 @@ class AngularInlineInjector : MultiHostInjector {
         val fragments = AngularSyntax.inline(literal.text, content)
         val taken = fragments.map { TextRange(it.first().range.startOffset, it.last().range.endOffset) }.sortedBy { it.startOffset }
         val markup = (listOf(content.startOffset) + taken.map { it.endOffset }).zip(taken.map { it.startOffset } + content.endOffset)
-        // the character before a fragment is given as a suffix: a place ending where the fragment starts would be found there in its stead
-        val places = markup.map { (from, to) ->
-            when (to) { content.endOffset -> TextRange(from, to) to null; else -> TextRange(from, to - 1) to literal.text.substring(to - 1, to) }
-        }
-            .filter { (range, _) -> range.startOffset < range.endOffset }
-        // HTML first: a smart pointer into a fragment is restored in the last injected file spanning it, and HTML spans the whole string
-        Language.findLanguageByID("HTML")?.takeIf { places.isNotEmpty() }?.let { html ->
-            places.fold(registrar.startInjecting(html)) { all, (range, suffix) -> all.addPlace(null, suffix, literal, range) }.doneInjecting()
+        val text = markup.joinToString("") { (from, to) -> literal.text.substring(from, to) }
+        val offsets = markup.runningFold(0) { length, (from, to) -> length + to - from }
+        // one HTML file per piece, the other pieces as prefix and suffix: a smart pointer into a fragment is restored in any injected file spanning it
+        Language.findLanguageByID("HTML")?.let { html ->
+            markup.forEachIndexed { index, (from, to) ->
+                val first = when (from) { content.startOffset -> from; else -> from + 1 }
+                val last = when (to) { content.endOffset -> to; else -> to - 1 }
+                val piece = TextRange(first, last).takeIf { first < last } ?: return@forEachIndexed
+                val start = offsets[index] + first - from
+                registrar.startInjecting(html).addPlace(text.substring(0, start), text.substring(start + piece.length), literal, piece).doneInjecting()
+            }
         }
         fragments.forEach { fragment ->
             fragment.fold(registrar.startInjecting(TsLanguage)) { all, place -> all.addPlace(place.prefix, place.suffix, literal, place.range) }.doneInjecting()

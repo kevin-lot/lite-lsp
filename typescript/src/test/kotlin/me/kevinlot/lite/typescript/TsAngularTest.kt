@@ -189,7 +189,7 @@ class TsAngularTest : BasePlatformTestCase() {
         val file = myFixture.configureByText("list.component.ts", inline("<h1 [title]=\"title\">{{ title | upper: 1 }}</h1>\n@if (items.length) { <a (click)=\"save()\">x</a> }"))
         val injected = fragments(file)
         assertEquals(listOf("(title);", "( title | upper( 1 ));", "(items.length);", "save()"), injected.filter { it.language == TsLanguage }.map { it.text.trim() })
-        assertEquals("<h1 [title]=\"\">{{}}</h1>\n@if () { <a (click)=\"\">x</a> }", injected.single { it.language.id == "HTML" }.text)
+        assertEquals("<h1 [title]=\"\">{{}}</h1>\n@if () { <a (click)=\"\">x</a> }", injected.filter { it.language.id == "HTML" }.map { it.text }.distinct().single())
         injected.forEach { assertNull(it.text, PsiTreeUtil.findChildOfType(it, PsiErrorElement::class.java)) }
     }
 
