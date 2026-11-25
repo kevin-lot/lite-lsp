@@ -1,0 +1,9 @@
+Lite
+Copyright 2026 Kevin Lot
+
+This product includes code from other projects, each under its own license:
+- intellij-rust (MIT): rust/THIRD_PARTY_LICENSE-intellij-rust.txt
+- Kotlin compiler (Apache 2.0): kotlin/THIRD_PARTY_LICENSE-kotlin.txt
+- intellij-community (Apache 2.0): python/THIRD_PARTY_LICENSE-intellij-community.txt
+- protoeditor (Apache 2.0): protobuf/THIRD_PARTY_LICENSE-protoeditor.txt
+- Protocol Buffers well-known types (BSD-3-Clause): protobuf/THIRD_PARTY_LICENSE-protobuf.txt

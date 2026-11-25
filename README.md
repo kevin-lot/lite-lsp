@@ -650,7 +650,8 @@ flat package (`me.kevinlot.lite.<module>`).
   [`tools/import_python_parser.py`](tools/import_python_parser.py).
 - Protocol Buffers lexer/grammar: [protoeditor](https://github.com/JetBrains/intellij-plugins/tree/master/protobuf)
   (Apache 2.0) via [`tools/import_protoeditor.py`](tools/import_protoeditor.py): their PSI dropped, aggregate option
-  values `{ … }` skipped as a balanced block; Google's well-known types (BSD-3) copied as is.
+  values `{ … }` skipped as a balanced block; Google's well-known types (BSD-3) copied as is. Licenses:
+  `protobuf/THIRD_PARTY_LICENSE-protoeditor.txt`, `protobuf/THIRD_PARTY_LICENSE-protobuf.txt`.
 - Checked against, without copied code: the grammars of the official or reference projects, each read under its
   license — Rego ([opa-idea-plugin](https://github.com/open-policy-agent/opa-idea-plugin), MIT), Shell, YAML, TOML and
   Markdown (intellij-community, Apache 2.0), Makefile (MIT), Handlebars, Gherkin and Terraform (Apache 2.0) in
@@ -700,3 +701,7 @@ Optional real-world inputs (read-only; run with `--rerun --no-configuration-cach
 | `LITE_PROTO_CORPUS=<dir>` | protobuf | parsing; names resolved |
 | `LITE_FMT_CORPUS=<dir:dir>` | formats | lexing; links resolved (YAML `$ref` included); cron expressions, scripts and Serverless references found |
 | `LITE_FMT_PERF=<file:file>` | formats | per file, the time to highlight it and to resolve its references, with the share of the lexer, the linker and the injections |
+
+## License
+
+[Apache License 2.0](LICENSE). Imported code keeps its own license: see [NOTICE](NOTICE) and "Upstream code".
