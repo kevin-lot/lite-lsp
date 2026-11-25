@@ -32,12 +32,12 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.IncorrectOperationException
+import javax.swing.Icon
 import me.kevinlot.lite.core.RecursionGuard
 import me.kevinlot.lite.proto.lexer._ProtoLexer
 import me.kevinlot.lite.proto.parser.PbParser
 import me.kevinlot.lite.proto.parser.PbTypes as E
 import me.kevinlot.lite.proto.upstream.ProtoTokenTypes as T
-import javax.swing.Icon
 
 object PbLanguage : Language("LiteProto") {
     private fun readResolve(): Any = PbLanguage
@@ -101,9 +101,12 @@ class PbDefinition(node: ASTNode) : ASTWrapperPsiElement(node), PsiNameIdentifie
  * `a.b.C`: SymbolPath(SymbolPath(SymbolPath(a).b).C); each level refers to the symbol its path names
  * (a package, a message…), the outermost one to what its context expects (a type, an extension field).
  */
+private val BLANK = Regex("\\s")
+private val IDENTIFIERS = TokenSet.create(T.IDENTIFIER_LITERAL)
+
 class PbSymbolPath(node: ASTNode) : ASTWrapperPsiElement(node) {
-    val nameElement: PsiElement? get() = node.getChildren(TokenSet.create(T.IDENTIFIER_LITERAL)).lastOrNull()?.psi
-    val segments: List<String> get() = text.replace(Regex("\\s"), "").split('.').filter { it.isNotEmpty() }
+    val nameElement: PsiElement? get() = node.getChildren(IDENTIFIERS).lastOrNull()?.psi
+    val segments: List<String> get() = text.replace(BLANK, "").split('.').filter { it.isNotEmpty() }
     override fun getReference(): PsiReference? = nameElement?.let { PbSymbolReference(this) }
 }
 
@@ -114,7 +117,7 @@ class PbImportName(node: ASTNode) : ASTWrapperPsiElement(node) {
 }
 
 class PbSymbolReference(element: PbSymbolPath) :
-    PsiPolyVariantReferenceBase<PbSymbolPath>(element, element.nameElement!!.let { TextRange.from(it.startOffsetInParent, it.textLength) }) {
+    PsiPolyVariantReferenceBase<PbSymbolPath>(element, element.nameElement?.let { TextRange.from(it.startOffsetInParent, it.textLength) } ?: TextRange.EMPTY_RANGE) {
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> = PsiElementResolveResult.createResults(PbResolver.resolve(element))
     override fun handleElementRename(newElementName: String): PsiElement {
         (element.nameElement?.node as? LeafElement)?.replaceWithText(newElementName)
@@ -143,14 +146,22 @@ object PbResolver {
     private val GUARD = RecursionGuard(16)
     private val OWN = Key.create<CachedValue<List<Sym>>>("lite.proto.own")
     private val TABLE = Key.create<CachedValue<Map<String, List<Sym>>>>("lite.proto.table")
+    private val FULL_NAMES = Key.create<CachedValue<Map<PsiElement, String>>>("lite.proto.fullNames")
     private val TYPES = setOf(Kind.TYPE)
     private val AGGREGATES = setOf(Kind.PACKAGE, Kind.TYPE, Kind.SERVICE)
+    private val ALL_KINDS = Kind.entries.toSet()
+    private val FIELDS = setOf(Kind.FIELD)
+    private val ENUM_VALUES = TokenSet.create(E.ENUM_VALUE)
+    private val METHODS = TokenSet.create(E.SERVICE_METHOD, E.SERVICE_STREAM)
     val SCALARS = setOf("double", "float", "int32", "int64", "uint32", "uint64", "sint32", "sint64", "fixed32", "fixed64", "sfixed32", "sfixed64", "bool", "string", "bytes")
 
-    private fun join(a: String, b: String) = if (a.isEmpty()) b else "$a.$b"
+    private fun join(a: String, b: String): String {
+        if (a.isEmpty()) return b
+        return "$a.$b"
+    }
 
     private fun packageOf(file: PsiFile): String =
-        file.node.findChildByType(E.PACKAGE_STATEMENT)?.findChildByType(E.PACKAGE_NAME)?.text?.replace(Regex("\\s"), "").orEmpty()
+        file.node.findChildByType(E.PACKAGE_STATEMENT)?.findChildByType(E.PACKAGE_NAME)?.text?.replace(BLANK, "").orEmpty()
 
     /** Symbols declared by [file] itself. */
     fun ownSymbols(file: PsiFile): List<Sym> = CachedValuesManager.getCachedValue(file, OWN) {
@@ -160,7 +171,7 @@ object PbResolver {
             // a.b.c: packages `a`, `a.b`, `a.b.c`, each at its own PackageName level
             var n: ASTNode? = name
             while (n != null && n.elementType == E.PACKAGE_NAME) {
-                out += Sym(n.text.replace(Regex("\\s"), ""), com.intellij.psi.util.PsiTreeUtil.getDeepestLast(n.psi), Kind.PACKAGE) // its last segment
+                out += Sym(n.text.replace(BLANK, ""), com.intellij.psi.util.PsiTreeUtil.getDeepestLast(n.psi), Kind.PACKAGE) // its last segment
                 n = n.firstChildNode
             }
         }
@@ -177,14 +188,14 @@ object PbResolver {
                     }
                     E.ENUM_DEFINITION -> if (name != null) {
                         out += Sym(join(scope, name), def, Kind.TYPE)
-                        c.findChildByType(E.ENUM_BODY)?.getChildren(TokenSet.create(E.ENUM_VALUE))?.forEach { v ->
+                        c.findChildByType(E.ENUM_BODY)?.getChildren(ENUM_VALUES)?.forEach { v ->
                             (v.psi as PbDefinition).name?.let { out += Sym(join(scope, it), v.psi, Kind.ENUM_VALUE) }
                         }
                     }
                     E.SERVICE_DEFINITION -> if (name != null) {
                         val full = join(scope, name)
                         out += Sym(full, def, Kind.SERVICE)
-                        c.findChildByType(E.SERVICE_BODY)?.getChildren(TokenSet.create(E.SERVICE_METHOD, E.SERVICE_STREAM))?.forEach { m ->
+                        c.findChildByType(E.SERVICE_BODY)?.getChildren(METHODS)?.forEach { m ->
                             (m.psi as PbDefinition).name?.let { out += Sym(join(full, it), m.psi, Kind.METHOD) }
                         }
                     }
@@ -218,7 +229,13 @@ object PbResolver {
         CachedValueProvider.Result.create(visibleFiles(file).flatMap { ownSymbols(it) }.groupBy { it.fullName }, PsiModificationTracker.MODIFICATION_COUNT)
     }
 
-    fun fullNameOf(def: PbDefinition): String? = ownSymbols(def.containingFile).firstOrNull { it.element == def }?.fullName
+    /** The first full name of each symbol of [file] (a group is a type, then a field). */
+    private fun fullNames(file: PsiFile): Map<PsiElement, String> = CachedValuesManager.getCachedValue(file, FULL_NAMES) {
+        val names = ownSymbols(file).distinctBy { it.element }.associate { it.element to it.fullName }
+        CachedValueProvider.Result.create(names, PsiModificationTracker.MODIFICATION_COUNT)
+    }
+
+    fun fullNameOf(def: PbDefinition): String? = fullNames(def.containingFile)[def]
 
     /** `pkg.Outer.Inner` for an element inside `message Inner` inside `message Outer`. */
     private fun scopeOf(e: PsiElement): String {
@@ -240,19 +257,22 @@ object PbResolver {
         val kinds = when {
             top != path -> AGGREGATES
             holder == E.TYPE_NAME || holder == E.MESSAGE_TYPE_NAME -> TYPES
-            holder == E.EXTENSION_NAME -> setOf(Kind.FIELD)
-            else -> Kind.entries.toSet()
+            holder == E.EXTENSION_NAME -> FIELDS
+            else -> ALL_KINDS
         }
         val absolute = top.prevSibling?.let { generateSequence(it) { s -> s.prevSibling }.firstOrNull { s -> s.text.isNotBlank() } }?.text == "."
         val target = segments.joinToString(".")
-        val candidates = if (absolute) listOf(target) else {
+        val candidate = when {
+            absolute -> target
             // innermost scope first; the first scope knowing the first component decides
-            val scope = scopeOf(path)
-            val scopes = generateSequence(scope) { s -> if (s.isEmpty()) null else s.substringBeforeLast('.', "") }.toList()
-            scopes.firstOrNull { s -> table.containsKey(join(s, segments.first())) }?.let { listOf(join(it, target)) }.orEmpty()
+            else -> enclosingScopes(scopeOf(path)).firstOrNull { table.containsKey(join(it, segments.first())) }?.let { join(it, target) }
         }
-        candidates.flatMap { table[it].orEmpty() }.filter { it.kind in kinds }.map { it.element }.distinct()
+        candidate?.let { table[it] }.orEmpty().filter { it.kind in kinds }.map { it.element }.distinct()
     }
+
+    /** `a.b.c`, `a.b`, `a`, then the root scope. */
+    private fun enclosingScopes(scope: String): Sequence<String> =
+        generateSequence(scope) { s -> s.takeIf { it.isNotEmpty() }?.substringBeforeLast('.', "") }
 
     /** Imports are relative to a proto root: the file's folder or one of its parents, up to the content root. */
     fun importedFile(from: PsiFile, path: String): PsiFile? {

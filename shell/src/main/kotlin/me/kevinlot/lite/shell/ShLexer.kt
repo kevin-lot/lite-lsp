@@ -12,7 +12,7 @@ import me.kevinlot.lite.shell.ShTokens as T
  * Reserved words, `{`, `}`, `[[` and `]]` are keywords only as whole words; the parser treats them as plain
  * words where a command is not expected (`echo done`).
  *
- * State: 0 = top level (a restart point), 1 = inside a nesting or before a pending here-document body.
+ * State: 0 = top level (a restart point), 1 = inside a nesting, after `<<` or before a pending here-document body.
  */
 class ShLexer : LexerBase() {
     private var buf: CharSequence = ""
@@ -45,22 +45,27 @@ class ShLexer : LexerBase() {
 
     override fun advance() {
         start = pos
-        state = if (stack.isEmpty() && pendingHeredocs.isEmpty()) 0 else 1
+        state = when {
+            stack.isEmpty() && pendingHeredocs.isEmpty() && heredocOp == null -> 0
+            else -> 1
+        }
         if (pos >= end) { type = null; return }
         type = when (stack.lastOrNull()?.kind) {
             DQUOTE -> dquote()
             PARAM -> param()
-            ARITH -> arith()
+            ARITH, ARITH_BRACKET -> arith()
             HEREDOC -> heredoc()
             else -> normal()
         }
     }
 
-    private fun ch(i: Int = 0): Char = if (pos + i < end) buf[pos + i] else '\u0000'
-    private fun prev(): Char = if (pos > 0) buf[pos - 1] else '\n'
+    private fun ch(i: Int = 0): Char = when { pos + i < end -> buf[pos + i]; else -> '\u0000' }
+    private fun prev(): Char = when { pos > 0 -> buf[pos - 1]; else -> '\n' }
     private fun isBlank(c: Char) = c == ' ' || c == '\t'
     private fun isDelimiter(c: Char) = c == '\u0000' || c.isWhitespace() || c in ";&|()<>`"
     private fun atWordStart() = pos == 0 || isDelimiter(prev())
+    /** A word also ends at a line continuation: `then\` + line break is the keyword. */
+    private fun endsWord(offset: Int) = isDelimiter(ch(offset)) || (ch(offset) == '\\' && ch(offset + 1) == '\n')
     private fun isNameStart(c: Char) = c.isLetter() || c == '_'
     private fun isNameChar(c: Char) = c.isLetterOrDigit() || c == '_'
 
@@ -69,7 +74,7 @@ class ShLexer : LexerBase() {
     private fun normal(): IElementType {
         val c = ch()
         if (isBlank(c) || (c == '\\' && ch(1) == '\n')) {
-            while (pos < end && (isBlank(ch()) || (ch() == '\\' && ch(1) == '\n'))) pos += if (ch() == '\\') 2 else 1
+            while (pos < end && (isBlank(ch()) || (ch() == '\\' && ch(1) == '\n'))) pos += when { ch() == '\\' -> 2; else -> 1 }
             return T.WHITE_SPACE
         }
         heredocOp?.let { strip -> heredocOp = null; return heredocDelimiter(strip) }
@@ -92,13 +97,13 @@ class ShLexer : LexerBase() {
             }
             '$' -> return dollar()
             ';' -> return when {
-                ch(1) == ';' -> { pos += if (ch(2) == '&') 3 else 2; T.CASE_END }
+                ch(1) == ';' -> { pos += withOptional('&', 2); T.CASE_END }
                 ch(1) == '&' -> { pos += 2; T.CASE_END }
                 else -> { pos++; T.SEMI }
             }
             '&' -> return when {
                 ch(1) == '&' -> { pos += 2; T.AND_AND }
-                ch(1) == '>' -> { pos += if (ch(2) == '>') 3 else 2; T.REDIRECT }
+                ch(1) == '>' -> { pos += withOptional('>', 2); T.REDIRECT }
                 else -> { pos++; T.AMP }
             }
             '|' -> return when {
@@ -135,16 +140,17 @@ class ShLexer : LexerBase() {
     /** `{`, `}`, `[[`, `]]`, reserved words and `NAME=` at the start of a word. */
     private fun wholeWord(): IElementType? {
         val c = ch()
-        if ((c == '{' || c == '}') && isDelimiter(ch(1))) { pos++; return if (c == '{') T.LBRACE else T.RBRACE }
-        if (c == '[' && ch(1) == '[' && isDelimiter(ch(2))) { pos += 2; return T.TEST_START }
-        if (c == ']' && ch(1) == ']' && isDelimiter(ch(2))) { pos += 2; return T.TEST_END }
+        if (c == '{' && endsWord(1)) { pos++; return T.LBRACE }
+        if (c == '}' && endsWord(1)) { pos++; return T.RBRACE }
+        if (c == '[' && ch(1) == '[' && endsWord(2)) { pos += 2; return T.TEST_START }
+        if (c == ']' && ch(1) == ']' && endsWord(2)) { pos += 2; return T.TEST_END }
         if (isNameStart(c)) {
             var i = 0
             while (isNameChar(ch(i))) i++
             val name = buf.subSequence(pos, pos + i).toString()
-            if (isDelimiter(ch(i))) T.KEYWORDS[name]?.let { pos += i; return it }
+            if (endsWord(i)) T.KEYWORDS[name]?.let { pos += i; return it }
             var j = i
-            if (ch(j) == '[') { while (j < end - pos && ch(j) != ']' && ch(j) != '\n') j++; if (ch(j) == ']') j++ else return null }
+            if (ch(j) == '[') { while (j < end - pos && ch(j) != ']' && ch(j) != '\n') j++; if (ch(j) != ']') return null; j++ }
             if (ch(j) == '+' && ch(j + 1) == '=') j++
             if (ch(j) == '=') { pos += j + 1; return T.ASSIGN_NAME }
         }
@@ -156,20 +162,28 @@ class ShLexer : LexerBase() {
         while (pos < end) {
             val c = ch()
             if (isDelimiter(c) || c == '\'' || c == '"' || c == '$') break
+            // a line continuation ends the word: `then\` is the keyword, not a word going on over the next line
+            if (c == '\\' && ch(1) == '\n') break
             if (c == '\\') { pos += 2; continue }
             pos++
         }
         if (pos > end) pos = end
         if (pos == s) { pos++; return T.WORD }
         val text = buf.subSequence(s, pos)
-        return if (text.all { it.isDigit() }) T.NUMBER else T.WORD
+        if (text.all { it.isDigit() }) return T.NUMBER
+        return T.WORD
+    }
+
+    private fun withOptional(c: Char, length: Int): Int {
+        if (ch(length) == c) return length + 1
+        return length
     }
 
     private fun redirect(): IElementType {
         val c = ch()
         if (c == '<' && ch(1) == '<' && ch(2) != '<') {
             val strip = ch(2) == '-'
-            pos += if (strip) 3 else 2
+            pos += withOptional('-', 2)
             heredocOp = strip
             return T.HEREDOC_OP
         }
@@ -207,12 +221,13 @@ class ShLexer : LexerBase() {
 
     // ---------------------------------------------------------------- expansions
 
-    /** `$name`, `$1`, `$@`, `${…}`, `$(…)`, `$((…))`, `$'…'`, `$"…"`. */
+    /** `$name`, `$1`, `$@`, `${…}`, `$(…)`, `$((…))`, `$[…]`, `$'…'`, `$"…"`. */
     private fun dollar(): IElementType {
         val c = ch(1)
         return when {
             c == '(' && ch(2) == '(' -> { pos += 3; stack += Frame(ARITH); T.ARITH_START }
             c == '(' -> { pos += 2; stack += Frame(SUBST); T.SUBST_START }
+            c == '[' -> { pos += 2; stack += Frame(ARITH_BRACKET); T.ARITH_START }
             c == '{' -> { pos += 2; stack += Frame(PARAM); T.PARAM_START }
             c == '\'' -> singleQuoted(2)
             c == '"' -> { pos += 2; stack += Frame(DQUOTE); T.DQUOTE_START }
@@ -246,9 +261,7 @@ class ShLexer : LexerBase() {
         val c = ch()
         if (frame.nameNext) {
             if (c == '(' ) { while (pos < end && ch() != ')') pos++; if (pos < end) pos++; return T.PARAM_OP } // zsh flags
-            if (c == '#' || c == '!' || c == '=' || c == '^' || c == '~') {
-                if (ch(1) != '}') { pos++; return T.PARAM_OP }
-            }
+            if (c == '#' || c == '!' || c == '=' || c == '^' || c == '~') { if (ch(1) != '}') { pos++; return T.PARAM_OP } }
             frame.nameNext = false
             if (isNameStart(c)) { while (isNameChar(ch())) pos++; return T.VAR_NAME }
             if (c.isDigit()) { while (ch().isDigit()) pos++; return T.VAR_NAME }
@@ -271,18 +284,19 @@ class ShLexer : LexerBase() {
         return T.PARAM_TEXT
     }
 
-    /** `$(( i + 1 ))`, `(( n > 0 ))`: names are variables. */
+    /** `$(( i + 1 ))`, `(( n > 0 ))`, `$[ i + 1 ]`: names are variables. */
     private fun arith(): IElementType {
         val frame = stack.last()
         val c = ch()
+        val (open, close) = when (frame.kind) { ARITH_BRACKET -> '[' to "]"; else -> '(' to "))" }
         if (c.isWhitespace()) { while (pos < end && ch().isWhitespace()) pos++; return T.WHITE_SPACE }
         if (isNameStart(c)) { while (isNameChar(ch())) pos++; return T.VAR_NAME }
         if (c.isDigit()) { while (ch().isLetterOrDigit() || ch() == '#') pos++; return T.NUMBER }
         when (c) {
             '$' -> return dollar()
-            '(' -> { pos++; frame.depth++; return T.ARITH_OP }
-            ')' -> {
-                if (frame.depth == 0 && ch(1) == ')') { pos += 2; stack.removeAt(stack.size - 1); return T.ARITH_END }
+            open -> { pos++; frame.depth++; return T.ARITH_OP }
+            close[0] -> {
+                if (frame.depth == 0 && close.indices.all { ch(it) == close[it] }) { pos += close.length; stack.removeAt(stack.size - 1); return T.ARITH_END }
                 pos++; if (frame.depth > 0) frame.depth--; return T.ARITH_OP
             }
             '"' -> { pos++; stack += Frame(DQUOTE); return T.DQUOTE_START }
@@ -325,5 +339,6 @@ class ShLexer : LexerBase() {
         const val PARAM = 4
         const val ARITH = 5
         const val HEREDOC = 6
+        const val ARITH_BRACKET = 7
     }
 }

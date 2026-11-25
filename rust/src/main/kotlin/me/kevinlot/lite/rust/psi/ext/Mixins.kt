@@ -6,6 +6,7 @@ import com.intellij.psi.PsiReference
 import me.kevinlot.lite.rust.psi.RsElementTypes
 import me.kevinlot.lite.rust.resolve.RsFieldReference
 import me.kevinlot.lite.rust.resolve.RsMethodReference
+import me.kevinlot.lite.rust.resolve.RsModDeclReference
 import me.kevinlot.lite.rust.resolve.RsPatBindingReference
 import me.kevinlot.lite.rust.resolve.RsPathReference
 import me.kevinlot.lite.rust.resolve.RsStructLiteralFieldReference

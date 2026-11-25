@@ -3,6 +3,7 @@ package me.kevinlot.lite.qml.ide
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.refactoring.RefactoringSupportProvider
+import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.colors.TextAttributesKey.createTextAttributesKey
 import com.intellij.openapi.fileTypes.SyntaxHighlighter
@@ -16,13 +17,15 @@ import me.kevinlot.lite.core.LiteBraceMatcher
 import me.kevinlot.lite.core.LiteCStyleCommenter
 import me.kevinlot.lite.core.LiteFindUsagesProvider
 import me.kevinlot.lite.core.color
-import me.kevinlot.lite.qml.psi.*
+import me.kevinlot.lite.qml.parser.QmlElementTypes as Q
+import me.kevinlot.lite.qml.psi.QmlElement
+import me.kevinlot.lite.qml.psi.QmlNamed
+import me.kevinlot.lite.qml.psi.QmlPropertyRef
+import me.kevinlot.lite.qml.psi.QmlTypeRef
 import me.kevinlot.lite.qml.resolve.QmlResolver
 import me.kevinlot.lite.typescript.ide.TsNamesValidator
 import me.kevinlot.lite.typescript.ide.TsSyntaxHighlighter
 import me.kevinlot.lite.typescript.lexer.TsLexer
-import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
-import me.kevinlot.lite.qml.parser.QmlElementTypes as Q
 import me.kevinlot.lite.typescript.lexer.TsTokens as T
 
 object QmlColors {
@@ -56,7 +59,12 @@ class QmlHighlightingAnnotator : Annotator {
             element is QmlPropertyRef -> {
                 val name = element.referencedName ?: return
                 val attached = element.qualifier == null && name.first().isUpperCase() && element.parent is QmlPropertyRef
-                holder.color(element.nameElement, if (QmlResolver.isHandler(name)) QmlColors.HANDLER else if (attached) QmlColors.TYPE else QmlColors.PROPERTY)
+                val color = when {
+                    QmlResolver.isHandler(name) -> QmlColors.HANDLER
+                    attached -> QmlColors.TYPE
+                    else -> QmlColors.PROPERTY
+                }
+                holder.color(element.nameElement, color)
             }
             element.node.elementType == Q.MODULE_URI -> holder.color(element, QmlColors.MODULE)
         }

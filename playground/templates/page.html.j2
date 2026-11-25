@@ -1,0 +1,9 @@
+{# Default delimiters. Ctrl+Click: `field` → macros.j2, `title`, `shape`. #}
+{% from "macros.j2" import field %}
+{% set title = 'Shapes' %}
+<h1>{{ title|upper }}</h1>
+<ul>
+{% for shape in shapes %}
+  <li>{{ shape.name }}: {{ field(shape.name) }}</li>
+{% endfor %}
+</ul>

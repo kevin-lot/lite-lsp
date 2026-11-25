@@ -9,6 +9,7 @@ import com.intellij.util.indexing.FileBasedIndex
 import com.intellij.util.indexing.ID
 import me.kevinlot.lite.rust.RsFile
 import me.kevinlot.lite.rust.RsFileType
+import me.kevinlot.lite.rust.cargo.CargoProjects
 import me.kevinlot.lite.rust.psi.*
 import me.kevinlot.lite.rust.psi.ext.RsNamedElement
 

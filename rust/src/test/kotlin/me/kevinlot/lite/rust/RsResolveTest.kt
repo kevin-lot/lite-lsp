@@ -139,4 +139,20 @@ class RsResolveTest : BasePlatformTestCase() {
     fun `test array element type in for`() = one(
         """struct S { <def>a: i32 } fn f(xs: [S; 2]) { for s in xs { s.<ref>a; } }""",
     )
+
+    // ---------------------------------------------------------------- cycles (invalid code must not overflow the stack)
+
+    fun `test cyclic supertraits`() = one("""trait A: B {} trait B: A {} fn f<T: A>(t: T) { t.<ref>nope(); }""")
+    fun `test cyclic type alias as receiver`() = one("""type A = B; type B = A; fn f(x: A) { x.<ref>nope(); }""")
+    fun `test cyclic type alias as qualifier`() = one("""type A = B; type B = A; fn f() { A::<ref>nope(); }""")
+    fun `test cyclic type alias in struct literal`() = one("""type A = B; type B = A; fn f() { A { <ref>x: 1 }; }""")
+
+    fun `test macro of a directory sharing the crate prefix is not preferred`() {
+        myFixture.addFileToProject("src/a.rs", "macro_rules! shout { () => {} }")
+        myFixture.addFileToProject("src2/b.rs", "macro_rules! shout { () => {} }")
+        myFixture.addFileToProject("src/lib.rs", "fn f() { shout!(); }")
+        val file = myFixture.configureFromTempProjectFile("src/lib.rs")
+        val ref = file.findReferenceAt(file.text.indexOf("shout")) as PsiPolyVariantReference
+        assertEquals(listOf("a.rs"), ref.multiResolve(false).mapNotNull { it.element?.containingFile?.name })
+    }
 }

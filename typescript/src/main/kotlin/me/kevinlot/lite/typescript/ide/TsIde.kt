@@ -4,6 +4,7 @@ import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.refactoring.RefactoringSupportProvider
 import com.intellij.lexer.Lexer
+import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.colors.TextAttributesKey.createTextAttributesKey
 import com.intellij.openapi.fileTypes.SyntaxHighlighter
@@ -22,10 +23,11 @@ import me.kevinlot.lite.core.LiteNamesValidator
 import me.kevinlot.lite.core.color
 import me.kevinlot.lite.typescript.TsFile
 import me.kevinlot.lite.typescript.lexer.TsLexer
-import me.kevinlot.lite.typescript.psi.*
-import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import me.kevinlot.lite.typescript.lexer.TsTokens as T
 import me.kevinlot.lite.typescript.parser.TsElementTypes as E
+import me.kevinlot.lite.typescript.psi.TsNamedDecl
+import me.kevinlot.lite.typescript.psi.TsReferenceExpr
+import me.kevinlot.lite.typescript.psi.TsSpecifier
 
 object TsColors {
     val KEYWORD = key("TS_KEYWORD", C.KEYWORD)
@@ -108,8 +110,10 @@ class TsHighlightingAnnotator : Annotator {
         val parent = ref.parent?.node?.elementType
         val name = ref.referencedName ?: return
         when {
-            parent == E.TYPE_REFERENCE -> holder.color(ref.nameElement, if (name in PRIMITIVE_TYPES) TsColors.KEYWORD else TsColors.CLASS)
-            parent == E.JSX_ELEMENT -> holder.color(ref.nameElement, if (name.first().isUpperCase() || ref.qualifier != null) TsColors.CLASS else TsColors.JSX_TAG)
+            parent == E.TYPE_REFERENCE && name in PRIMITIVE_TYPES -> holder.color(ref.nameElement, TsColors.KEYWORD)
+            parent == E.TYPE_REFERENCE -> holder.color(ref.nameElement, TsColors.CLASS)
+            parent == E.JSX_ELEMENT && (name.first().isUpperCase() || ref.qualifier != null) -> holder.color(ref.nameElement, TsColors.CLASS)
+            parent == E.JSX_ELEMENT -> holder.color(ref.nameElement, TsColors.JSX_TAG)
             parent == E.CALL_EXPRESSION && ref.parent.firstChild == ref -> holder.color(ref.nameElement, TsColors.FUNCTION_CALL)
             parent == E.NEW_EXPRESSION -> holder.color(ref.nameElement, TsColors.CLASS)
         }

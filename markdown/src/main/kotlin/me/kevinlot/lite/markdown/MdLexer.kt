@@ -22,6 +22,8 @@ class MdLexer : LexerBase() {
     private var fenceChar = '\u0000'
     private var fenceLen = 0
     private var fenceInfoNext = false
+    private var fenceQuoted = false     // the fence opened in a block quote: each of its lines starts with `>`
+    private var fenceQuoteDone = false  // that `>` is read, the code of the line follows
     private var destNext = false     // after `](`: the destination
     private var inLinkParens = false // a `)` closes the link
     private var defLine = false      // `[label]: url` line: label, then `]`, `:`, destination
@@ -29,7 +31,7 @@ class MdLexer : LexerBase() {
 
     override fun start(buffer: CharSequence, startOffset: Int, endOffset: Int, initialState: Int) {
         buf = buffer; end = endOffset; pos = startOffset
-        fenceChar = '\u0000'; fenceLen = 0; fenceInfoNext = false; destNext = false; inLinkParens = false; defLine = false; pendingParen = false
+        fenceChar = '\u0000'; fenceLen = 0; fenceInfoNext = false; fenceQuoted = false; fenceQuoteDone = false; destNext = false; inLinkParens = false; defLine = false; pendingParen = false
         advance()
     }
 
@@ -42,19 +44,23 @@ class MdLexer : LexerBase() {
 
     override fun advance() {
         start = pos
-        state = if (fenceLen == 0 && !destNext && !inLinkParens && !defLine && !pendingParen) 0 else 1
+        state = when {
+            fenceLen == 0 && !destNext && !inLinkParens && !defLine && !pendingParen -> 0
+            else -> 1
+        }
         if (pos >= end) { type = null; return }
         type = next()
     }
 
-    private fun ch(i: Int = 0): Char = if (pos + i < end) buf[pos + i] else '\u0000'
+    private fun ch(i: Int = 0): Char = when { pos + i < end -> buf[pos + i]; else -> '\u0000' }
     private fun atLineStart() = pos == 0 || buf[pos - 1] == '\n'
-    /** Only blanks between the line start and here (block markers may follow up to some indentation). */
+    /** Only blanks and quote markers between the line start and here: a block marker may follow. */
     private fun onlyIndentBefore(): Boolean {
         var i = pos - 1
-        while (i >= 0 && buf[i] != '\n') { if (buf[i] != ' ' && buf[i] != '\t') return false; i-- }
+        while (i >= 0 && buf[i] != '\n') { if (buf[i] !in INDENT) return false; i-- }
         return true
     }
+    private fun lineStart(from: Int): Int { var i = from; while (i > 0 && buf[i - 1] != '\n') i--; return i }
     private fun lineEnd(from: Int = pos): Int { var i = from; while (i < end && buf[i] != '\n') i++; return i }
     private fun restOfLine() = buf.subSequence(pos, lineEnd())
 
@@ -88,31 +94,52 @@ class MdLexer : LexerBase() {
             val e = lineEnd()
             if (buf.subSequence(pos, e).isNotBlank()) { pos = e; return T.FENCE_INFO }
         }
-        if (ch() == '\n' && !atLineStart()) { pos++; return T.NEWLINE }
+        if (ch() == '\n' && !atLineStart() && !fenceQuoteDone) { pos++; return T.NEWLINE }
+        if (fenceQuoted && !fenceQuoteDone) return quotedFenceLine()
+        fenceQuoteDone = false
         val e = lineEnd()
-        val line = buf.subSequence(pos, e).toString()
         // any indentation: fences inside list items are indented like their item
-        val trimmed = line.trimStart(' ', '\t')
-        val run = trimmed.takeWhile { it == fenceChar }.length
-        if (run >= fenceLen && trimmed.substring(run).isBlank()) { pos = e; fenceLen = 0; return T.FENCE_END }
-        pos = if (e < end) e + 1 else e
+        var runStart = pos
+        while (runStart < e && (buf[runStart] == ' ' || buf[runStart] == '\t')) runStart++
+        var runEnd = runStart
+        while (runEnd < e && buf[runEnd] == fenceChar) runEnd++
+        if (runEnd - runStart >= fenceLen && buf.subSequence(runEnd, e).isBlank()) { pos = e; fenceLen = 0; return T.FENCE_END }
+        pos = minOf(e + 1, end)
         return T.CODE_TEXT
+    }
+
+    /** The `>` of a line of a quoted fence; a line without it ends the quote, and the fence with it. */
+    private fun quotedFenceLine(): IElementType {
+        var i = pos
+        while (i < end && (buf[i] == ' ' || buf[i] == '\t')) i++
+        if (i >= end || buf[i] != '>') { fenceLen = 0; return next() }
+        i++
+        if (i < end && buf[i] == ' ') i++
+        pos = i
+        fenceQuoteDone = true
+        return T.QUOTE_MARKER
     }
 
     private fun block(): IElementType? {
         val c = ch()
         val line = restOfLine().toString()
-        if ((c == '`' || c == '~') && line.takeWhile { it == c }.length >= 3 && !(c == '`' && line.drop(3).contains('`'))) {
-            fenceChar = c; fenceLen = line.takeWhile { it == c }.length; fenceInfoNext = true
-            pos += fenceLen
-            return T.FENCE_START
+        if (c == '`' || c == '~') {
+            val run = line.takeWhile { it == c }.length
+            // a backquote in the info string: an inline code span, not a fence
+            if (run >= 3 && !(c == '`' && line.indexOf('`', run) >= 0)) {
+                fenceChar = c; fenceLen = run; fenceInfoNext = true
+                fenceQuoted = buf.subSequence(lineStart(pos), pos).contains('>')
+                pos += fenceLen
+                return T.FENCE_START
+            }
         }
         if (c == '#') {
             val n = line.takeWhile { it == '#' }.length
             if (n in 1..6 && (line.length == n || line[n] == ' ' || line[n] == '\t')) { pos += n; return T.HEADER_MARKER }
         }
         if (c == '>') { pos++; return T.QUOTE_MARKER }
-        if ((c == '-' || c == '*' || c == '_') && HR.matches(line)) { pos += line.length; return T.HR }
+        if ((c == '=' || c == '-') && line.trimEnd().all { it == c } && paragraphAbove()) { pos += line.length; return T.SETEXT_MARKER }
+        if ((c == '-' || c == '*' || c == '_') && isRule(line, c)) { pos += line.length; return T.HR }
         if ((c == '-' || c == '*' || c == '+') && (ch(1) == ' ' || ch(1) == '\t')) { pos++; return T.LIST_MARKER }
         if (c.isDigit()) {
             val m = ORDERED.find(line)
@@ -121,6 +148,18 @@ class MdLexer : LexerBase() {
         if (c == '[' && (line.startsWith("[ ]") || line.startsWith("[x]") || line.startsWith("[X]")) && isListItemLine()) { pos += 3; return T.CHECKBOX }
         if (c == '[' && DEFINITION.containsMatchIn(line)) { defLine = true; defStage = 0; pos++; return T.LBRACKET }
         return null
+    }
+
+    /** `---`, `* * *`, `___`: three or more of the same marker, spaces allowed around and between. */
+    private fun isRule(line: String, marker: Char) = line.all { it == marker || it == ' ' } && line.count { it == marker } >= 3
+
+    /** The line above is paragraph text, read from the buffer alone so that a restart here decides the same. */
+    private fun paragraphAbove(): Boolean {
+        val start = lineStart(pos)
+        if (start == 0) return false
+        val above = buf.subSequence(lineStart(start - 1), start - 1).trim().toString()
+        return above.isNotEmpty() && !NOT_PARAGRAPH.containsMatchIn(above) && !above.endsWith("-->") &&
+            !above.all { it == '=' } && RULE_MARKERS.none { isRule(above, it) }
     }
 
     private fun isListItemLine(): Boolean {
@@ -149,7 +188,7 @@ class MdLexer : LexerBase() {
             if (c.isWhitespace()) break
             if (c == '(') depth++
             if (c == ')') { if (depth == 0) break; depth-- }
-            if (c == '\\') pos++
+            if (c == '\\' && pos + 1 < end) pos++
             pos++
         }
     }
@@ -160,7 +199,10 @@ class MdLexer : LexerBase() {
         val c = ch()
         if (destNext) { destNext = false; val s = pos; destination(); if (pos > s) return T.LINK_DEST }
         when (c) {
-            '\\' -> { pos += if (ch(1) == '\n' || ch(1) == '\u0000') 1 else 2; return T.TEXT }
+            '\\' -> {
+                pos += when { ch(1) == '\n' || ch(1) == '\u0000' -> 1; else -> 2 }
+                return T.TEXT
+            }
             '`' -> return codeSpan()
             '!' -> if (ch(1) == '[') { pos += 2; return T.IMAGE_START }
             '[' -> { pos++; return T.LBRACKET }
@@ -192,12 +234,11 @@ class MdLexer : LexerBase() {
         val e = lineEnd()
         var i = pos
         while (i < e) {
-            if (buf[i] == '`') {
-                var m = 0
-                while (i + m < e && buf[i + m] == '`') m++
-                if (m == n) { pos = i + m; return T.CODE_SPAN }
-                i += m
-            } else i++
+            if (buf[i] != '`') { i++; continue }
+            var m = 0
+            while (i + m < e && buf[i + m] == '`') m++
+            if (m == n) { pos = i + m; return T.CODE_SPAN }
+            i += m
         }
         pos = s + n
         return T.TEXT
@@ -207,7 +248,7 @@ class MdLexer : LexerBase() {
         val rest = restOfLine()
         if (rest.startsWith("<!--")) {
             val close = buf.indexOf("-->", pos)
-            pos = if (close < 0) end else close + 3
+            pos = when { close < 0 -> end; else -> close + 3 }
             return T.HTML_COMMENT
         }
         AUTOLINK.find(rest)?.let { pos += it.value.length; return T.AUTOLINK }
@@ -217,20 +258,28 @@ class MdLexer : LexerBase() {
 
     private fun emphasis(): IElementType? {
         val c = ch()
-        if (c == '~') return if (ch(1) == '~') { pos += 2; T.STRIKE } else null
+        if (c == '~') {
+            if (ch(1) != '~') return null
+            pos += 2
+            return T.STRIKE
+        }
         // snake_case and 2*3 are not emphasis
-        val before = if (pos > 0) buf[pos - 1] else ' '
+        val before = when { pos > 0 -> buf[pos - 1]; else -> ' ' }
         val doubled = ch(1) == c
-        val after = ch(if (doubled) 2 else 1)
+        val length = when { doubled -> 2; else -> 1 }
+        val after = ch(length)
         if (c == '_' && before.isLetterOrDigit() && after.isLetterOrDigit()) return null
         if (before.isWhitespace() && after.isWhitespace()) return null
-        pos += if (doubled) 2 else 1
-        return if (doubled) T.STRONG else T.EMPH
+        pos += length
+        if (doubled) return T.STRONG
+        return T.EMPH
     }
 
     private companion object {
+        const val INDENT = " \t>"
+        const val RULE_MARKERS = "-*_"
         const val SPECIAL = "\n \t\r\\`![]()<*_~|"
-        val HR = Regex("^ *([-*_])( *\\1){2,} *$")
+        val NOT_PARAGRAPH = Regex("^(#{1,6}([ \\t]|$)|[>|<]|```|~~~|[-*+][ \\t]|\\d{1,9}[.)][ \\t]|\\[[^\\]]+\\]:)")
         val ORDERED = Regex("^\\d{1,9}[.)](?=[ \\t])")
         val DEFINITION = Regex("^\\[[^\\]]+\\]:[ \\t]*\\S")
         val AUTOLINK = Regex("^<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^<>\\s]*|[\\w.+-]+@[\\w-]+(\\.[\\w-]+)+)>")

@@ -10,5 +10,7 @@
     "outDir": "dist",
     "rootDir": ".",
   },
+  // src/app is the Angular example: `@angular/core` is not installed here
+  "exclude": ["src/app"],
   "include": ["src", "tests"],
 }

@@ -1,0 +1,28 @@
+// Ctrl+Click: the path of `apply from:` → the file, sharedLibrary → its def, version → its first assignment.
+plugins {
+    id 'groovy'
+}
+
+apply from: 'gradle/versions.gradle'
+
+group = 'playground'
+version = '1.0.0'
+
+def sharedLibrary = ['src', 'vars']
+
+repositories {
+    mavenCentral()
+}
+
+sourceSets {
+    main { groovy { srcDirs = sharedLibrary } }
+}
+
+dependencies {
+    implementation "org.apache.groovy:groovy:$groovyVersion"
+    testImplementation group: 'org.spockframework', name: 'spock-core', version: spockVersion
+}
+
+tasks.register('printVersion') {
+    doLast { println "version ${version} built from ${sharedLibrary.join(', ')}" }
+}

@@ -24,8 +24,8 @@ abstract class LiteKeysIndex<F : PsiFile>(private val fileType: LanguageFileType
     abstract fun keys(file: F): Collection<String>
 
     override fun getIndexer(): DataIndexer<String, Void, FileContent> = DataIndexer { input ->
-        val file = input.psiFile
-        if (!fileClass.isInstance(file)) emptyMap() else keys(fileClass.cast(file)).associateWith { null }
+        val file = input.psiFile.takeIf(fileClass::isInstance)?.let(fileClass::cast)
+        file?.let(::keys).orEmpty().associateWith { null }
     }
 
     override fun getKeyDescriptor(): KeyDescriptor<String> = EnumeratorStringDescriptor.INSTANCE

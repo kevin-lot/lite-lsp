@@ -19,10 +19,19 @@ import com.intellij.psi.tree.TokenSet
 import me.kevinlot.lite.core.LiteBraceMatcher
 import me.kevinlot.lite.core.LiteCStyleCommenter
 import me.kevinlot.lite.core.color
+import me.kevinlot.lite.kotlin.psi.KtClass
+import me.kevinlot.lite.kotlin.psi.KtEnumEntry
+import me.kevinlot.lite.kotlin.psi.KtFunction
+import me.kevinlot.lite.kotlin.psi.KtNameReferenceExpression
+import me.kevinlot.lite.kotlin.psi.KtNamedDeclaration
+import me.kevinlot.lite.kotlin.psi.KtObjectDeclaration
+import me.kevinlot.lite.kotlin.psi.KtParameter
+import me.kevinlot.lite.kotlin.psi.KtProperty
+import me.kevinlot.lite.kotlin.psi.KtTypeAlias
+import me.kevinlot.lite.kotlin.psi.KtTypeParameter
 import me.kevinlot.lite.kotlin.upstream.lexer.KotlinLexer
 import me.kevinlot.lite.kotlin.upstream.lexer.KtTokens
 import me.kevinlot.lite.kotlin.upstream.parser.KtNodeTypes as N
-import me.kevinlot.lite.kotlin.psi.*
 
 object KtColors {
     val KEYWORD = key("KT_KEYWORD", C.KEYWORD)
@@ -94,8 +103,8 @@ class KtHighlightingAnnotator : Annotator {
             element is KtClass || element is KtObjectDeclaration || element is KtTypeAlias -> holder.color((element as KtNamedDeclaration).nameIdentifier, KtColors.CLASS)
             element is KtTypeParameter -> holder.color(element.nameIdentifier, KtColors.TYPE_PARAMETER)
             element is KtFunction -> holder.color(element.nameIdentifier, KtColors.FUNCTION_DECL)
-            element is KtProperty && !element.isLocal -> holder.color(element.nameIdentifier,
-                if (element.hasModifier(KtTokens.CONST_KEYWORD)) KtColors.CONSTANT else KtColors.PROPERTY)
+            element is KtProperty && !element.isLocal && element.hasModifier(KtTokens.CONST_KEYWORD) -> holder.color(element.nameIdentifier, KtColors.CONSTANT)
+            element is KtProperty && !element.isLocal -> holder.color(element.nameIdentifier, KtColors.PROPERTY)
             element is KtParameter && element.isProperty -> holder.color(element.nameIdentifier, KtColors.PROPERTY)
             element is KtEnumEntry -> holder.color(element.nameIdentifier, KtColors.CONSTANT)
             type == N.ANNOTATION_ENTRY -> holder.color(element, KtColors.ANNOTATION)
@@ -109,8 +118,10 @@ class KtHighlightingAnnotator : Annotator {
         val name = ref.referencedName ?: return
         when {
             parent.node.elementType == N.USER_TYPE -> holder.color(ref.identifier, KtColors.CLASS)
+            parent.node.elementType == N.CALL_EXPRESSION && parent.firstChild == ref && name.first().isUpperCase() ->
+                holder.color(ref.identifier, KtColors.CLASS)
             parent.node.elementType == N.CALL_EXPRESSION && parent.firstChild == ref ->
-                holder.color(ref.identifier, if (name.first().isUpperCase()) KtColors.CLASS else KtColors.FUNCTION_CALL)
+                holder.color(ref.identifier, KtColors.FUNCTION_CALL)
         }
     }
 

@@ -4,10 +4,10 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import java.io.File
 import me.kevinlot.lite.rust.cargo.CargoProjects
 import me.kevinlot.lite.rust.psi.RsPath
 import me.kevinlot.lite.rust.psi.RsUseItem
-import java.io.File
 
 /** Dev tool: LITE_REAL_MAIN=<crate>/src/main.rs LITE_REAL_METADATA=<cargo metadata json>. Read-only. */
 class RealProjectTest : BasePlatformTestCase() {

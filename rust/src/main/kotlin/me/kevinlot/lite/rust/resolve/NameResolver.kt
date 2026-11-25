@@ -62,8 +62,13 @@ object NameResolver {
         is RsPathExpr -> VALUES
         is RsPatTupleStruct -> VALUES
         is RsStructLiteral, is RsPatStruct -> TYPES
-        is RsUseSpeck -> if (p.useGroup != null || p.mul != null) TYPES else ALL
+        is RsUseSpeck -> nsOfUsePath(p)
         else -> ALL
+    }
+
+    private fun nsOfUsePath(speck: RsUseSpeck): Set<Ns> {
+        if (speck.useGroup != null || speck.mul != null) return TYPES
+        return ALL
     }
 
     /** Syntactic qualifier, or the enclosing `use a::{…}` prefix for the first segment inside a group. */
@@ -79,31 +84,32 @@ object NameResolver {
 
     internal fun resolvePathIn(path: RsPath, ns: Set<Ns>): List<PsiElement> {
         val name = (path as RsPathMixin).referenceName ?: return emptyList()
-        val qualifier = qualifierOf(path)
-
-        val found: List<PsiElement> = if (qualifier == null) {
-            val typeQual = path.typeQual
-            when {
-                typeQual != null -> {
-                    val owner = typeQual.traitRef?.path?.let { resolvePathIn(it, TYPES) }
-                        ?: RsTypes.typeTargets(typeQual.typeReference)
-                    owner.flatMap { member(it, name, ns) }
-                }
-                path.coloncolon != null -> listOfNotNull(crateOf(path)?.let { ModuleTree.externPrelude(it)[name] })
-                name == "crate" -> listOfNotNull(crateOf(path))
-                name == "super" -> listOfNotNull(ModuleTree.parentOfMod(ModuleTree.containingMod(path)))
-                name == "self" -> if (isModulePosition(path)) listOf(ModuleTree.containingMod(path)) else selfValue(path)
-                name == "Self" -> selfType(path)
-                else -> lexical(name, ns, path)
-            }
-        } else {
-            when (name) {
-                "self" -> resolvePathIn(qualifier, TYPES)
-                "super" -> resolvePathIn(qualifier, TYPES).mapNotNull { ModuleTree.parentOfMod(it) }
-                else -> resolvePathIn(qualifier, TYPES).flatMap { member(it, name, ns) }
-            }
-        }
+        val found = qualifierOf(path)?.let { qualified(it, name, ns) } ?: unqualified(path, name, ns)
         return preferNs(found.distinct(), ns)
+    }
+
+    private fun unqualified(path: RsPath, name: String, ns: Set<Ns>): List<PsiElement> {
+        val typeQual = path.typeQual
+        return when {
+            typeQual != null -> {
+                val owner = typeQual.traitRef?.path?.let { resolvePathIn(it, TYPES) }
+                    ?: RsTypes.typeTargets(typeQual.typeReference)
+                owner.flatMap { member(it, name, ns) }
+            }
+            path.coloncolon != null -> listOfNotNull(crateOf(path)?.let { ModuleTree.externPrelude(it)[name] })
+            name == "crate" -> listOfNotNull(crateOf(path))
+            name == "super" -> listOfNotNull(ModuleTree.parentOfMod(ModuleTree.containingMod(path)))
+            name == "self" && isModulePosition(path) -> listOf(ModuleTree.containingMod(path))
+            name == "self" -> selfValue(path)
+            name == "Self" -> selfType(path)
+            else -> lexical(name, ns, path)
+        }
+    }
+
+    private fun qualified(qualifier: RsPath, name: String, ns: Set<Ns>): List<PsiElement> = when (name) {
+        "self" -> resolvePathIn(qualifier, TYPES)
+        "super" -> resolvePathIn(qualifier, TYPES).mapNotNull { ModuleTree.parentOfMod(it) }
+        else -> resolvePathIn(qualifier, TYPES).flatMap { member(it, name, ns) }
     }
 
     private fun isModulePosition(path: RsPath): Boolean =
@@ -120,7 +126,7 @@ object NameResolver {
     fun selfType(e: PsiElement): List<PsiElement> {
         val owner = PsiTreeUtil.getParentOfType(e, RsImplItem::class.java, RsTraitItem::class.java, RsStructItem::class.java, RsEnumItem::class.java)
             ?: return emptyList()
-        return if (owner is RsImplItem) RsTypes.typeTargets(owner.typeReference) else listOf(owner)
+        return (owner as? RsImplItem)?.let { RsTypes.typeTargets(it.typeReference) } ?: listOf(owner)
     }
 
     private fun preferNs(found: List<PsiElement>, ns: Set<Ns>): List<PsiElement> {
@@ -131,11 +137,16 @@ object NameResolver {
 
     fun nsOfElement(e: PsiElement): Set<Ns> = when (e) {
         is RsMacro, is RsMacro2 -> MACROS
-        is RsStructItem -> if (e.blockFields == null) setOf(Ns.TYPES, Ns.VALUES) else TYPES
+        is RsStructItem -> nsOfStruct(e)
         is RsEnumVariant -> setOf(Ns.TYPES, Ns.VALUES)
         is RsEnumItem, is RsTraitItem, is RsTypeAlias, is RsModItem, is RsModDeclItem, is RsFile,
         is RsTypeParameter, is RsTraitAlias, is RsExternCrateItem -> TYPES
         else -> VALUES
+    }
+
+    private fun nsOfStruct(struct: RsStructItem): Set<Ns> {
+        if (struct.blockFields == null) return setOf(Ns.TYPES, Ns.VALUES)
+        return TYPES
     }
 
     // ---------------------------------------------------------------- members
@@ -146,7 +157,7 @@ object NameResolver {
         is RsEnumItem -> target.enumBody?.enumVariantList.orEmpty().filter { it.name == name } + associated(target, name)
         is RsTraitItem -> traitMembers(target, name)
         is RsStructItem -> associated(target, name)
-        is RsTypeAlias -> RsTypes.typeTargets(target.typeReference).flatMap { member(it, name, ns) }.ifEmpty { associated(target, name) }
+        is RsTypeAlias -> guarded { RsTypes.typeTargets(target.typeReference).flatMap { member(it, name, ns) } }.ifEmpty { associated(target, name) }
         is RsTypeParameter -> RsTypes.boundTraits(target).flatMap { traitMembers(it, name) }
         else -> emptyList()
     }
@@ -157,30 +168,30 @@ object NameResolver {
     /** Items of `impl Type` and `impl Trait for Type` blocks (plus trait defaults). */
     fun associated(type: PsiElement, name: String): List<PsiElement> {
         val typeName = (type as? RsNamedElement)?.name ?: return emptyList()
-        val out = mutableListOf<PsiElement>()
-        for (impl in implsOf(type, typeName)) {
-            val own = impl.members?.let { membersNamed(it, name) }.orEmpty()
-            out += own
-            if (own.isEmpty()) impl.traitRef?.path?.let { resolvePathIn(it, TYPES) }?.filterIsInstance<RsTraitItem>()
-                ?.forEach { out += traitMembers(it, name) }
+        return implsOf(type, typeName).flatMap { impl ->
+            impl.members?.let { membersNamed(it, name) }.orEmpty().ifEmpty { implementedTraits(impl).flatMap { traitMembers(it, name) } }
         }
-        return out
     }
+
+    private fun implementedTraits(impl: RsImplItem): List<RsTraitItem> =
+        impl.traitRef?.path?.let { resolvePathIn(it, TYPES) }.orEmpty().filterIsInstance<RsTraitItem>()
 
     /**
      * All impl blocks whose self type resolves to [type]. The part found in libraries is memoized
-     * for the session; impls written in the project are looked up each time (they change).
+     * for the session; impls written in the project are memoized until the next edit.
      */
     fun implsOf(type: PsiElement, typeName: String = (type as RsNamedElement).name.orEmpty()): List<RsImplItem> {
         fun matching(impls: List<RsImplItem>) = impls.filter { impl ->
             val targets = RsTypes.typeTargets(impl.typeReference)
             targets.isEmpty() || type in targets
         }
-        if (!ModuleTree.isLibrary(type)) return matching(RsImplIndex.find(type.project, typeName))
+        if (!ModuleTree.isLibrary(type)) return ModuleTree.cached(type, IMPLS_KEY) { matching(RsImplIndex.find(type.project, typeName)) }
         val lib = ModuleTree.cached(type, LIB_IMPLS_KEY) { matching(RsImplIndex.find(type.project, typeName, library = true)) }
-        return lib + matching(RsImplIndex.find(type.project, typeName, library = false))
+        return lib + ModuleTree.cachedUntilEdit(type, PROJECT_IMPLS_KEY) { matching(RsImplIndex.find(type.project, typeName, library = false)) }
     }
 
+    private val IMPLS_KEY = com.intellij.openapi.util.Key.create<com.intellij.psi.util.CachedValue<List<RsImplItem>>>("lite.rs.impls")
+    private val PROJECT_IMPLS_KEY = com.intellij.openapi.util.Key.create<com.intellij.psi.util.CachedValue<List<RsImplItem>>>("lite.rs.projectImpls")
     private val LIB_IMPLS_KEY = com.intellij.openapi.util.Key.create<com.intellij.psi.util.CachedValue<List<RsImplItem>>>("lite.rs.libImpls")
 
     private fun membersNamed(members: RsMembers, name: String): List<PsiElement> =
@@ -189,7 +200,7 @@ object NameResolver {
     fun fieldsOf(e: PsiElement): List<PsiElement> = when (e) {
         is RsStructItem -> e.blockFields?.namedFieldDeclList ?: e.tupleFields?.tupleFieldDeclList.orEmpty()
         is RsEnumVariant -> e.blockFields?.namedFieldDeclList ?: e.tupleFields?.tupleFieldDeclList.orEmpty()
-        is RsTypeAlias -> RsTypes.typeTargets(e.typeReference).flatMap { fieldsOf(it) }
+        is RsTypeAlias -> guarded { RsTypes.typeTargets(e.typeReference).flatMap { fieldsOf(it) } }
         else -> emptyList()
     }
 
@@ -225,9 +236,12 @@ object NameResolver {
             is RsExternCrateItem -> {
                 val bound = child.alias?.identifier?.text ?: child.identifier?.text ?: return
                 if (bound != name) return
-                val crate = child.identifier?.text
                 val root = crateOf(child) ?: return
-                out += if (child.self != null) listOf(root) else listOfNotNull(crate?.let { ModuleTree.externPrelude(root)[it] })
+                if (child.self != null) {
+                    out += root
+                    return
+                }
+                child.identifier?.text?.let { ModuleTree.externPrelude(root)[it] }?.let { out += it }
             }
             is RsModDeclItem -> if (child.name == name) out += (ModuleTree.resolveModDecl(child) ?: child)
             is RsForeignModItem -> child.children.forEach { collectFromItem(it, name, ns, out) }
@@ -248,10 +262,15 @@ object NameResolver {
                 val alias = speck.alias
                 if (alias?.underscore != null) return
                 val ref = (path as RsPathMixin).referenceName
-                val bound = alias?.identifier?.text ?: if (ref == "self") qualifierOf(path)?.let { (it as RsPathMixin).referenceName } else ref
+                val bound = alias?.identifier?.text ?: unaliasedName(path, ref)
                 if (bound == name) out += resolvePathIn(path, ALL)
             }
         }
+    }
+
+    private fun unaliasedName(path: RsPath, ref: String?): String? {
+        if (ref == "self") return qualifierOf(path)?.let { (it as RsPathMixin).referenceName }
+        return ref
     }
 
     // ---------------------------------------------------------------- lexical scopes
@@ -268,13 +287,13 @@ object NameResolver {
         while (cur != null) {
             val local: List<PsiElement> = when (cur) {
                 is RsBlock -> blockScope(cur, prev, name, ns, values)
-                is RsFunction -> (if (values && prev is RsBlock) paramBindings(cur.valueParameterList, name) else emptyList()) +
+                is RsFunction -> paramBindings(cur.valueParameterList.takeIf { values && prev is RsBlock }, name) +
                     typeParams(cur.typeParameterList, name)
-                is RsLambdaExpr -> if (values && prev != cur.valueParameterList) paramBindings(cur.valueParameterList, name) else emptyList()
-                is RsMatchArm -> if (values && prev != cur.pat) bindings(cur.pat, name) else emptyList()
-                is RsForExpr -> if (values && prev == cur.block) bindings(cur.pat, name) else emptyList()
-                is RsIfExpr -> if (values && prev == cur.block) condBindings(cur.condition, name) else emptyList()
-                is RsWhileExpr -> if (values && prev == cur.block) condBindings(cur.condition, name) else emptyList()
+                is RsLambdaExpr -> paramBindings(cur.valueParameterList.takeIf { values && prev != it }, name)
+                is RsMatchArm -> bindings(cur.pat.takeIf { values && prev != it }, name)
+                is RsForExpr -> bindings(cur.pat.takeIf { values && prev == cur.block }, name)
+                is RsIfExpr -> condBindings(cur.condition.takeIf { values && prev == cur.block }, name)
+                is RsWhileExpr -> condBindings(cur.condition.takeIf { values && prev == cur.block }, name)
                 is RsImplItem -> typeParams(cur.typeParameterList, name)
                 is RsTraitItem -> typeParams(cur.typeParameterList, name)
                 is RsStructItem -> typeParams(cur.typeParameterList, name)
@@ -307,17 +326,17 @@ object NameResolver {
     }
 
     private fun blockScope(block: RsBlock, prev: PsiElement, name: String, ns: Set<Ns>, values: Boolean): List<PsiElement> {
+        val stmts = block.children
         if (values) {
             // Bindings of `let` statements *before* the current one, nearest first (shadowing).
-            val stmts = block.children.toList()
-            val idx = stmts.indexOf(prev).let { if (it < 0) stmts.size else it }
+            val idx = stmts.indexOf(prev).takeIf { it >= 0 } ?: stmts.size
             for (i in idx - 1 downTo 0) {
                 val s = stmts[i] as? RsLetDecl ?: continue
                 bindings(s.pat, name).takeIf { it.isNotEmpty() }?.let { return it.take(1) }
             }
         }
         val out = mutableListOf<PsiElement>()
-        for (child in block.children) if (child !is RsLetDecl) collectFromItem(child, name, ns, out)
+        for (child in stmts) if (child !is RsLetDecl) collectFromItem(child, name, ns, out)
         return out
     }
 
@@ -329,7 +348,10 @@ object NameResolver {
 
     fun bindings(pat: PsiElement?, name: String): List<PsiElement> {
         pat ?: return emptyList()
-        val all = if (pat is RsPatBinding) listOf(pat) else PsiTreeUtil.findChildrenOfType(pat, RsPatBinding::class.java)
+        val all = when (pat) {
+            is RsPatBinding -> listOf(pat)
+            else -> PsiTreeUtil.findChildrenOfType(pat, RsPatBinding::class.java)
+        }
         return all.filter { it.name == name && resolvePatBinding(it).isEmpty() }
     }
 
@@ -338,12 +360,18 @@ object NameResolver {
 
     /** Textual scope of `macro_rules!` first, then exported macros anywhere (dependencies, std). */
     private fun macros(name: String, place: PsiElement): List<PsiElement> {
-        val file = place.containingFile
-        PsiTreeUtil.findChildrenOfType(file, RsMacro::class.java).filter { it.name == name }.takeIf { it.isNotEmpty() }?.let { return it }
+        macrosByName(place.containingFile)[name]?.let { return it }
         val all = RsItemNameIndex.find(place, name).filter { it is RsMacro || it is RsMacro2 }
-        val root = crateOf(place)?.originalFile?.virtualFile?.parent?.path
-        val sameCrate = all.filter { root != null && it.containingFile.originalFile.virtualFile?.path?.startsWith(root) == true }
+        val root = crateOf(place)?.originalFile?.virtualFile?.parent?.path ?: return all
+        val prefix = "$root/"
+        val sameCrate = all.filter { it.containingFile.originalFile.virtualFile?.path?.startsWith(prefix) == true }
         return sameCrate.ifEmpty { all }
+    }
+
+    private val MACROS_KEY = com.intellij.openapi.util.Key.create<com.intellij.psi.util.CachedValue<Map<String, List<RsMacro>>>>("lite.rs.macros")
+
+    private fun macrosByName(file: com.intellij.psi.PsiFile): Map<String, List<RsMacro>> = ModuleTree.cached(file, MACROS_KEY) {
+        PsiTreeUtil.findChildrenOfType(file, RsMacro::class.java).groupBy { it.name.orEmpty() }
     }
 
     // ---------------------------------------------------------------- recursion guard

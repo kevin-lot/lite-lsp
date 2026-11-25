@@ -15,6 +15,13 @@ class KtParserTest : BasePlatformTestCase() {
         "${file.name}:$line ${err.errorDescription}"
     }
 
+    fun `test an empty file parses`() {
+        listOf("Empty.kt", "empty.gradle.kts").forEach { name ->
+            val file = myFixture.configureByText(name, "")
+            assertNull(name, com.intellij.psi.util.PsiTreeUtil.findChildOfType(file, com.intellij.psi.PsiErrorElement::class.java))
+        }
+    }
+
     fun `test sample parses without errors`() {
         val f = myFixture.configureByText("sample.kt", File("src/test/testData/parser/sample.kt").readText())
         assertEquals(KtFile::class.java, f.javaClass)

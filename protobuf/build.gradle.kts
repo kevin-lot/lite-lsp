@@ -25,6 +25,8 @@ val generateProtoParser by tasks.registering(GenerateParserTask::class) {
     pathToParser = "me/kevinlot/lite/proto/parser/PbParser.java"
     pathToPsiRoot = "me/kevinlot/lite/proto/psi"
     purgeOldFiles = true
+    // PbTypes.java lands beside the parser, outside the declared outputs: a cached run would restore PbParser.java alone
+    outputs.cacheIf { false }
 }
 
 sourceSets.main { java.srcDirs(lexerDir, parserDir, "src/upstream/java") }

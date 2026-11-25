@@ -1,0 +1,8 @@
+<!-- Shared by every language: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <additionalTextAttributes scheme="Darcula" file="colorSchemes/LiteRainbowDarcula.xml"/>
+        <additionalTextAttributes scheme="Default" file="colorSchemes/LiteRainbowDefault.xml"/>
+        <annotator language="" implementationClass="me.kevinlot.lite.core.LiteRainbowAnnotator"/>
+    </extensions>
+</idea-plugin>

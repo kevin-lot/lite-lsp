@@ -1,0 +1,10 @@
+<!-- Cmd+Left / Cmd+Right move by word in the IDE's terminal (macOS): needs the Terminal plugin. -->
+<idea-plugin>
+    <projectListeners>
+        <listener class="me.kevinlot.lite.terminal.TerminalWordKeysListener"
+                  topic="com.intellij.terminal.frontend.toolwindow.TerminalTabsManagerListener"/>
+    </projectListeners>
+    <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity implementation="me.kevinlot.lite.terminal.TerminalWordKeysStartup"/>
+    </extensions>
+</idea-plugin>

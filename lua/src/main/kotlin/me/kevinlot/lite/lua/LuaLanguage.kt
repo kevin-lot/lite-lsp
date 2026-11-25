@@ -1,6 +1,7 @@
 package me.kevinlot.lite.lua
 
 import com.intellij.extapi.psi.PsiFileBase
+import com.intellij.lang.ASTNode
 import com.intellij.lang.Language
 import com.intellij.lexer.LexerBase
 import com.intellij.openapi.fileTypes.LanguageFileType
@@ -8,6 +9,7 @@ import com.intellij.openapi.util.IconLoader
 import com.intellij.psi.FileViewProvider
 import com.intellij.psi.TokenType
 import com.intellij.psi.tree.IElementType
+import com.intellij.psi.tree.ILeafElementType
 import com.intellij.psi.tree.TokenSet
 import javax.swing.Icon
 
@@ -34,12 +36,17 @@ class LuaFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, LuaLan
 
 class LuaTokenType(debugName: String) : IElementType(debugName, LuaLanguage)
 
+/** Builds its own leaves: the only way to give annotation lines a PSI class without an AST factory extension. */
+private object LuaCommentType: IElementType("COMMENT", LuaLanguage), ILeafElementType {
+    override fun createLeafNode(leafText: CharSequence): ASTNode = LuaAnnotation.leaf(this, leafText)
+}
+
 object LuaTokens {
     private fun t(name: String) = LuaTokenType(name)
     val IDENT = t("IDENT")
     val NUMBER = t("NUMBER")
     val STRING = t("STRING")            // '…', "…", [[…]], [==[…]==]
-    val COMMENT = t("COMMENT")          // -- … and --[[ … ]]
+    val COMMENT: IElementType = LuaCommentType // -- … and --[[ … ]]
     val SHEBANG = t("SHEBANG")
     val LPAREN = t("("); val RPAREN = t(")"); val LBRACE = t("{"); val RBRACE = t("}"); val LBRACKET = t("["); val RBRACKET = t("]")
     val DOT = t("."); val COLON = t(":"); val DOUBLE_COLON = t("::"); val COMMA = t(","); val SEMI = t(";"); val ASSIGN = t("=")
@@ -67,8 +74,9 @@ object LuaTokens {
         ";" to SEMI, "=" to ASSIGN, "+" to PLUS, "-" to MINUS, "*" to MUL, "/" to DIV, "%" to MOD, "^" to POW, "#" to LEN, "&" to BAND, "~" to BXOR,
         "|" to BOR, "<" to LT, ">" to GT,
     )
+    private val SYMBOLS_BY_FIRST_CHAR = SYMBOLS.groupBy { (s, _) -> s[0] }
     internal fun symbolAt(buf: CharSequence, pos: Int, end: Int): Pair<String, LuaTokenType>? =
-        SYMBOLS.firstOrNull { (s, _) -> pos + s.length <= end && buf.regionMatches(pos, s, 0, s.length) }
+        SYMBOLS_BY_FIRST_CHAR[buf[pos]]?.firstOrNull { (s, _) -> pos + s.length <= end && buf.regionMatches(pos, s, 0, s.length) }
 }
 
 private fun CharSequence.regionMatches(start: Int, other: String, otherStart: Int, len: Int): Boolean {
@@ -97,17 +105,19 @@ class LuaLexer : LexerBase() {
 
     override fun advance() {
         start = pos
-        type = if (pos >= end) null else next()
+        if (pos >= end) { type = null; return }
+        type = next()
     }
 
-    private fun at(i: Int) = if (i < end) buf[i] else '\u0000'
+    private fun at(i: Int) = when { i < end -> buf[i]; else -> '\u0000' }
 
     /** `[==[` at [i]: the level (number of `=`), or -1. */
     private fun longOpen(i: Int): Int {
         if (at(i) != '[') return -1
         var j = i + 1
         while (at(j) == '=') j++
-        return if (at(j) == '[') j - i - 1 else -1
+        if (at(j) == '[') return j - i - 1
+        return -1
     }
 
     private fun skipLong(level: Int) {
@@ -127,11 +137,7 @@ class LuaLexer : LexerBase() {
         val c = buf[pos]
         if (c.isWhitespace()) { while (pos < end && buf[pos].isWhitespace()) pos++; return LuaTokens.WHITE_SPACE }
         if (pos == 0 && c == '#' && at(1) == '!') { while (pos < end && buf[pos] != '\n') pos++; return LuaTokens.SHEBANG }
-        if (c == '-' && at(pos + 1) == '-') {
-            val level = longOpen(pos + 2)
-            if (level >= 0) { pos += 2; skipLong(level) } else while (pos < end && buf[pos] != '\n') pos++
-            return LuaTokens.COMMENT
-        }
+        if (c == '-' && at(pos + 1) == '-') { comment(); return LuaTokens.COMMENT }
         if (c == '[') { val level = longOpen(pos); if (level >= 0) { skipLong(level); return LuaTokens.STRING } }
         if (c == '"' || c == '\'') {
             pos++
@@ -155,12 +161,18 @@ class LuaLexer : LexerBase() {
         return LuaTokens.BAD_CHARACTER
     }
 
+    private fun comment() {
+        val level = longOpen(pos + 2)
+        if (level >= 0) { pos += 2; skipLong(level); return }
+        while (pos < end && buf[pos] != '\n') pos++
+    }
+
     private fun number() {
         val hex = buf[pos] == '0' && (at(pos + 1) == 'x' || at(pos + 1) == 'X')
         if (hex) pos += 2
-        val digit: (Char) -> Boolean = if (hex) { ch -> ch.isDigit() || ch in 'a'..'f' || ch in 'A'..'F' } else { ch -> ch.isDigit() }
+        val digit: (Char) -> Boolean = { ch -> ch.isDigit() || (hex && (ch in 'a'..'f' || ch in 'A'..'F')) }
         while (pos < end && (digit(buf[pos]) || buf[pos] == '.' && at(pos + 1) != '.')) pos++
-        val exp = if (hex) "pP" else "eE"
+        val exp = when { hex -> "pP"; else -> "eE" }
         if (pos < end && buf[pos] in exp) {
             pos++
             if (pos < end && (buf[pos] == '+' || buf[pos] == '-')) pos++

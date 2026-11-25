@@ -4,10 +4,10 @@ import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import java.io.File
 import me.kevinlot.lite.rust.cargo.CargoProjects
 import me.kevinlot.lite.rust.cargo.CargoWorkspace
 import me.kevinlot.lite.rust.cargo.CrateInfo
-import java.io.File
 
 /**
  * Resolution against the real standard library sources.

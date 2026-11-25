@@ -4,8 +4,9 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
-import me.kevinlot.lite.kotlin.psi.KtNameReferenceExpression
 import java.io.File
+import me.kevinlot.lite.kotlin.gradle.GradleProjects
+import me.kevinlot.lite.kotlin.psi.KtNameReferenceExpression
 
 /** Dev tool: LITE_KOTLIN_PROJECT=<dir> loads all its .kt files together (read-only) and lists unresolved names. */
 class KtRealProjectTest : LightJavaCodeInsightFixtureTestCase() {

@@ -68,3 +68,25 @@ The same title twice: its anchor is `#usage-1`.
 
 [changelog]: CHANGELOG.md
 [faq]: guides/faq.md "Frequently asked questions"
+
+## Diagrams
+
+Mermaid blocks are drawn in the preview.
+
+```mermaid
+flowchart LR
+    client[Client] -->|request| api(API)
+    api --> ok{Valid?}
+    ok -- yes --> db[(Database)]
+    ok -- no --> client
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    C->>API: POST /orders
+    API->>DB: insert
+    DB-->>API: id
+    Note over API,DB: one transaction
+    API-->>C: 201 Created
+```

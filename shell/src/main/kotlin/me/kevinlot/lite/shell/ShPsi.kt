@@ -22,7 +22,6 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.IncorrectOperationException
-import me.kevinlot.lite.core.RecursionGuard
 import me.kevinlot.lite.shell.ShElementTypes as E
 import me.kevinlot.lite.shell.ShTokens as T
 
@@ -39,7 +38,7 @@ class ShFunction(node: ASTNode) : ShElement(node), PsiNameIdentifierOwner {
     }
 }
 
-/** A variable set here: `NAME=…`, `local NAME`, `read NAME`, `for NAME in`. */
+/** A variable set here: `NAME=…`, `local NAME`, `read NAME`, `for NAME in`, `(( NAME = … ))`, `${NAME:=…}`. */
 class ShVarDecl(node: ASTNode) : ShElement(node), PsiNameIdentifierOwner {
     private val token: PsiElement? get() = node.findChildByType(NAME_TOKENS)?.psi
     override fun getNameIdentifier(): PsiElement? = token
@@ -49,23 +48,31 @@ class ShVarDecl(node: ASTNode) : ShElement(node), PsiNameIdentifierOwner {
     override fun setName(name: String): PsiElement {
         val t = token ?: throw IncorrectOperationException("No name")
         val old = t.text
-        t.replace(if (t.node.elementType == T.ASSIGN_NAME) ShPsiFactory(project).assignName(name + old.substring(baseName(old).length)) else ShPsiFactory(project).word(name))
+        val factory = ShPsiFactory(project)
+        val renamed = when (t.node.elementType) {
+            T.ASSIGN_NAME -> factory.assignName(name + old.substring(baseName(old).length))
+            T.VAR_NAME -> factory.variableName(name)
+            else -> factory.word(name)
+        }
+        t.replace(renamed)
         return this
     }
 
     /** `local`/`declare`/`typeset` inside a function (without `-g`): only visible there. */
-    val isLocal: Boolean
+    val isLocal: Boolean get() = localFunction != null
+
+    /** The function this variable is local to. */
+    internal val localFunction: ShFunction?
         get() {
-            val command = parent as? ShElement ?: return false
-            if (command.node.elementType != E.COMMAND) return false
-            val name = command.node.findChildByType(E.COMMAND_NAME)?.text ?: return false
-            if (name !in LOCAL_BUILTINS) return false
-            if (command.node.getChildren(null).any { it.elementType == E.WORD && it.text == "-g" }) return false
-            return PsiTreeUtil.getParentOfType(this, ShFunction::class.java) != null
+            val command = parent as? ShElement ?: return null
+            if (command.node.elementType != E.COMMAND) return null
+            val name = command.node.findChildByType(E.COMMAND_NAME)?.text ?: return null
+            if (name !in LOCAL_BUILTINS) return null
+            if (command.node.getChildren(null).any { it.elementType == E.WORD && it.text == "-g" }) return null
+            return PsiTreeUtil.getParentOfType(this, ShFunction::class.java)
         }
 
-    override fun getUseScope(): SearchScope =
-        if (isLocal) LocalSearchScope(PsiTreeUtil.getParentOfType(this, ShFunction::class.java)!!) else super.getUseScope()
+    override fun getUseScope(): SearchScope = localFunction?.let { LocalSearchScope(it) } ?: super.getUseScope()
 
     /** A later assignment (`COUNT=2`) refers to the declaring one (`COUNT=1`, `local COUNT`). */
     override fun getReference(): PsiReference? {
@@ -76,7 +83,7 @@ class ShVarDecl(node: ASTNode) : ShElement(node), PsiNameIdentifierOwner {
     }
 
     companion object {
-        val NAME_TOKENS = com.intellij.psi.tree.TokenSet.create(T.ASSIGN_NAME, T.WORD)
+        val NAME_TOKENS = com.intellij.psi.tree.TokenSet.create(T.ASSIGN_NAME, T.WORD, T.VAR_NAME)
         val LOCAL_BUILTINS = setOf("local", "declare", "typeset", "integer", "float")
         fun baseName(text: String) = text.takeWhile { it.isLetterOrDigit() || it == '_' }
     }
@@ -150,21 +157,26 @@ class ShPsiFactory(private val project: Project) {
 // ---------------------------------------------------------------- references
 
 class ShVarReference(element: ShVarRef) :
-    PsiPolyVariantReferenceBase<ShVarRef>(element, element.nameToken!!.let { t ->
-        val dollar = if (t.text.startsWith("$")) 1 else 0
+    PsiPolyVariantReferenceBase<ShVarRef>(element, element.nameToken?.let { t ->
+        val dollar = when { t.text.startsWith("$") -> 1; else -> 0 }
         TextRange.from(t.startOffsetInParent + dollar, t.textLength - dollar)
-    }) {
+    } ?: TextRange.EMPTY_RANGE) {
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
         PsiElementResolveResult.createResults(listOfNotNull(ShResolver.variable(element.referencedName ?: "", element)))
     override fun handleElementRename(newElementName: String): PsiElement {
         val t = element.nameToken ?: return element
-        t.replace(if (t.node.elementType == T.VAR) ShPsiFactory(element.project).variable(newElementName) else ShPsiFactory(element.project).variableName(newElementName))
+        val factory = ShPsiFactory(element.project)
+        val renamed = when (t.node.elementType) {
+            T.VAR -> factory.variable(newElementName)
+            else -> factory.variableName(newElementName)
+        }
+        t.replace(renamed)
         return element
     }
 }
 
 class ShFunctionReference(element: ShCommandName) :
-    PsiPolyVariantReferenceBase<ShCommandName>(element, TextRange.from(element.nameToken!!.startOffsetInParent + element.firstChild.startOffsetInParent, element.nameToken!!.textLength)) {
+    PsiPolyVariantReferenceBase<ShCommandName>(element, element.nameToken?.let { TextRange.from(it.startOffsetInParent + element.firstChild.startOffsetInParent, it.textLength) } ?: TextRange.EMPTY_RANGE) {
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
         PsiElementResolveResult.createResults(listOfNotNull(element.nameToken?.text?.let { ShResolver.function(it, element.containingFile) }))
     override fun handleElementRename(newElementName: String): PsiElement {
@@ -193,27 +205,41 @@ class ShSourceReference(element: ShSourcePath) : PsiPolyVariantReferenceBase<ShS
  * environment variables and external commands stay unresolved.
  */
 object ShResolver {
-    private val GUARD = RecursionGuard(16)
     private val FUNCTIONS = Key.create<CachedValue<Map<String, ShFunction>>>("lite.sh.functions")
     private val GLOBALS = Key.create<CachedValue<Map<String, ShVarDecl>>>("lite.sh.globals")
+    private val LOCALS = Key.create<CachedValue<Map<String, ShVarDecl>>>("lite.sh.locals")
     private val SOURCED = Key.create<CachedValue<List<PsiFile>>>("lite.sh.sourced")
 
-    private fun <T> cached(file: PsiFile, key: Key<CachedValue<T>>, compute: () -> T): T =
-        CachedValuesManager.getCachedValue(file, key) { CachedValueProvider.Result.create(compute(), PsiModificationTracker.MODIFICATION_COUNT) }
+    private fun <T> cached(holder: PsiElement, key: Key<CachedValue<T>>, compute: () -> T): T =
+        CachedValuesManager.getCachedValue(holder, key) { CachedValueProvider.Result.create(compute(), PsiModificationTracker.MODIFICATION_COUNT) }
 
-    fun function(name: String, file: PsiFile): ShFunction? = GUARD.run(null) {
-        functions(file)[name] ?: sourcedFiles(file).firstNotNullOfOrNull { function(name, it) }
+    fun function(name: String, file: PsiFile): ShFunction? = withSourced(file).firstNotNullOfOrNull { functions(it)[name] }
+
+    fun variable(name: String, place: PsiElement): ShVarDecl? {
+        val enclosing = generateSequence(enclosingFunction(place)) { enclosingFunction(it) }
+        enclosing.firstNotNullOfOrNull { locals(it)[name] }?.let { return it }
+        val file = place.containingFile ?: return null
+        return globals(file)[name] ?: sourcedFiles(file).firstNotNullOfOrNull { globals(it)[name] }
     }
 
-    fun variable(name: String, place: PsiElement): ShVarDecl? = GUARD.run(null) {
-        var fn = PsiTreeUtil.getParentOfType(place, ShFunction::class.java)
-        while (fn != null) {
-            PsiTreeUtil.findChildrenOfType(fn, ShVarDecl::class.java).firstOrNull { it.name == name && it.isLocal && PsiTreeUtil.getParentOfType(it, ShFunction::class.java) == fn }
-                ?.let { return@run it }
-            fn = PsiTreeUtil.getParentOfType(fn, ShFunction::class.java)
+    private fun enclosingFunction(e: PsiElement): ShFunction? = PsiTreeUtil.getParentOfType(e, ShFunction::class.java)
+
+    /** [file], then the scripts it sources, depth first; a script sourced twice (or in a cycle) comes once. */
+    private fun withSourced(file: PsiFile): Sequence<PsiFile> = sequence {
+        val seen = HashSet<PsiFile>()
+        val pending = ArrayDeque(listOf(file))
+        while (pending.isNotEmpty()) {
+            val script = pending.removeLast()
+            if (!seen.add(script)) continue
+            yield(script)
+            pending.addAll(sourcedFiles(script).asReversed())
         }
-        val file = place.containingFile ?: return@run null
-        globals(file)[name] ?: sourcedFiles(file).firstNotNullOfOrNull { globals(it)[name] }
+    }
+
+    /** Variables local to [function] by name (the first declaration wins). */
+    private fun locals(function: ShFunction): Map<String, ShVarDecl> = cached(function, LOCALS) {
+        PsiTreeUtil.findChildrenOfType(function, ShVarDecl::class.java).filter { it.localFunction == function && it.name != null }
+            .distinctBy { it.name }.associateBy { it.name.orEmpty() }
     }
 
     /** Functions of a script by name (the first definition wins). */
@@ -241,7 +267,7 @@ object ShResolver {
             rel.startsWith("~/") -> vf.fileSystem.findFileByPath(System.getProperty("user.home") + rel.substring(1))
             rel.startsWith("/") -> vf.fileSystem.findFileByPath(rel)
             else -> vf.parent?.findFileByRelativePath(rel)
-        } ?: return null
-        return if (target.isDirectory) null else PsiManager.getInstance(path.project).findFile(target)
+        }?.takeUnless { it.isDirectory } ?: return null
+        return PsiManager.getInstance(path.project).findFile(target)
     }
 }

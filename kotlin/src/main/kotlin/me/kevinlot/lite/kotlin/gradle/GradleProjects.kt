@@ -1,6 +1,5 @@
 package me.kevinlot.lite.kotlin.gradle
 
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.navigation.ItemPresentation
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
@@ -23,10 +22,11 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
-import com.intellij.psi.PsiManager
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import javax.swing.Icon
+import me.kevinlot.lite.core.LiteLibraryRoots
+import me.kevinlot.lite.kotlin.resolve.KtProjectScope
 
 /** A dependency declared as `"group:artifact:version"` (or the Kotlin stdlib of the Kotlin plugin version). */
 data class Coordinates(val group: String, val artifact: String, val version: String)
@@ -102,15 +102,7 @@ class GradleProjects(private val project: Project) {
         jarUrls = new
         modificationTracker.incModificationCount()
         val vfm = VirtualFileManager.getInstance()
-        ApplicationManager.getApplication().invokeLater({
-            WriteAction.run<RuntimeException> {
-                AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(
-                    project, "Kotlin", old.mapNotNull { vfm.findFileByUrl(it) }, new.mapNotNull { vfm.findFileByUrl(it) }, "lite-kotlin",
-                )
-            }
-            PsiManager.getInstance(project).dropPsiCaches()
-            DaemonCodeAnalyzer.getInstance(project).restart()
-        }, project.disposed)
+        LiteLibraryRoots.changed(project, "Kotlin", old.mapNotNull { vfm.findFileByUrl(it) }, new.mapNotNull { vfm.findFileByUrl(it) }, "lite-kotlin")
     }
 
     companion object {
@@ -139,9 +131,9 @@ class GradleProjects(private val project: Project) {
 
         private fun newestStdlib(gradleHome: File): Coordinates? {
             val dir = File(gradleHome, "caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib")
-            val versions = dir.listFiles()?.map { it.name }.orEmpty()
-            val newest = versions.maxWithOrNull(compareBy<String>({ it.split('.', '-').mapNotNull(String::toIntOrNull).let { p -> p.getOrElse(0) { 0 } } },
-                { it.split('.', '-').mapNotNull(String::toIntOrNull).getOrElse(1) { 0 } }, { it.split('.', '-').mapNotNull(String::toIntOrNull).getOrElse(2) { 0 } }))
+            val numbers = dir.listFiles().orEmpty().associate { it.name to it.name.split('.', '-').mapNotNull(String::toIntOrNull) }
+            fun part(version: String, i: Int) = numbers.getValue(version).getOrElse(i) { 0 }
+            val newest = numbers.keys.maxWithOrNull(compareBy({ part(it, 0) }, { part(it, 1) }, { part(it, 2) }))
             return newest?.let { Coordinates("org.jetbrains.kotlin", "kotlin-stdlib", it) }
         }
 
@@ -180,7 +172,8 @@ class GradleProjects(private val project: Project) {
         fun cachedJar(c: Coordinates, gradleHome: File = GRADLE_HOME): File? = cachedFile(c, "jar", gradleHome)
 
         private val POM_DEP = Regex("""<dependency>(.*?)</dependency>""", RegexOption.DOT_MATCHES_ALL)
-        private fun tag(xml: String, name: String) = Regex("<$name>\\s*([^<]+?)\\s*</$name>").find(xml)?.groupValues?.get(1)
+        private val POM_TAGS = listOf("artifactId", "groupId", "optional", "scope", "version").associateWith { Regex("<$it>\\s*([^<]+?)\\s*</$it>") }
+        private fun tag(xml: String, name: String) = POM_TAGS.getValue(name).find(xml)?.groupValues?.get(1)
 
         /** Runtime/compile dependencies from the cached POMs (no download, depth-limited). */
         fun withTransitive(roots: List<Coordinates>, maxDepth: Int = 4): List<Coordinates> {
@@ -216,7 +209,8 @@ class KtLibraryRootsProvider : AdditionalLibraryRootsProvider() {
         val roots = GradleProjects.getInstance(project).jarUrls.mapNotNull { url ->
             jfs.findFileByPath(url.removePrefix("jar://"))
         }
-        return if (roots.isEmpty()) emptyList() else listOf(GradleLibrary(roots))
+        if (roots.isEmpty()) return emptyList()
+        return listOf(GradleLibrary(roots))
     }
 }
 

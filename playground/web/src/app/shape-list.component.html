@@ -1,0 +1,14 @@
+<h1 [class.busy]="busy">{{ title }}</h1>
+@let count = shapes.length;
+@if (count > 0 && !busy) {
+    <ul>
+        @for (shape of shapes; track shape.id; let i = $index) {
+            <li #row (click)="remove(shape)" [title]="shape.name | uppercase">{{ i + 1 }}. {{ shape.name }}: {{ shape.area | area: 'cm²' }}</li>
+        } @empty {
+            <li>nothing</li>
+        }
+    </ul>
+} @else {
+    <p>{{ busy ? 'Loading…' : 'No shape' }}</p>
+}
+<footer>{{ count }} shapes, {{ updated | date: 'short' }}</footer>

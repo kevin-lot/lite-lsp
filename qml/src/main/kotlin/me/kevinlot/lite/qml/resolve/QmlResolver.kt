@@ -15,11 +15,16 @@ import me.kevinlot.lite.core.LiteCache
 import me.kevinlot.lite.core.LiteReference
 import me.kevinlot.lite.core.RecursionGuard
 import me.kevinlot.lite.qml.QmlFile
-import me.kevinlot.lite.qml.psi.*
+import me.kevinlot.lite.qml.parser.QmlElementTypes as Q
+import me.kevinlot.lite.qml.psi.QmlBinding
+import me.kevinlot.lite.qml.psi.QmlImport
+import me.kevinlot.lite.qml.psi.QmlNamed
+import me.kevinlot.lite.qml.psi.QmlObject
+import me.kevinlot.lite.qml.psi.QmlPropertyRef
+import me.kevinlot.lite.qml.psi.QmlTypeRef
 import me.kevinlot.lite.typescript.TsFile
 import me.kevinlot.lite.typescript.psi.TsFunction
 import me.kevinlot.lite.typescript.psi.TsPsiFactory
-import me.kevinlot.lite.qml.parser.QmlElementTypes as Q
 
 // ---------------------------------------------------------------- references
 
@@ -29,17 +34,16 @@ class QmlPropertyReference(element: QmlPropertyRef) : LiteReference<QmlPropertyR
 
     override fun renameIdentifier(nameToken: PsiElement, newName: String): PsiElement {
         val old = nameToken.text
-        val text = if (QmlResolver.isHandler(old)) {
-            val suffix = if (old.endsWith("Changed") && resolveTargets().any { it.node.elementType == Q.PROPERTY || QmlTypes.isTypeInfo(it, "Property") }) "Changed" else ""
-            "on" + newName.replaceFirstChar { it.uppercase() } + suffix
-        } else newName
-        return TsPsiFactory(element.project).identifier(text)
+        val factory = TsPsiFactory(element.project)
+        if (!QmlResolver.isHandler(old)) return factory.identifier(newName)
+        val ofProperty = old.endsWith("Changed") && resolveTargets().any { it.node.elementType == Q.PROPERTY || QmlTypes.isTypeInfo(it, "Property") }
+        return factory.identifier("on" + newName.replaceFirstChar { it.uppercase() } + "Changed".takeIf { ofProperty }.orEmpty())
     }
 }
 
 /** A type name → its document (`Button.qml`), inline component or Qt type description. */
 class QmlTypeReference(element: QmlTypeRef) :
-    PsiPolyVariantReferenceBase<QmlTypeRef>(element, element.nameElement!!.textRangeInParent) {
+    PsiPolyVariantReferenceBase<QmlTypeRef>(element, element.nameElement?.textRangeInParent ?: TextRange.EMPTY_RANGE) {
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
         ResolveCache.getInstance(element.project).resolveWithCaching(this, RESOLVER, true, incompleteCode)
 
@@ -72,7 +76,10 @@ object QmlResolver {
     private val TYPE = Key.create<CachedValue<List<PsiElement>>>("lite.qml.type")
     private val PROPERTY = Key.create<CachedValue<List<PsiElement>>>("lite.qml.property")
     private val IDS = Key.create<CachedValue<Map<String, QmlNamed>>>("lite.qml.ids")
+    private val INLINE_COMPONENTS = Key.create<CachedValue<Map<String, List<QmlNamed>>>>("lite.qml.inlineComponents")
+    private val COMPONENT_MEMBERS = Key.create<CachedValue<Map<String, List<QmlObject>>>>("lite.qml.componentMembers")
     private val HANDLER = Regex("^on[A-Z]")
+    private val QUOTED = Regex("\"([^\"]+)\"")
 
     fun isHandler(name: String) = HANDLER.containsMatchIn(name)
 
@@ -102,8 +109,13 @@ object QmlResolver {
             .ifEmpty { listOfNotNull(dir?.findChild("$name.qml")?.let { manager.findFile(it) }) }
     }
 
-    private fun inlineComponents(file: QmlFile, name: String): List<PsiElement> =
-        PsiTreeUtil.findChildrenOfType(file, QmlNamed::class.java).filter { it.type == Q.INLINE_COMPONENT && it.name == name }
+    private fun inlineComponents(file: QmlFile, name: String): List<PsiElement> = inlineComponents(file)[name].orEmpty()
+
+    private fun inlineComponents(file: QmlFile): Map<String, List<QmlNamed>> = LiteCache.cached(file, INLINE_COMPONENTS, QmlLibraryOracle) {
+        PsiTreeUtil.findChildrenOfType(file, QmlNamed::class.java).filter { it.type == Q.INLINE_COMPONENT }
+            .mapNotNull { c -> c.name?.let { it to c } }
+            .groupBy({ it.first }, { it.second })
+    }
 
     private fun typesInDirectory(dir: com.intellij.openapi.vfs.VirtualFile, name: String, from: PsiFile): List<PsiElement> {
         val manager = PsiManager.getInstance(from.project)
@@ -158,18 +170,25 @@ object QmlResolver {
 
     /** A Qt type description: `Property`/`Signal`/`Method`/`Enum` children, enum values, then the prototype chain. */
     private fun componentMembers(component: QmlObject, name: String): List<PsiElement> {
-        val own = component.members.filterIsInstance<QmlObject>().filter { m ->
-            m.field("name") == name || (m.typeName == "Enum" && enumValues(m).contains(name))
-        }
+        val own = componentMembers(component)[name].orEmpty()
         if (own.isNotEmpty()) return own
         val project = component.project
         return listOfNotNull(component.field("prototype"), component.field("extension"))
             .mapNotNull { QmlTypeInfo.component(it, project) }.flatMap { members(it, name) }
     }
 
-    private fun enumValues(enum: QmlObject): List<String> =
-        enum.members.filterIsInstance<QmlBinding>().firstOrNull { it.path == "values" }?.value?.text
-            ?.let { Regex("\"([^\"]+)\"").findAll(it).map { m -> m.groupValues[1] }.toList() }.orEmpty()
+    /** Members of a Qt type description by name, an `Enum` also by each of its values. */
+    private fun componentMembers(component: QmlObject): Map<String, List<QmlObject>> = LiteCache.cached(component, COMPONENT_MEMBERS, QmlLibraryOracle) {
+        component.members.filterIsInstance<QmlObject>()
+            .flatMap { m -> (listOfNotNull(m.field("name")) + enumValues(m)).distinct().map { it to m } }
+            .groupBy({ it.first }, { it.second })
+    }
+
+    private fun enumValues(member: QmlObject): List<String> {
+        if (member.typeName != "Enum") return emptyList()
+        val values = member.members.filterIsInstance<QmlBinding>().firstOrNull { it.path == "values" }?.value?.text ?: return emptyList()
+        return QUOTED.findAll(values).map { it.groupValues[1] }.toList()
+    }
 
     /** `Layout.fillWidth`, `Component.onCompleted`: members of the type's attached type. */
     private fun attachedMembers(types: List<PsiElement>, name: String): List<PsiElement> = types.flatMap { t ->
@@ -193,7 +212,8 @@ object QmlResolver {
         if (!isHandler(name)) return emptyList()
         val signal = name.substring(2).replaceFirstChar { it.lowercase() }
         members(target, signal).ifEmpty { null }?.let { return it }
-        return if (signal.endsWith("Changed")) members(target, signal.removeSuffix("Changed")) else emptyList()
+        if (!signal.endsWith("Changed")) return emptyList()
+        return members(target, signal.removeSuffix("Changed"))
     }
 
     // ------------------------------------------------------------ bindings
@@ -227,16 +247,15 @@ object QmlResolver {
         return when (owner) {
             is QmlObject -> listOf(owner)
             null -> emptyList()
-            else -> if (owner.node.elementType == Q.GROUP) {
-                (owner.firstChild as? QmlPropertyRef)?.let { resolveProperty(it) }.orEmpty().flatMap { QmlTypes.typeTargets(it) }
-            } else emptyList()
+            else -> (owner.firstChild as? QmlPropertyRef)?.takeIf { owner.node.elementType == Q.GROUP }
+                ?.let { resolveProperty(it) }.orEmpty().flatMap { QmlTypes.typeTargets(it) }
         }
     }
 
     // ------------------------------------------------------------ JavaScript
 
     fun ids(file: PsiFile): Map<String, QmlNamed> = LiteCache.cached(file, IDS, QmlLibraryOracle) {
-        PsiTreeUtil.findChildrenOfType(file, QmlNamed::class.java).filter { it.type == Q.ID && it.name != null }.associateBy { it.name!! }
+        PsiTreeUtil.findChildrenOfType(file, QmlNamed::class.java).filter { it.type == Q.ID }.mapNotNull { named -> named.name?.let { it to named } }.toMap()
     }
 
     /** An unqualified JavaScript name inside [scope] (the object holding the binding or function). */

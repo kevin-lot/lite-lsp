@@ -13,17 +13,23 @@ import com.intellij.psi.tree.IFileElementType
 import com.intellij.psi.tree.TokenSet
 import me.kevinlot.lite.python.psi.PyPsiFactoryImpl
 import me.kevinlot.lite.python.upstream.PyTokenTypes
-import me.kevinlot.lite.python.upstream.PythonFileType
 import me.kevinlot.lite.python.upstream.PythonLanguage
 import me.kevinlot.lite.python.upstream.lexer.PythonIndentingLexer
 import me.kevinlot.lite.python.upstream.parsing.PyParser
+import me.kevinlot.lite.python.upstream.pyi.PyiLanguageDialect
 
-class PyFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, PythonLanguage.INSTANCE) {
-    override fun getFileType() = PythonFileType.INSTANCE
+/** A `.py` file, or a `.pyi` stub: its language is then the stub dialect, which the view provider requires. */
+class PyFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, languageOf(viewProvider)) {
+    override fun getFileType() = viewProvider.fileType
     override fun toString() = "Python file"
+
+    private companion object {
+        fun languageOf(viewProvider: FileViewProvider) =
+            viewProvider.baseLanguage.takeIf { it.isKindOf(PythonLanguage.INSTANCE) } ?: PythonLanguage.INSTANCE
+    }
 }
 
-class PyParserDefinition : ParserDefinition {
+open class PyParserDefinition : ParserDefinition {
     override fun createLexer(project: Project?): Lexer = PythonIndentingLexer()
     override fun createParser(project: Project?): PsiParser = PyParser()
     override fun getFileNodeType(): IFileElementType = FILE
@@ -36,6 +42,12 @@ class PyParserDefinition : ParserDefinition {
 
     companion object {
         val FILE = IFileElementType("LITE_PYTHON_FILE", PythonLanguage.INSTANCE)
+        val STUB_FILE = IFileElementType("LITE_PYTHON_STUB_FILE", PyiLanguageDialect.getInstance())
         val COMMENTS: TokenSet = TokenSet.create(PyTokenTypes.END_OF_LINE_COMMENT)
     }
+}
+
+/** `.pyi` stubs: the platform wants the root node of a file in the language of that file, here the stub dialect. */
+class PyiParserDefinition : PyParserDefinition() {
+    override fun getFileNodeType(): IFileElementType = STUB_FILE
 }

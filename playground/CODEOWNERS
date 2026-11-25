@@ -1,0 +1,6 @@
+# Ctrl+Click: a literal path → the file or folder.
+*                    @playground/everyone
+/backend/rust/       @playground/rust
+/web/src/main.ts     @alice
+docs/                @playground/writers docs@example.com
+*.sql                @playground/data

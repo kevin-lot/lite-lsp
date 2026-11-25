@@ -83,18 +83,25 @@ object KtJava {
         val out = mutableListOf<PsiMember>()
         cls.findFieldByName(name, true)?.let { out += it }
         for (getter in listOf("get$cap", "is$cap", name)) {
-            out += methodsNamed(cls, getter).filter { it.parameterList.parametersCount <= (if (it.name.contains('-')) 1 else 0) }
+            out += methodsNamed(cls, getter).filter { it.parameterList.parametersCount <= maxGetterParameters(it) }
         }
         cls.findInnerClassByName(name, true)?.let { out += it }
         return out
+    }
+
+    private fun maxGetterParameters(method: com.intellij.psi.PsiMethod): Int {
+        if (method.name.contains('-')) return 1
+        return 0
     }
 
     /**
      * Methods by Kotlin name: also the compiler-mangled forms of inline/value classes
      * (`getOrNull-impl`, `copy-7Yh9...`).
      */
-    private fun methodsNamed(cls: PsiClass, name: String): List<com.intellij.psi.PsiMethod> =
-        cls.findMethodsByName(name, true).toList() + cls.allMethods.filter { it.name.startsWith("$name-") }
+    private fun methodsNamed(cls: PsiClass, name: String): List<com.intellij.psi.PsiMethod> {
+        val mangled = "$name-"
+        return cls.findMethodsByName(name, true).toList() + cls.allMethods.filter { it.name.startsWith(mangled) }
+    }
 
     /** Static members and nested classes: `Collections.emptyList()`, `Map.Entry`. */
     fun staticMembers(cls: PsiClass, name: String): List<PsiMember> =

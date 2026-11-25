@@ -1,0 +1,10 @@
+{{!-- Ctrl+Click: `layout`, `header`, `row` (inline partial), `shape` (block parameter). --}}
+{{#> layout title="Shapes"}}
+  {{> header user=currentUser}}
+  {{#*inline "row"}}<li class="row">{{name}}: {{area}}</li>{{/inline}}
+  <ul id="shapes">
+    {{#each shapes as |shape index|}}
+      {{#if shape.visible}}{{> row name=shape.name area=shape.area}}{{else}}<li>{{index}}: hidden</li>{{/if}}
+    {{/each}}
+  </ul>
+{{/layout}}

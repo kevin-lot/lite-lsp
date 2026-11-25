@@ -3,8 +3,8 @@
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Shell (Lite)" implementationClass="me.kevinlot.lite.shell.ShFileType" fieldName="INSTANCE" language="LiteShell"
                   extensions="sh;bash;zsh;ksh;command"
-                  fileNames=".bashrc;.bash_profile;.bash_aliases;.bash_logout;.profile;.zshrc;.zshenv;.zprofile;.zlogin;.zlogout;.envrc"
-                  hashBangs="sh;bash;zsh;dash;ksh"/>
+                  fileNames=".bashrc;.bash_profile;.bash_aliases;.bash_logout;.profile;.zshrc;.zshenv;.zprofile;.zlogin;.zlogout;.envrc"/>
+        <fileTypeDetector implementation="me.kevinlot.lite.shell.ShShebangDetector"/>
         <lang.parserDefinition language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShParserDefinition"/>
         <lang.syntaxHighlighterFactory language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShSyntaxHighlighterFactory"/>
         <annotator language="LiteShell" implementationClass="me.kevinlot.lite.shell.ShHighlightingAnnotator"/>

@@ -1,5 +1,9 @@
 <!-- TypeScript / JavaScript support: included by the plugin descriptor. -->
 <idea-plugin>
+    <extensionPoints>
+        <!-- Scopes of the hosts of injected JavaScript (Angular templates: lite-angular.xml) -->
+        <extensionPoint qualifiedName="me.kevinlot.lite.tsInjectionScope" interface="me.kevinlot.lite.typescript.resolve.TsInjectionScope" dynamic="true"/>
+    </extensionPoints>
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="TypeScript (Lite)" implementationClass="me.kevinlot.lite.typescript.TsFileType" fieldName="INSTANCE"
                   language="LiteTypeScript" extensions="ts;tsx;mts;cts"/>

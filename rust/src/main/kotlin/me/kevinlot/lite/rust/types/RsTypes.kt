@@ -43,13 +43,9 @@ object RsTypes {
     fun resolveField(lookup: RsFieldLookup): List<PsiElement> {
         val dot = lookup.parent as? RsDotExpr ?: return emptyList()
         val name = lookup.identifier?.text ?: lookup.integerLiteral?.text ?: return emptyList()
-        for (ty in derefChain(inferType(dot.expr))) {
-            when (ty) {
-                is Ty.Adt -> NameResolver.fieldsOf(ty.item).filter { NameResolver.fieldName(it) == name }.takeIf { it.isNotEmpty() }?.let { return it }
-                else -> {}
-            }
-        }
-        return emptyList()
+        return derefChain(inferType(dot.expr)).filterIsInstance<Ty.Adt>().firstNotNullOfOrNull { ty ->
+            NameResolver.fieldsOf(ty.item).filter { NameResolver.fieldName(it) == name }.takeIf { it.isNotEmpty() }
+        }.orEmpty()
     }
 
     fun resolveMethod(call: RsMethodCall): List<PsiElement> {
@@ -94,10 +90,9 @@ object RsTypes {
     /** `#[derive(Clone, Debug)]`: the impls are macro-generated, so look at the trait itself. */
     private fun derivedTraitMethods(ty: Ty.Adt, name: String): List<MethodHit> {
         val attrs = PsiTreeUtil.getChildrenOfTypeAsList(ty.item, RsOuterAttr::class.java)
-        val derived = attrs.flatMap { attr ->
-            val meta = PsiTreeUtil.findChildOfType(attr, RsMetaItem::class.java)
-            if (meta?.firstChild?.text != "derive") emptyList() else PsiTreeUtil.findChildrenOfType(meta, RsPath::class.java)
-        }
+        val derived = attrs.mapNotNull { PsiTreeUtil.findChildOfType(it, RsMetaItem::class.java) }
+            .filter { it.firstChild?.text == "derive" }
+            .flatMap { PsiTreeUtil.findChildrenOfType(it, RsPath::class.java) }
         return derived.flatMap { NameResolver.resolvePath(it) }.filterIsInstance<RsTraitItem>()
             .flatMap { traitFns(it, name, Subst(self = ty)) }
     }
@@ -110,13 +105,14 @@ object RsTypes {
     private fun implFns(impl: RsImplItem, name: String, subst: Subst): List<MethodHit> =
         impl.members?.children.orEmpty().filterIsInstance<RsFunction>().filter { it.name == name }.map { MethodHit(it, subst) }
 
-    private fun traitFns(trait: RsTraitItem, name: String, subst: Subst): List<MethodHit> {
+    private fun traitFns(trait: RsTraitItem, name: String, subst: Subst, seen: MutableSet<RsTraitItem> = HashSet()): List<MethodHit> {
+        if (!seen.add(trait)) return emptyList()
         val own = trait.members?.children.orEmpty().filterIsInstance<RsFunction>().filter { it.name == name }
         if (own.isNotEmpty()) return own.map { MethodHit(it, subst) }
         // Supertraits: `trait A: B`
         return trait.typeParamBounds?.polyboundList.orEmpty()
             .mapNotNull { it.bound.traitRef?.path }.flatMap { NameResolver.resolvePath(it) }
-            .filterIsInstance<RsTraitItem>().filter { it != trait }.flatMap { traitFns(it, name, subst) }
+            .filterIsInstance<RsTraitItem>().flatMap { traitFns(it, name, subst, seen) }
     }
 
     private fun traitOf(impl: RsImplItem): RsTraitItem? =
@@ -196,15 +192,17 @@ object RsTypes {
         val args = path.typeArgumentList?.typeReferenceList.orEmpty().map { typeOf(it, subst) }
         val target = NameResolver.resolvePath(path).firstOrNull()
         // A single-segment primitive name wins over a module of the same name (`mod str` in alloc).
-        if (q == null && name in PRIMITIVES && (target == null || ModuleTree.isModule(target) || target is RsModDeclItem)) return Ty.Prim(name!!)
+        if (q == null && name != null && name in PRIMITIVES && (target == null || ModuleTree.isModule(target) || target is RsModDeclItem)) return Ty.Prim(name)
         if (target == null) return Ty.Unknown
         if (target is RsTypeParameter) return subst[target] ?: Ty.Param(target)
         if (target is RsTypeAlias) {
             val params = target.typeParameterList?.typeParameterList.orEmpty()
-            return typeOf(target.typeReference, subst + Subst(params.zip(args).toMap()))
+            return ALIAS_GUARD.run(Ty.Unknown) { typeOf(target.typeReference, subst + Subst(params.zip(args).toMap())) }
         }
         return itemType(target, args)
     }
+
+    private val ALIAS_GUARD = me.kevinlot.lite.core.RecursionGuard()
 
     private fun itemType(target: PsiElement, args: List<Ty>): Ty = when (target) {
         is RsStructItem, is RsEnumItem -> Ty.Adt(target as RsNamedElement, args)
@@ -249,14 +247,7 @@ object RsTypes {
     }
 
     private fun infer(expr: RsExpr): Ty = when (expr) {
-        is RsLitExpr -> when {
-            expr.stringLiteral != null || expr.rawStringLiteral != null -> Ty.Ref(Ty.Prim("str"))
-            expr.integerLiteral != null -> Ty.Prim(PRIMITIVES.firstOrNull { expr.text.endsWith(it) && it != "str" } ?: "i32")
-            expr.floatLiteral != null -> Ty.Prim(if (expr.text.endsWith("f32")) "f32" else "f64")
-            expr.boolLiteral != null -> Ty.Prim("bool")
-            expr.charLiteral != null -> Ty.Prim("char")
-            else -> Ty.Unknown
-        }
+        is RsLitExpr -> literalType(expr)
         is RsPathExpr -> valueType(NameResolver.resolvePath(expr.path).firstOrNull(), expr.path)
         is RsParenExpr -> inferType(expr.expr)
         is RsUnaryExpr -> when {
@@ -281,6 +272,19 @@ object RsTypes {
         else -> Ty.Unknown
     }
 
+    private fun literalType(expr: RsLitExpr): Ty {
+        val text = expr.text
+        return when {
+            expr.stringLiteral != null || expr.rawStringLiteral != null -> Ty.Ref(Ty.Prim("str"))
+            expr.integerLiteral != null -> Ty.Prim(PRIMITIVES.firstOrNull { text.endsWith(it) && it != "str" } ?: "i32")
+            expr.floatLiteral != null && text.endsWith("f32") -> Ty.Prim("f32")
+            expr.floatLiteral != null -> Ty.Prim("f64")
+            expr.boolLiteral != null -> Ty.Prim("bool")
+            expr.charLiteral != null -> Ty.Prim("char")
+            else -> Ty.Unknown
+        }
+    }
+
     private fun blockType(block: RsBlock?): Ty =
         (block?.children?.lastOrNull { it is RsStmt } as? RsExprStmt)?.takeIf { it.lastChild?.text != ";" }?.let { inferType(it.expr) } ?: Ty.Unknown
 
@@ -292,7 +296,8 @@ object RsTypes {
 
     private fun stdAdt(anchor: PsiElement, name: String, args: List<Ty>): Ty {
         val item = NameResolver.lexical(name, setOf(Ns.TYPES), anchor).firstOrNull() as? RsNamedElement ?: return Ty.Unknown
-        return if (item is RsStructItem || item is RsEnumItem) Ty.Adt(item, args) else Ty.Unknown
+        if (item !is RsStructItem && item !is RsEnumItem) return Ty.Unknown
+        return Ty.Adt(item, args)
     }
 
     /** Type of the value a path denotes (binding, fn item, const, unit struct/variant). */
@@ -318,7 +323,8 @@ object RsTypes {
             else -> PsiTreeUtil.getParentOfType(self, RsTraitItem::class.java)?.let { Ty.Dyn(listOf(it)) } ?: Ty.Unknown
         }
         self.typeReference?.let { return typeOf(it, Subst(self = base)) }
-        return if (self.and != null) Ty.Ref(base) else base
+        if (self.and != null) return Ty.Ref(base)
+        return base
     }
 
     fun bindingType(binding: RsPatBinding): Ty {
@@ -360,13 +366,17 @@ object RsTypes {
     }
 
     private fun iterItem(ty: Ty): Ty {
+        fun item(elem: Ty): Ty {
+            if (ty is Ty.Ref) return Ty.Ref(elem)
+            return elem
+        }
         for (t in derefChain(ty)) {
             when (t) {
-                is Ty.Slice -> return if (ty is Ty.Ref) Ty.Ref(t.elem) else t.elem
+                is Ty.Slice -> return item(t.elem)
                 is Ty.Adt -> {
                     assocType(t, "Iterator", "Item")?.let { return it }
                     assocType(t, "IntoIterator", "Item")?.let { return it }
-                    if (t.item.name == "Vec") return if (ty is Ty.Ref) Ty.Ref(t.args.firstOrNull() ?: Ty.Unknown) else t.args.firstOrNull() ?: Ty.Unknown
+                    if (t.item.name == "Vec") return item(t.args.firstOrNull() ?: Ty.Unknown)
                 }
                 else -> {}
             }
@@ -390,7 +400,8 @@ object RsTypes {
 
     private fun unwrapTry(ty: Ty): Ty {
         val adt = ty as? Ty.Adt ?: return Ty.Unknown
-        return if (adt.item.name == "Option" || adt.item.name == "Result") adt.args.firstOrNull() ?: Ty.Unknown else Ty.Unknown
+        if (adt.item.name != "Option" && adt.item.name != "Result") return Ty.Unknown
+        return adt.args.firstOrNull() ?: Ty.Unknown
     }
 
     private fun callType(call: RsCallExpr): Ty {

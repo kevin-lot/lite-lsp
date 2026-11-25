@@ -4,10 +4,8 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.stream.JsonReader
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.navigation.ItemPresentation
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -15,7 +13,6 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.AdditionalLibraryRootsListener
 import com.intellij.openapi.roots.AdditionalLibraryRootsProvider
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.roots.SyntheticLibrary
@@ -29,17 +26,17 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
-import me.kevinlot.lite.core.ProjectLayout
 import java.io.File
 import java.io.StringReader
 import java.util.concurrent.ConcurrentHashMap
 import javax.swing.Icon
+import me.kevinlot.lite.core.LiteLibraryRoots
+import me.kevinlot.lite.core.ProjectLayout
 
 /**
  * A JavaScript/TypeScript project: its root and the dependencies it declares, found in its own `node_modules`
@@ -101,13 +98,7 @@ class TsEnvironments(private val project: Project) {
         modificationTracker.incModificationCount()
         val fs = LocalFileSystem.getInstance()
         val roots = envs.values.flatMap { it.roots() }.mapNotNull { fs.refreshAndFindFileByPath(it) }
-        ApplicationManager.getApplication().invokeLater({
-            WriteAction.run<RuntimeException> {
-                AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(project, "JavaScript", emptyList(), roots, "lite-js")
-            }
-            PsiManager.getInstance(project).dropPsiCaches()
-            DaemonCodeAnalyzer.getInstance(project).restart()
-        }, project.disposed)
+        LiteLibraryRoots.changed(project, "JavaScript", emptyList(), roots, "lite-js")
     }
 
     companion object {
@@ -165,10 +156,13 @@ class TsEnvironments(private val project: Project) {
         private fun workspaces(root: File): List<File> {
             val json = readJson(File(root, "package.json")) ?: return emptyList()
             val ws = json.get("workspaces") ?: return emptyList()
-            val patterns = (if (ws.isJsonObject) ws.asJsonObject.get("packages") else ws)?.takeIf { it.isJsonArray }?.asJsonArray?.map { it.asString }.orEmpty()
+            val packages = when { ws.isJsonObject -> ws.asJsonObject.get("packages"); else -> ws }
+            val patterns = packages?.takeIf { it.isJsonArray }?.asJsonArray?.map { it.asString }.orEmpty()
             return patterns.flatMap { p ->
-                if (p.endsWith("/*")) File(root, p.removeSuffix("/*")).listFiles()?.filter { File(it, "package.json").isFile }.orEmpty()
-                else listOf(File(root, p)).filter { File(it, "package.json").isFile }
+                when {
+                    p.endsWith("/*") -> File(root, p.removeSuffix("/*")).listFiles()?.filter { File(it, "package.json").isFile }.orEmpty()
+                    else -> listOf(File(root, p)).filter { File(it, "package.json").isFile }
+                }
             }
         }
 
@@ -181,7 +175,7 @@ class TsEnvironments(private val project: Project) {
         }
 
         fun readJson(file: File): JsonObject? = try {
-            if (file.isFile) parseJson(file.readText()) else null
+            file.takeIf { it.isFile }?.let { parseJson(it.readText()) }
         } catch (_: Exception) { null }
 
         private val TRAILING_COMMA = Regex(",\\s*([}\\]])")
@@ -207,9 +201,11 @@ class TsEnvironments(private val project: Project) {
                 val vf = file.virtualFile
                 val envs = getInstance(project)
                 // a library file sees the libraries (and sources) of the projects that use it
-                val users = if (vf == null) emptyList() else envs.all().filter { e -> e.roots().any { vf.path.startsWith("$it/") } }
-                val scope = if (users.isNotEmpty()) TsLookupScope(project, GlobalSearchScope.allScope(project), users.flatMap { it.roots() }.distinct(), users.map { it.root })
-                else TsLookupScope(project, LAYOUT.scopeOf(file, SCOPE, TsLibraryOracle), envs.envFor(vf)?.roots().orEmpty(), null)
+                val users = vf?.let { f -> envs.all().filter { e -> e.roots().any { f.path.startsWith("$it/") } } }.orEmpty()
+                val scope = when {
+                    users.isNotEmpty() -> TsLookupScope(project, GlobalSearchScope.allScope(project), users.flatMap { it.roots() }.distinct(), users.map { it.root })
+                    else -> TsLookupScope(project, LAYOUT.scopeOf(file, SCOPE, TsLibraryOracle), envs.envFor(vf)?.roots().orEmpty(), null)
+                }
                 CachedValueProvider.Result.create<GlobalSearchScope>(
                     scope, PsiModificationTracker.MODIFICATION_COUNT, envs.modificationTracker,
                 )
@@ -226,12 +222,14 @@ private class TsLookupScope(
     project: Project, private val base: GlobalSearchScope, private val libraries: List<String>, private val projects: List<String>?,
 ) : GlobalSearchScope(project) {
     private val index = com.intellij.openapi.roots.ProjectFileIndex.getInstance(project)
+    private val libraryPrefixes = libraries.map { "$it/" }
+    private val projectPrefixes = projects?.map { "$it/" }
 
     override fun contains(file: VirtualFile): Boolean {
         val path = file.path
-        if (libraries.any { path.startsWith("$it/") }) return true
+        if (libraryPrefixes.any { path.startsWith(it) }) return true
         if (!index.isInContent(file) || index.isInLibrary(file)) return false
-        return projects?.any { path.startsWith("$it/") } ?: base.contains(file)
+        return projectPrefixes?.any { path.startsWith(it) } ?: base.contains(file)
     }
     override fun isSearchInModuleContent(aModule: com.intellij.openapi.module.Module) = true
     override fun isSearchInLibraries() = true

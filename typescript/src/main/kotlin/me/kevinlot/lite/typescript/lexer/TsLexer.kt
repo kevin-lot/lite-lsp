@@ -2,6 +2,7 @@ package me.kevinlot.lite.typescript.lexer
 
 import com.intellij.lexer.LexerBase
 import com.intellij.psi.tree.IElementType
+import com.intellij.psi.tree.TokenSet
 import me.kevinlot.lite.typescript.lexer.TsTokens as T
 
 /**
@@ -45,7 +46,11 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
 
     override fun advance() {
         start = pos
-        state = if (stack.isEmpty()) (if (regexOk) 0 else 1) else 2
+        state = when {
+            stack.isNotEmpty() -> 2
+            regexOk -> 0
+            else -> 1
+        }
         if (pos >= end) { type = null; return }
         val t = when (stack.lastOrNull()?.get(0)) {
             JSX_TAG, JSX_CLOSE -> jsxTag()
@@ -60,12 +65,12 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
         T.RPAR -> closedStatementHead
         T.IDENTIFIER, T.PRIVATE_NAME, T.NUMBER, T.STRING, T.REGEX, T.TEMPLATE_FULL, T.TEMPLATE_TAIL,
         T.RBRACKET, T.RBRACE, T.PLUSPLUS, T.MINUSMINUS, T.JSX_NAME -> false
-        T.kw("this"), T.kw("super"), T.kw("true"), T.kw("false"), T.kw("null") -> false
+        in VALUE_KEYWORDS -> false
         T.GT -> !jsxClosed
         else -> true
     }
 
-    private fun ch(i: Int = 0): Char = if (pos + i < end) buf[pos + i] else '\u0000'
+    private fun ch(i: Int = 0): Char = when { pos + i < end -> buf[pos + i]; else -> '\u0000' }
 
     // ---------------------------------------------------------------- JavaScript
 
@@ -91,7 +96,8 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
                 if (top != null && (top[0] == TEMPLATE || top[0] == JSX_EXPR)) {
                     if (top[1] == 0) {
                         stack.removeAt(stack.size - 1); pos++
-                        return if (top[0] == TEMPLATE) template(head = false) else T.RBRACE
+                        if (top[0] == TEMPLATE) return template(head = false)
+                        return T.RBRACE
                     }
                     top[1]--
                 }
@@ -99,27 +105,46 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
             }
             '<' -> {
                 if (jsx && regexOk && (Character.isJavaIdentifierStart(ch(1)) || ch(1) == '>')) { stack += intArrayOf(JSX_TAG, 0); pos++; return T.LT }
-                return op(if (ch(1) == '<') (if (ch(2) == '=') 3 else 2) else if (ch(1) == '=') 2 else 1, T.LT)
+                if (ch(1) == '<') return op(withOptionalEq(2), T.LT)
+                return op(withOptionalEq(1), T.LT)
             }
             '>' -> { pos++; return T.GT }
             '=' -> return when {
                 ch(1) == '>' -> { pos += 2; T.ARROW }
-                ch(1) == '=' -> op(if (ch(2) == '=') 3 else 2)
+                ch(1) == '=' -> op(withOptionalEq(2))
                 else -> { pos++; T.EQ }
             }
-            '!' -> return if (ch(1) == '=') op(if (ch(2) == '=') 3 else 2) else { pos++; T.EXCL }
+            '!' -> return when {
+                ch(1) == '=' -> op(withOptionalEq(2))
+                else -> { pos++; T.EXCL }
+            }
             '?' -> return when {
                 ch(1) == '.' && !ch(2).isDigit() -> { pos += 2; T.QUEST_DOT }
-                ch(1) == '?' -> op(if (ch(2) == '=') 3 else 2)
+                ch(1) == '?' -> op(withOptionalEq(2))
                 else -> { pos++; T.QUEST }
             }
-            '.' -> return if (ch(1) == '.' && ch(2) == '.') { pos += 3; T.ELLIPSIS } else { pos++; T.DOT }
-            '*' -> return if (ch(1) == '*') op(if (ch(2) == '=') 3 else 2) else if (ch(1) == '=') op(2) else { pos++; T.MUL }
+            '.' -> return when {
+                ch(1) == '.' && ch(2) == '.' -> { pos += 3; T.ELLIPSIS }
+                else -> { pos++; T.DOT }
+            }
+            '*' -> return when {
+                ch(1) == '*' -> op(withOptionalEq(2))
+                ch(1) == '=' -> op(2)
+                else -> { pos++; T.MUL }
+            }
             '&' -> return doubled('&', T.AND)
             '|' -> return doubled('|', T.OR)
-            '+' -> return if (ch(1) == '+') { pos += 2; T.PLUSPLUS } else if (ch(1) == '=') op(2) else { pos++; T.PLUS }
-            '-' -> return if (ch(1) == '-') { pos += 2; T.MINUSMINUS } else if (ch(1) == '=') op(2) else { pos++; T.MINUS }
-            '%', '^' -> return op(if (ch(1) == '=') 2 else 1)
+            '+' -> return when {
+                ch(1) == '+' -> { pos += 2; T.PLUSPLUS }
+                ch(1) == '=' -> op(2)
+                else -> { pos++; T.PLUS }
+            }
+            '-' -> return when {
+                ch(1) == '-' -> { pos += 2; T.MINUSMINUS }
+                ch(1) == '=' -> op(2)
+                else -> { pos++; T.MINUS }
+            }
+            '%', '^' -> return op(withOptionalEq(1))
         }
         pos++
         when (c) {
@@ -134,12 +159,18 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
 
     private fun op(length: Int, single: IElementType = T.OPERATOR): IElementType {
         pos += length
-        return if (length == 1) single else T.OPERATOR
+        if (length == 1) return single
+        return T.OPERATOR
+    }
+
+    private fun withOptionalEq(length: Int): Int {
+        if (ch(length) == '=') return length + 1
+        return length
     }
 
     /** `&`, `&&`, `&=`, `&&=` (same for `|`). */
     private fun doubled(c: Char, single: IElementType): IElementType = when {
-        ch(1) == c -> op(if (ch(2) == '=') 3 else 2)
+        ch(1) == c -> op(withOptionalEq(2))
         ch(1) == '=' -> op(2)
         else -> { pos++; single }
     }
@@ -148,9 +179,10 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
         val s = pos
         while (pos < end && (Character.isJavaIdentifierPart(ch()) || ch() == '\\')) {
             if (ch() == '\\') pos++ // \u escape
-            pos++
+            pos = minOf(pos + 1, end)
         }
         if (pos == s) { pos++; return T.BAD_CHARACTER }
+        if (pos - s > LONGEST_KEYWORD) return T.IDENTIFIER
         return T.KEYWORDS[buf.subSequence(s, pos).toString()] ?: T.IDENTIFIER
     }
 
@@ -190,13 +222,22 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
             val c = ch()
             when {
                 c == '\\' -> pos += 2
-                c == '`' -> { pos++; return if (head) T.TEMPLATE_FULL else T.TEMPLATE_TAIL }
-                c == '$' && ch(1) == '{' -> { pos += 2; stack += intArrayOf(TEMPLATE, 0); return if (head) T.TEMPLATE_HEAD else T.TEMPLATE_MIDDLE }
+                c == '`' -> { pos++; return templateEnd(head) }
+                c == '$' && ch(1) == '{' -> {
+                    pos += 2; stack += intArrayOf(TEMPLATE, 0)
+                    if (head) return T.TEMPLATE_HEAD
+                    return T.TEMPLATE_MIDDLE
+                }
                 else -> pos++
             }
         }
         pos = end
-        return if (head) T.TEMPLATE_FULL else T.TEMPLATE_TAIL
+        return templateEnd(head)
+    }
+
+    private fun templateEnd(head: Boolean): IElementType {
+        if (head) return T.TEMPLATE_FULL
+        return T.TEMPLATE_TAIL
     }
 
     private fun lineComment(): IElementType {
@@ -212,11 +253,14 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
                 pos += 2
                 while (pos < end && !(ch() == '*' && ch(1) == '/')) pos++
                 pos = minOf(pos + 2, end)
-                return if (doc) T.DOC_COMMENT else T.BLOCK_COMMENT
+                if (doc) return T.DOC_COMMENT
+                return T.BLOCK_COMMENT
             }
         }
         if (regexOk) regex()?.let { return it }
-        return if (ch(1) == '=') op(2) else { pos++; T.DIV }
+        if (ch(1) == '=') return op(2)
+        pos++
+        return T.DIV
     }
 
     private fun regex(): IElementType? {
@@ -254,7 +298,8 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
         if (Character.isJavaIdentifierStart(c)) {
             var dashed = false
             while (pos < end && (Character.isJavaIdentifierPart(ch()) || ch() == '-')) { if (ch() == '-') dashed = true; pos++ }
-            return if (dashed) T.JSX_NAME else T.IDENTIFIER
+            if (dashed) return T.JSX_NAME
+            return T.IDENTIFIER
         }
         pos++
         return when (c) {
@@ -283,7 +328,10 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
     private fun jsxChildren(): IElementType {
         when (ch()) {
             '{' -> { stack += intArrayOf(JSX_EXPR, 0); pos++; return T.LBRACE }
-            '<' -> { stack += intArrayOf(if (ch(1) == '/') JSX_CLOSE else JSX_TAG, 0); pos++; return T.LT }
+            '<' -> {
+                val kind = when { ch(1) == '/' -> JSX_CLOSE; else -> JSX_TAG }
+                stack += intArrayOf(kind, 0); pos++; return T.LT
+            }
         }
         while (pos < end && ch() != '{' && ch() != '<') pos++
         return T.JSX_TEXT
@@ -291,6 +339,8 @@ class TsLexer(private val jsx: Boolean = true) : LexerBase() {
 
     private companion object {
         val STATEMENT_HEADS = setOf(T.kw("if"), T.kw("while"), T.kw("for"), T.kw("with"))
+        val VALUE_KEYWORDS = TokenSet.create(T.kw("this"), T.kw("super"), T.kw("true"), T.kw("false"), T.kw("null"))
+        val LONGEST_KEYWORD = T.KEYWORDS.keys.maxOf { it.length }
         const val TEMPLATE = 0
         const val JSX_TAG = 1
         const val JSX_CHILDREN = 2

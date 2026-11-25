@@ -5,6 +5,7 @@ import me.kevinlot.lite.rust.psi.RsFieldLookup
 import me.kevinlot.lite.rust.psi.RsMethodCall
 import me.kevinlot.lite.rust.psi.RsPatBinding
 import me.kevinlot.lite.rust.psi.RsPath
+import me.kevinlot.lite.rust.psi.RsPsiFactory
 import me.kevinlot.lite.rust.psi.RsStructLiteralField
 import me.kevinlot.lite.rust.psi.ext.RsElement
 import me.kevinlot.lite.rust.psi.ext.RsFieldLookupMixin
@@ -17,9 +18,8 @@ abstract class RsReferenceBase<T : RsElement>(element: T, nameElement: () -> Psi
     me.kevinlot.lite.core.LiteReference<T>(element, nameElement) {
 
     override fun renameIdentifier(nameToken: PsiElement, newName: String): PsiElement? =
-        if (nameToken.node.elementType == me.kevinlot.lite.rust.psi.RsElementTypes.IDENTIFIER)
-            me.kevinlot.lite.rust.psi.RsPsiFactory(element.project).createIdentifier(newName)
-        else null
+        nameToken.takeIf { it.node.elementType == me.kevinlot.lite.rust.psi.RsElementTypes.IDENTIFIER }
+            ?.let { me.kevinlot.lite.rust.psi.RsPsiFactory(element.project).createIdentifier(newName) }
 }
 
 class RsPathReference(element: RsPath) :

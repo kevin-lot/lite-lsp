@@ -1,18 +1,16 @@
 package me.kevinlot.lite.rust.cargo
 
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.configurations.PathEnvironmentVariableUtil
 import com.intellij.execution.util.ExecUtil
 import com.intellij.navigation.ItemPresentation
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.AdditionalLibraryRootsListener
 import com.intellij.openapi.roots.AdditionalLibraryRootsProvider
 import com.intellij.openapi.roots.SyntheticLibrary
 import com.intellij.openapi.startup.ProjectActivity
@@ -24,6 +22,8 @@ import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.psi.PsiManager
 import java.io.File
 import javax.swing.Icon
+import me.kevinlot.lite.core.LiteLibraryRoots
+import me.kevinlot.lite.rust.resolve.RsLibraryOracle
 
 /** A compilation unit: its root file and the crates it can name (`extern prelude`). */
 data class CrateInfo(
@@ -39,6 +39,7 @@ data class CrateInfo(
 /** All locations are VFS urls (`file://…`), so tests can point at an in-memory standard library. */
 data class CargoWorkspace(val crates: List<CrateInfo>, val packageDirs: List<String>, val stdlibDir: String?) {
     val byRoot: Map<String, CrateInfo> = crates.associateBy { it.rootUrl }
+    val libraryPrefixes: List<String> = (listOfNotNull(stdlibDir) + packageDirs).map { "$it/" }
 
     companion object {
         val EMPTY = CargoWorkspace(emptyList(), emptyList(), null)
@@ -109,7 +110,7 @@ class CargoProjects(private val project: Project) {
                 stdlib = sysrootLibrary(manifest.parent)
                 stdlibLoaded = true
             }
-            val json = runCargoMetadata(manifest.parent) ?: return
+            val json = runCargoMetadata(manifest.parent)?.let { JsonParser.parseString(it).asJsonObject } ?: return
             val ws = parseMetadata(json, stdlib)
             loaded[manifest.path] = ws
             known += memberManifests(json)
@@ -170,13 +171,7 @@ class CargoProjects(private val project: Project) {
         fun roots(w: CargoWorkspace) = libraryRootPaths(w).mapNotNull { vfm.refreshAndFindFileByUrl(it) }
         val oldRoots = roots(old)
         val newRoots = roots(new)
-        ApplicationManager.getApplication().invokeLater({
-            WriteAction.run<RuntimeException> {
-                AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(project, "Rust", oldRoots, newRoots, "lite-rust")
-            }
-            PsiManager.getInstance(project).dropPsiCaches()
-            DaemonCodeAnalyzer.getInstance(project).restart()
-        }, project.disposed)
+        LiteLibraryRoots.changed(project, "Rust", oldRoots, newRoots, "lite-rust")
     }
 
     companion object {
@@ -203,8 +198,9 @@ class CargoProjects(private val project: Project) {
         }
 
         /** Manifests of the workspace members described by a `cargo metadata` output. */
-        fun memberManifests(json: String): Set<String> {
-            val root = JsonParser.parseString(json).asJsonObject
+        fun memberManifests(json: String): Set<String> = memberManifests(JsonParser.parseString(json).asJsonObject)
+
+        private fun memberManifests(root: JsonObject): Set<String> {
             val members = root.getAsJsonArray("workspace_members").map { it.asString }.toSet()
             return root.getAsJsonArray("packages").map { it.asJsonObject }
                 .filter { it.get("id").asString in members }
@@ -215,10 +211,12 @@ class CargoProjects(private val project: Project) {
             w.packageDirs + listOfNotNull(w.stdlibDir)
 
         /** Visible for tests. */
-        fun parseMetadata(json: String, stdlibDir: String?): CargoWorkspace {
-            val root = JsonParser.parseString(json).asJsonObject
+        fun parseMetadata(json: String, stdlibDir: String?): CargoWorkspace =
+            parseMetadata(JsonParser.parseString(json).asJsonObject, stdlibDir)
+
+        private fun parseMetadata(root: JsonObject, stdlibDir: String?): CargoWorkspace {
             val members = root.getAsJsonArray("workspace_members").map { it.asString }.toSet()
-            data class Pkg(val id: String, val dir: String, val edition: String, val libRoot: String?, val libName: String?, val targets: List<Pair<String, String>>)
+            data class Pkg(val id: String, val dir: String, val edition: String, val lib: Pair<String, String>?, val targets: List<Pair<String, String>>)
             val pkgs = root.getAsJsonArray("packages").map { p ->
                 val o = p.asJsonObject
                 val targets = o.getAsJsonArray("targets").map { t ->
@@ -231,8 +229,7 @@ class CargoProjects(private val project: Project) {
                     id = o.get("id").asString,
                     dir = url(File(o.get("manifest_path").asString).parent),
                     edition = o.get("edition")?.asString ?: "2021",
-                    libRoot = lib?.third,
-                    libName = lib?.second,
+                    lib = lib?.let { it.second to it.third },
                     targets = targets.filter { (k, _, _) -> k.none { it == "custom-build" } }.map { it.second to it.third },
                 )
             }.associateBy { it.id }
@@ -242,18 +239,19 @@ class CargoProjects(private val project: Project) {
                 val no = n.asJsonObject
                 val deps = no.getAsJsonArray("deps")?.mapNotNull { d ->
                     val dobj = d.asJsonObject
-                    val target = pkgs[dobj.get("pkg").asString]?.libRoot ?: return@mapNotNull null
+                    val target = pkgs[dobj.get("pkg").asString]?.lib?.second ?: return@mapNotNull null
                     dobj.get("name").asString to target
                 }?.toMap().orEmpty()
                 depsByPkg[no.get("id").asString] = deps
             }
 
             val crates = pkgs.values.flatMap { p ->
-                val deps = depsByPkg[p.id].orEmpty().toMutableMap()
+                val deps = depsByPkg[p.id].orEmpty()
                 // Binaries, tests, examples can use the package's own library by name.
+                val withOwnLib = p.lib?.let { deps + it } ?: deps
                 p.targets.map { (name, src) ->
-                    val d = if (p.libRoot != null && src != p.libRoot) deps + (p.libName!! to p.libRoot) else deps
-                    CrateInfo(name, src, d, p.edition, p.id in members)
+                    val crateDeps = when { src == p.lib?.second -> deps; else -> withOwnLib }
+                    CrateInfo(name, src, crateDeps, p.edition, p.id in members)
                 }
             }
             val external = pkgs.values.filter { it.id !in members }.map { it.dir }
@@ -269,7 +267,8 @@ class RsLibraryRootsProvider : AdditionalLibraryRootsProvider() {
     override fun getAdditionalProjectLibraries(project: Project): Collection<SyntheticLibrary> {
         val vfm = VirtualFileManager.getInstance()
         val roots = CargoProjects.libraryRootPaths(CargoProjects.getInstance(project).workspace).mapNotNull { vfm.findFileByUrl(it) }
-        return if (roots.isEmpty()) emptyList() else listOf(RsLibrary(roots))
+        if (roots.isEmpty()) return emptyList()
+        return listOf(RsLibrary(roots))
     }
 
     override fun getRootsToWatch(project: Project): Collection<VirtualFile> = emptyList()

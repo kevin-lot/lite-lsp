@@ -1,7 +1,9 @@
 package me.kevinlot.lite.lua
 
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiNameIdentifierOwner
@@ -98,7 +100,58 @@ class LuaTest : BasePlatformTestCase() {
     fun `test global table`() = check("app.lua" to "App = {}\nfunction App.<def>start() end", "main.lua" to "App.<ref>start()")
     fun `test or default table`() = one("local M = M or {}\nM.<def>x = 1\nprint(M.<ref>x)")
 
+    fun `test field of a local assigned later`() = one("local M\nM = {}\nfunction M.<def>new() end\nM.<ref>new()")
+    fun `test field of a local of unknown value`() = one("local obj = unknown()\nobj.<def>x = 1\nprint(obj.<ref>x)")
+    fun `test field of a parameter`() = one("local function f(opts)\n  opts.<def>x = 1\n  print(opts.<ref>x)\nend")
+    fun `test fields of two parameters are apart`() = one("local function f(a, b)\n  a.x = 1\n  b.<def>x = 2\n  print(b.<ref>x)\nend")
+    fun `test global defined through _G`() = check("util.lua" to "_G.<def>helper = function() end", "main.lua" to "<ref>helper()")
+    fun `test global function defined through _ENV`() = one("function _ENV.<def>setup() end\n<ref>setup()")
+    fun `test _G field is the global`() = one("<def>DEBUG = false\nprint(_G.<ref>DEBUG)")
+    fun `test field of a global defined through _G`() = one("_G.App = {}\nfunction App.<def>start() end\n_G.App.<ref>start()")
+    fun `test a local named _G is a plain table`() = one("local _G = {}\n_G.<def>x = 1\nx = 2\nprint(_G.<ref>x)")
+    fun `test string key in a constructor`() = one("local t = { [<def>\"name\"] = 1 }\nprint(t.<ref>name)")
+    fun `test string key assignment`() = one("local t = {}\nt[<def>'name'] = 1\nprint(t.<ref>name)")
+    fun `test string key read`() = one("local t = { <def>name = 1 }\nprint(t[\"<ref>name\"])")
+    fun `test string key chain`() = one("local t = { sub = { <def>x = 1 } }\nprint(t['sub'].<ref>x)")
+    fun `test function alias keeps the return type`() = one(
+        "local M = {}\nfunction M.new() return { <def>field = 1 } end\nlocal new = M.new\nlocal create = new\nprint(create().<ref>field)",
+    )
+
+    // ---------------------------------------------------------------- annotations
+
+    private val foo = "---@class Foo\n---@field id number\n---@field <def>name string\nlocal Foo = {}\n"
+
+    fun `test annotated type is a reference to its class`() = one("--- A thing.\n---@class <def>Foo\nlocal Foo = {}\n---@param p <ref>Foo\nlocal function f(p) end")
+    fun `test class of another file`() = check("foo.lua" to "---@class <def>Foo\nlocal Foo = {}", "main.lua" to "---@type <ref>Foo|nil\nlocal x = make()")
+    fun `test field of an annotated parameter`() = one(foo + "---@param n number\n---@param p Foo the thing\nlocal function f(n, p) return p.<ref>name end")
+    fun `test field of an annotated method parameter`() = one(foo + "local M = {}\n---@param p? Foo[]\nfunction M.f(p) return p.<ref>name end")
+    fun `test field of an annotated local`() = one(foo + "---@type Foo\nlocal x = make()\nprint(x.<ref>name)")
+    fun `test field of an annotated global`() = one(foo + "---@type Foo\ncurrent = make()\nprint(current.<ref>name)")
+    fun `test field of an annotated return`() = one(foo + "--- Builds one.\n---@return Foo\nlocal function make() return build() end\nprint(make().<ref>name)")
+    fun `test annotated field through self`() = one(foo + "function Foo:show() print(self.<ref>name) end")
+    fun `test annotation is not read across a blank line`() = one("---@class Foo\nlocal Foo = {}\n---@type Foo\n\nlocal x = {}\nx.<def>name = 1\nFoo.name = 2\nprint(x.<ref>name)")
+    fun `test class owns the fields of its table`() = one("---@class Foo\nlocal Foo = { <def>size = 1 }\n---@param p Foo\nlocal function f(p) return p.<ref>size end")
+    fun `test class owns the methods of its table`() = one("---@class Foo\nlocal Foo = {}\nfunction Foo:<def>show() end\n---@type Foo\nlocal x = make()\nx:<ref>show()")
+    fun `test field of a parent class`() = one("---@class Base\n---@field <def>id number\n\n---@class Foo : Base\nlocal Foo = {}\n---@type Foo\nlocal x = make()\nprint(x.<ref>id)")
+    fun `test parent class is a reference`() = one("---@class <def>Base\n\n---@class Foo : <ref>Base\nlocal Foo = {}")
+    fun `test field typed by a class`() = one("---@class Bar\n---@field <def>n number\n\n---@class Foo\n---@field bar Bar\n\n---@param p Foo\nlocal function f(p) return p.bar.<ref>n end")
+
     // ---------------------------------------------------------------- editing
+
+    fun `test rename string key`() {
+        myFixture.configureByText("a.lua", "local t = { [\"name\"] = 1 }\nt['name'] = 2\nprint(t.na<caret>me, t[\"name\"])\n")
+        myFixture.renameElementAtCaret("label")
+        myFixture.checkResult("local t = { [\"label\"] = 1 }\nt['label'] = 2\nprint(t.label, t[\"label\"])\n")
+    }
+
+    fun `test rename annotated field and class`() {
+        myFixture.configureByText("a.lua", "---@class Foo\n---@field name string\n\n---@param p Foo\nlocal function f(p) return p.na<caret>me end\n")
+        myFixture.renameElementAtCaret("label")
+        myFixture.checkResult("---@class Foo\n---@field label string\n\n---@param p Foo\nlocal function f(p) return p.label end\n")
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("p Foo") + 3)
+        myFixture.renameElementAtCaret("Thing")
+        myFixture.checkResult("---@class Thing\n---@field label string\n\n---@param p Thing\nlocal function f(p) return p.label end\n")
+    }
 
     fun `test rename local`() {
         myFixture.configureByText("a.lua", "local co<caret>unt = 0\ncount = count + 1\nprint(count)\n")
@@ -119,6 +172,29 @@ class LuaTest : BasePlatformTestCase() {
         val util = myFixture.addFileToProject("lib/util.lua", "return {}")
         myFixture.renameElement(util, "helpers.lua")
         assertEquals("local u = require('lib.helpers')\n", main.text)
+    }
+
+    fun `test rename file required with a long string`() {
+        val main = myFixture.addFileToProject("main.lua", "local u = require [==[lib.util]==]\n")
+        val util = myFixture.addFileToProject("lib/util.lua", "return {}")
+        myFixture.renameElement(util, "helpers.lua")
+        assertEquals("local u = require [==[lib.helpers]==]\n", main.text)
+    }
+
+    fun `test global of another file after that file changes`() {
+        val util = myFixture.addFileToProject("util.lua", "function helper() end\n")
+        val main = myFixture.configureByText("main.lua", "helper()\nrenamed()\n")
+        val refs = PsiTreeUtil.findChildrenOfType(main, LuaNameRef::class.java).associateBy { it.name }
+        assertEquals(util, LuaResolve.resolveName(refs.getValue("helper")).single().containingFile)
+        assertEmpty(LuaResolve.resolveName(refs.getValue("renamed")))
+        val documents = PsiDocumentManager.getInstance(project)
+        val document = documents.getDocument(util) ?: error("no document")
+        WriteCommandAction.runWriteCommandAction(project) {
+            document.setText("function renamed() end\n")
+            documents.commitDocument(document)
+        }
+        assertEmpty(LuaResolve.resolveName(refs.getValue("helper")))
+        assertEquals(util, LuaResolve.resolveName(refs.getValue("renamed")).single().containingFile)
     }
 
     fun `test find usages of a field`() {
@@ -145,8 +221,10 @@ class LuaTest : BasePlatformTestCase() {
             PsiTreeUtil.findChildrenOfType(psi, LuaNameRef::class.java).forEach { names++; if (LuaResolve.resolveName(it).isNotEmpty()) namesOk++ }
             PsiTreeUtil.findChildrenOfType(psi, LuaIndexExpr::class.java).forEach {
                 fields++
-                if (LuaResolve.resolveField(it).isNotEmpty()) fieldsOk++
-                else if (LuaResolve.typeOf(it.base).isNotEmpty()) { typedMisses++; if (System.getenv("LITE_SHOW") != null && misses.size < 40) misses += "${f.name}: ${it.text.take(50)}" }
+                if (LuaResolve.resolveField(it).isNotEmpty()) { fieldsOk++; return@forEach }
+                if (LuaResolve.typeOf(it.base).isEmpty()) return@forEach
+                typedMisses++
+                if (System.getenv("LITE_SHOW") != null && misses.size < 40) misses += "${f.name}: ${it.text.take(50)}"
             }
         }
         println("lua corpus in ${(System.nanoTime() - started) / 1_000_000} ms: ${files - broken}/$files files without errors, names $namesOk/$names, fields $fieldsOk/$fields ($typedMisses misses on a known table)\n" + errors.take(20).joinToString("\n") + misses.joinToString("\n"))

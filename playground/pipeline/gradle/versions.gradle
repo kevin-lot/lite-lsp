@@ -1,0 +1,4 @@
+ext {
+    groovyVersion = '4.0.21'
+    spockVersion = '2.3-groovy-4.0'
+}

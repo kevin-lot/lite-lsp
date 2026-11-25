@@ -6,6 +6,7 @@ import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.refactoring.NamesValidator
 import com.intellij.lang.refactoring.RefactoringSupportProvider
 import com.intellij.lexer.Lexer
+import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.colors.TextAttributesKey.createTextAttributesKey
 import com.intellij.openapi.fileTypes.SyntaxHighlighter
@@ -20,7 +21,6 @@ import com.intellij.psi.tree.TokenSet
 import me.kevinlot.lite.core.LiteBraceMatcher
 import me.kevinlot.lite.core.LiteFindUsagesProvider
 import me.kevinlot.lite.core.color
-import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import me.kevinlot.lite.shell.ShElementTypes as E
 import me.kevinlot.lite.shell.ShTokens as T
 
@@ -90,7 +90,7 @@ class ShCommenter : Commenter {
 
 class ShFindUsagesProvider : LiteFindUsagesProvider(::ShLexer, TokenSet.create(T.WORD, T.VAR, T.VAR_NAME, T.ASSIGN_NAME), T.COMMENTS, T.STRINGS) {
     override fun isDeclaration(element: PsiElement) = element is ShFunction || element is ShVarDecl
-    override fun kindOf(element: PsiElement) = if (element is ShFunction) "function" else "variable"
+    override fun kindOf(element: PsiElement) = when (element) { is ShFunction -> "function"; else -> "variable" }
 }
 
 class ShRefactoringSupportProvider : RefactoringSupportProvider() {

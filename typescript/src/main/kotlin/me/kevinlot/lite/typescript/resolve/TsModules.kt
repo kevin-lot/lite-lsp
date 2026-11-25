@@ -11,13 +11,13 @@ import com.intellij.psi.util.CachedValue
 import me.kevinlot.lite.core.LiteCache
 import me.kevinlot.lite.core.RecursionGuard
 import me.kevinlot.lite.typescript.TsFile
+import me.kevinlot.lite.typescript.lexer.TsTokens as T
+import me.kevinlot.lite.typescript.parser.TsElementTypes as E
 import me.kevinlot.lite.typescript.psi.TsElement
 import me.kevinlot.lite.typescript.psi.TsModuleSpecifier
 import me.kevinlot.lite.typescript.psi.TsNamedDecl
 import me.kevinlot.lite.typescript.psi.TsReferenceExpr
 import me.kevinlot.lite.typescript.psi.TsSpecifier
-import me.kevinlot.lite.typescript.lexer.TsTokens as T
-import me.kevinlot.lite.typescript.parser.TsElementTypes as E
 
 /**
  * Module specifiers → files (Node/TypeScript resolution, bounded by the project root) and module exports
@@ -27,6 +27,8 @@ object TsModules {
     private val GUARD = RecursionGuard(32)
     private val TARGETS = Key.create<CachedValue<List<PsiElement>>>("lite.ts.module")
     private val IS_MODULE = Key.create<CachedValue<Boolean>>("lite.ts.isModule")
+    private val EXPORTS = Key.create<CachedValue<ExportIndex>>("lite.ts.exports")
+    private val COMPUTED_EXPORTS = setOf(E.EXPORT_DECLARATION, E.EXPORT_STAR, E.EXPORT_ASSIGNMENT, E.EXPRESSION_STATEMENT)
 
     private val SOURCE_EXTENSIONS = listOf(".ts", ".tsx", ".d.ts", ".mts", ".d.mts", ".cts", ".d.cts", ".js", ".jsx", ".mjs", ".cjs")
     /** ESM TypeScript writes `./a.js` for `./a.ts`. */
@@ -42,7 +44,7 @@ object TsModules {
         val manager = PsiManager.getInstance(from.project)
         val file = when {
             spec.startsWith("./") || spec.startsWith("../") || spec == "." || spec == ".." -> resolvePath(dir, spec)
-            spec.startsWith("/") -> vf.fileSystem.findFileByPath(spec)?.let { if (it.isDirectory) directory(it) else it } ?: resolvePath(dir, spec)
+            spec.startsWith("/") -> vf.fileSystem.findFileByPath(spec)?.let { when { it.isDirectory -> directory(it); else -> it } } ?: resolvePath(dir, spec)
             else -> configured(from, vf, spec) ?: bare(from, dir, spec)
         }
         file?.let { f -> manager.findFile(f)?.let { return listOf(it) } }
@@ -75,7 +77,8 @@ object TsModules {
         for ((pattern, targets) in config.paths) {
             val star = pattern.indexOf('*')
             val captured = when {
-                star < 0 -> if (spec == pattern) "" else continue
+                star < 0 && spec == pattern -> ""
+                star < 0 -> continue
                 spec.startsWith(pattern.substring(0, star)) && spec.endsWith(pattern.substring(star + 1)) && spec.length >= pattern.length - 1 ->
                     spec.substring(star, spec.length - (pattern.length - star - 1))
                 else -> continue
@@ -88,10 +91,10 @@ object TsModules {
     /** `pkg`, `pkg/sub`, `@scope/pkg/sub`: `node_modules` from the file's folder up to its project root, then `@types`. */
     private fun bare(from: PsiFile, dir: VirtualFile, spec: String): VirtualFile? {
         val parts = spec.removePrefix("node:").split('/')
-        val name = if (spec.startsWith("@") && parts.size > 1) parts[0] + "/" + parts[1] else parts[0]
+        val name = when { spec.startsWith("@") && parts.size > 1 -> parts[0] + "/" + parts[1]; else -> parts[0] }
         val sub = spec.removePrefix("node:").removePrefix(name).removePrefix("/")
         val root = TsEnvironments.getInstance(from.project).projectRoot(from.originalFile.virtualFile ?: return null)
-        val typesName = "@types/" + if (name.startsWith("@")) name.substring(1).replace("/", "__") else name
+        val typesName = "@types/" + when { name.startsWith("@") -> name.substring(1).replace("/", "__"); else -> name }
         var d: VirtualFile? = dir
         while (d != null) {
             // typings first: the package's own, else its @types package, else its JavaScript
@@ -108,12 +111,14 @@ object TsModules {
     private fun packageFile(pkg: VirtualFile, sub: String): VirtualFile? {
         val json = pkg.findChild("package.json")?.let { TsJsonFiles.read(it) }
         if (json != null) packageEntry(pkg, json, sub)?.let { return it }
-        return if (sub.isEmpty()) directory(pkg) else resolvePath(pkg, sub)
+        if (sub.isEmpty()) return directory(pkg)
+        return resolvePath(pkg, sub)
     }
 
     /** `exports` (conditions: types first), then `types`/`typings`, then `module`/`main`. */
     private fun packageEntry(pkg: VirtualFile, json: JsonObject, sub: String): VirtualFile? {
-        json.get("exports")?.let { exports -> exportTarget(exports, if (sub.isEmpty()) "." else "./$sub")?.let { t -> resolvePath(pkg, t)?.let { return it } } }
+        val subpath = when { sub.isEmpty() -> "."; else -> "./$sub" }
+        json.get("exports")?.let { exports -> exportTarget(exports, subpath)?.let { t -> resolvePath(pkg, t)?.let { return it } } }
         if (sub.isNotEmpty()) return resolvePath(pkg, sub)
         for (key in listOf("types", "typings", "module", "main")) TsJsonFiles.string(json, key)?.let { t -> resolvePath(pkg, t.removePrefix("./").let { "./$it" })?.let { return it } }
         return null
@@ -129,11 +134,12 @@ object TsModules {
                 val star = key.indexOf('*')
                 if (star < 0) continue
                 val prefix = key.substring(0, star); val suffix = key.substring(star + 1)
-                if (sub.startsWith(prefix) && sub.endsWith(suffix)) return condition(value)?.replace("*", sub.substring(prefix.length, sub.length - suffix.length))
+                if (sub.length >= prefix.length + suffix.length && sub.startsWith(prefix) && sub.endsWith(suffix)) return condition(value)?.replace("*", sub.substring(prefix.length, sub.length - suffix.length))
             }
             return null
         }
-        return if (sub == ".") condition(obj) else null
+        if (sub != ".") return null
+        return condition(obj)
     }
 
     private fun condition(e: JsonElement): String? = when {
@@ -155,31 +161,48 @@ object TsModules {
     }
 
     /** The statements of a module: a file, an ambient module or a namespace (their block). */
-    fun body(module: PsiElement): PsiElement? = if (module is PsiFile) module else (module as? TsElement)?.child(E.MODULE_BLOCK)
+    fun body(module: PsiElement): PsiElement? = when (module) { is PsiFile -> module; else -> (module as? TsElement)?.child(E.MODULE_BLOCK) }
 
     /** Declarations of [module] exported as [name] (`"default"` for the default export). */
     fun exports(module: PsiElement, name: String): List<PsiElement> = GUARD.run(emptyList()) {
-        val body = body(module) ?: return@run emptyList()
-        val implicit = module !is PsiFile && (module.containingFile as? TsFile)?.isDeclarationFile == true || isAmbient(module)
+        val index = exportIndex(module)
         val out = mutableListOf<PsiElement>()
-        for (s in body.children) {
-            val st = s as? TsElement ?: continue
-            when (st.type) {
-                E.EXPORT_DECLARATION -> exportSpecifiers(st, name, module, out)
-                E.EXPORT_STAR -> exportStar(st, name, out)
-                E.EXPORT_ASSIGNMENT -> exportAssignment(st, name, out)
-                E.EXPRESSION_STATEMENT -> commonJs(st, name, out)
-                else -> if (st.hasModifier("export") || implicit) {
-                    val wantDefault = name == "default"
-                    for (d in TsScopes.declaredBy(st)) {
-                        if (wantDefault && st.hasModifier("default") || !wantDefault && !st.hasModifier("default") && (d as? TsNamedDecl)?.name == name) out += d
-                    }
-                }
+        for ((_, e) in (index.declared[name].orEmpty() + index.computed).sortedBy { it.index }) {
+            when (e.node.elementType) {
+                E.EXPORT_DECLARATION -> exportSpecifiers(e as TsElement, name, module, out)
+                E.EXPORT_STAR -> exportStar(e as TsElement, name, out)
+                E.EXPORT_ASSIGNMENT -> exportAssignment(e as TsElement, name, out)
+                E.EXPRESSION_STATEMENT -> commonJs(e as TsElement, name, out)
+                else -> out += e
             }
         }
         // a plain script without CommonJS exports (e.g. a QML JavaScript resource): its top-level declarations
         if (out.isEmpty() && module is PsiFile && !isModule(module)) out += TsScopes.declarations(module)[name].orEmpty()
         out
+    }
+
+    /**
+     * The statements of a module with their position: exported declarations by name (`"default"` for the default
+     * one), and the statements whose exports depend on the name asked ([computed]: re-exports, CommonJS).
+     */
+    private class ExportIndex(val declared: Map<String, List<IndexedValue<PsiElement>>>, val computed: List<IndexedValue<PsiElement>>)
+
+    private fun exportIndex(module: PsiElement): ExportIndex = LiteCache.cached(module, EXPORTS, TsLibraryOracle) {
+        val implicit = module !is PsiFile && (module.containingFile as? TsFile)?.isDeclarationFile == true || isAmbient(module)
+        val statements = body(module)?.children.orEmpty().withIndex().filter { it.value is TsElement }
+        val (computed, declaring) = statements.partition { it.value.node.elementType in COMPUTED_EXPORTS }
+        val declared = declaring.flatMap { (i, st) -> exportedBy(st as TsElement, implicit).map { (key, d) -> key to IndexedValue(i, d) } }
+        ExportIndex(declared.groupBy({ it.first }, { it.second }), computed)
+    }
+
+    /** The declarations [st] exports, with the name they are exported as. */
+    private fun exportedBy(st: TsElement, implicit: Boolean): List<Pair<String, PsiElement>> {
+        if (!implicit && !st.hasModifier("export")) return emptyList()
+        val default = st.hasModifier("default")
+        return TsScopes.declaredBy(st).mapNotNull { d ->
+            val key = "default".takeIf { default } ?: (d as? TsNamedDecl)?.name?.takeIf { it != "default" }
+            key?.let { it to d }
+        }
     }
 
     private fun isAmbient(module: PsiElement) =
@@ -190,8 +213,7 @@ object TsModules {
         for (spec in st.children.filterIsInstance<TsSpecifier>()) {
             if (spec.name != name) continue
             val source = spec.sourceName ?: continue
-            out += if (from != null) targets(from).flatMap { exports(it, source) }
-            else spec.ref?.let { TsResolver.resolve(it) }.orEmpty()
+            out += from?.let { f -> targets(f).flatMap { exports(it, source) } } ?: spec.ref?.let { TsResolver.resolve(it) }.orEmpty()
         }
     }
 
@@ -207,9 +229,10 @@ object TsModules {
     /** `export default x` / `export = x`. */
     private fun exportAssignment(st: TsElement, name: String, out: MutableList<PsiElement>) {
         val expr = st.children.lastOrNull { it is TsElement } ?: return
-        val isDefault = st.hasToken(T.kw("default"))
-        if (name == "default") out += valueTargets(expr)
-        else if (!isDefault) out += TsTypes.members(TsTypes.exprTy(expr), name).map { it.first }
+        when {
+            name == "default" -> out += valueTargets(expr)
+            !st.hasToken(T.kw("default")) -> out += TsTypes.members(TsTypes.exprTy(expr), name).map { it.first }
+        }
     }
 
     /** `module.exports = …`, `module.exports.x = …`, `exports.x = …`. */
@@ -219,7 +242,8 @@ object TsModules {
         val right = assign.children.lastOrNull { it is TsElement && it != left } ?: return
         val path = left.text.replace(" ", "")
         when {
-            path == "module.exports" -> if (name == "default") out += valueTargets(right) else out += TsTypes.members(TsTypes.exprTy(right), name).map { TsTypes.declarationOf(it.first) }
+            path == "module.exports" && name == "default" -> out += valueTargets(right)
+            path == "module.exports" -> out += TsTypes.members(TsTypes.exprTy(right), name).map { TsTypes.declarationOf(it.first) }
             path == "module.exports.$name" || path == "exports.$name" -> out += left
         }
     }
@@ -256,7 +280,11 @@ object TsConfigs {
         val o = options ?: return null
         val baseUrl = TsJsonFiles.string(o, "baseUrl")?.let { optionsDir.findFileByRelativePath(it) }
         val paths = TsJsonFiles.obj(o, "paths")?.entrySet()?.map { (k, v) ->
-            k to (if (v.isJsonArray) v.asJsonArray.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString } else emptyList())
+            val targets = when {
+                v.isJsonArray -> v.asJsonArray.mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString }
+                else -> emptyList()
+            }
+            k to targets
         }.orEmpty()
         if (baseUrl == null && paths.isEmpty()) return null
         return TsConfig(baseUrl, baseUrl ?: optionsDir, paths)

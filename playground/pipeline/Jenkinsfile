@@ -1,0 +1,36 @@
+#!/usr/bin/env groovy
+// Ctrl+Click: deployApp → vars/deployApp.groovy, Release → src/, version → its first assignment, load → the file.
+import playground.ci.Release
+
+def targets = ['dev', 'stage']
+
+pipeline {
+    agent any
+    options { timeout(time: 20, unit: 'MINUTES') }
+    stages {
+        stage('Build') {
+            steps {
+                sh './gradlew build'
+                script {
+                    version = sh(script: 'git describe --tags', returnStdout: true).trim()
+                    Release release = new Release(version)
+                    echo "Building ${release.tag()} from ${version.split(/-/).first()}"
+                }
+            }
+        }
+        stage('Deploy') {
+            when { branch 'main' }
+            steps {
+                script {
+                    targets.each { target -> deployApp env: target, version: version }
+                    targets.each { echo "deployed to $it" }
+                    def notifier = load 'ci/notify.groovy'
+                    notifier.send("Released $version")
+                }
+            }
+        }
+    }
+    post {
+        failure { echo "Failed: ${currentBuild.fullDisplayName}" }
+    }
+}

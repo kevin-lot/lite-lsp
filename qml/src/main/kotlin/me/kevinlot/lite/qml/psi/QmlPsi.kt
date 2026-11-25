@@ -15,12 +15,15 @@ import me.kevinlot.lite.qml.resolve.QmlPropertyReference
 import me.kevinlot.lite.qml.resolve.QmlResolver
 import me.kevinlot.lite.qml.resolve.QmlTypeReference
 import me.kevinlot.lite.qml.resolve.QmlTypes
+import me.kevinlot.lite.typescript.lexer.TsTokens as T
 import me.kevinlot.lite.typescript.psi.TsNamedDecl
 import me.kevinlot.lite.typescript.psi.TsPsiFactory
 import me.kevinlot.lite.typescript.resolve.TsHostDecl
 import me.kevinlot.lite.typescript.resolve.TsHostScope
 import me.kevinlot.lite.typescript.resolve.TsTy
-import me.kevinlot.lite.typescript.lexer.TsTokens as T
+
+private val IDENTIFIERS = TokenSet.create(T.IDENTIFIER)
+private val SOFT_KEYWORDS = TokenSet.create(T.SOFT_KEYWORD)
 
 open class QmlElement(node: ASTNode) : ASTWrapperPsiElement(node) {
     val type: IElementType get() = node.elementType
@@ -43,21 +46,19 @@ class QmlNamed(node: ASTNode) : QmlElement(node), PsiNameIdentifierOwner, TsHost
     }
 
     /** `id`s are only visible in their document. */
-    override fun getUseScope(): SearchScope = if (type == Q.ID) LocalSearchScope(containingFile) else super.getUseScope()
+    override fun getUseScope(): SearchScope {
+        if (type == Q.ID) return LocalSearchScope(containingFile)
+        return super.getUseScope()
+    }
 
     override fun hostType(): TsTy = QmlTypes.ofDeclaration(this)
 
     val typeRef: QmlTypeRef? get() = children.firstOrNull { it is QmlTypeRef } as? QmlTypeRef
     /** Binding value of a property (an object, or JavaScript). */
     val value: PsiElement?
-        get() {
-            var seenColon = false
-            for (c in node.getChildren(null)) {
-                if (c.elementType == T.COLON) seenColon = true else if (seenColon && c.psi !is com.intellij.psi.PsiWhiteSpace && c.psi.node.elementType !in T.COMMENTS) return c.psi
-            }
-            return null
-        }
-    val isAlias: Boolean get() = type == Q.PROPERTY && node.getChildren(TokenSet.create(T.SOFT_KEYWORD)).any { it.text == "alias" }
+        get() = node.getChildren(null).dropWhile { it.elementType != T.COLON }
+            .firstOrNull { it.elementType != T.COLON && it.psi !is com.intellij.psi.PsiWhiteSpace && it.elementType !in T.COMMENTS }?.psi
+    val isAlias: Boolean get() = type == Q.PROPERTY && node.getChildren(SOFT_KEYWORDS).any { it.text == "alias" }
 }
 
 /** `Type { members }`: also a JavaScript scope (ids, its properties, the document's root properties). */
@@ -85,7 +86,7 @@ class QmlBinding(node: ASTNode) : QmlElement(node) {
 
 /** A property name in a binding, a group or `on`: `anchors.fill`, `Layout.fillWidth`, `onClicked`. */
 class QmlPropertyRef(node: ASTNode) : QmlElement(node) {
-    val nameElement: PsiElement? get() = node.getChildren(TokenSet.create(T.IDENTIFIER)).lastOrNull()?.psi
+    val nameElement: PsiElement? get() = node.getChildren(IDENTIFIERS).lastOrNull()?.psi
     val referencedName: String? get() = nameElement?.text
     val qualifier: QmlPropertyRef? get() = firstChild as? QmlPropertyRef
     override fun getReference(): PsiReference? = nameElement?.let { QmlPropertyReference(this) }
@@ -93,7 +94,7 @@ class QmlPropertyRef(node: ASTNode) : QmlElement(node) {
 
 /** A type name: `Rectangle`, `Controls.Button`, `list<Item>`'s `Item`. */
 class QmlTypeRef(node: ASTNode) : QmlElement(node) {
-    val nameElement: PsiElement? get() = node.getChildren(TokenSet.create(T.IDENTIFIER)).lastOrNull()?.psi
+    val nameElement: PsiElement? get() = node.getChildren(IDENTIFIERS).lastOrNull()?.psi
     val referencedName: String? get() = nameElement?.text
     /** `Controls` in `Controls.Button` (an import alias). */
     val qualifier: String? get() = text.substringBeforeLast('.', "").takeIf { it.isNotEmpty() }
@@ -107,7 +108,7 @@ class QmlImport(node: ASTNode) : QmlElement(node), TsHostDecl {
     val path: String? get() = node.findChildByType(T.STRING)?.text?.let { TsNamedDecl.unquote(it) }
     val alias: String?
         get() {
-            val asToken = node.getChildren(TokenSet.create(T.SOFT_KEYWORD)).firstOrNull { it.text == "as" } ?: return null
+            val asToken = node.getChildren(SOFT_KEYWORDS).firstOrNull { it.text == "as" } ?: return null
             var n = asToken.treeNext
             while (n != null && n.elementType != T.IDENTIFIER) n = n.treeNext
             return n?.text

@@ -20,7 +20,11 @@ import me.kevinlot.lite.core.LiteFindUsagesProvider
 import me.kevinlot.lite.core.LiteNamesValidator
 import me.kevinlot.lite.core.color
 import me.kevinlot.lite.python.parser.PyParserDefinition
-import me.kevinlot.lite.python.psi.*
+import me.kevinlot.lite.python.psi.PyClass
+import me.kevinlot.lite.python.psi.PyFunction
+import me.kevinlot.lite.python.psi.PyNamedDecl
+import me.kevinlot.lite.python.psi.PyReferenceExpr
+import me.kevinlot.lite.python.psi.PyTarget
 import me.kevinlot.lite.python.upstream.PyElementTypes as E
 import me.kevinlot.lite.python.upstream.PyTokenTypes as T
 import me.kevinlot.lite.python.upstream.lexer.PythonHighlightingLexer
@@ -57,11 +61,18 @@ class PySyntaxHighlighter : SyntaxHighlighterBase() {
             t == T.LBRACE || t == T.RBRACE -> PyColors.BRACES
             t == T.LBRACKET || t == T.RBRACKET -> PyColors.BRACKETS
             t == T.LPAR || t == T.RPAR -> PyColors.PARENTHESES
-            t.toString().endsWith("_KEYWORD") || t in T.BOOL_LITERALS || t == T.NONE_KEYWORD -> PyColors.KEYWORD
+            isKeyword(t) || t in T.BOOL_LITERALS || t == T.NONE_KEYWORD -> PyColors.KEYWORD
             t in T.OPERATIONS -> PyColors.OPERATOR
             else -> null
         },
     )
+
+    private companion object {
+        val KEYWORD_TOKENS = java.util.concurrent.ConcurrentHashMap<IElementType, Boolean>()
+
+        // The token's toString() builds a new string: asked once per token type, not once per token.
+        fun isKeyword(t: IElementType): Boolean = KEYWORD_TOKENS.computeIfAbsent(t) { it.toString().endsWith("_KEYWORD") }
+    }
 }
 
 class PySyntaxHighlighterFactory : SyntaxHighlighterFactory() {
@@ -76,11 +87,14 @@ class PyHighlightingAnnotator : Annotator {
             element is PyFunction -> holder.color(element.nameIdentifier, PyColors.FUNCTION_DECL)
             element.node.elementType == E.DECORATOR_CALL -> holder.color(element.children.firstOrNull { it is PyReferenceExpr } ?: element, PyColors.DECORATOR)
             element is PyReferenceExpr && element.qualifier == null && element.referencedName in SELF -> holder.color(element, PyColors.SELF)
+            element is PyNamedDecl && element.node.elementType == E.NAMED_PARAMETER && element.name in SELF ->
+                holder.color(element.nameIdentifier, PyColors.SELF)
             element is PyNamedDecl && element.node.elementType == E.NAMED_PARAMETER ->
-                holder.color(element.nameIdentifier, if (element.name in SELF) PyColors.SELF else PyColors.PARAMETER)
+                holder.color(element.nameIdentifier, PyColors.PARAMETER)
             element is PyReferenceExpr && element.parent?.node?.elementType == E.CALL_EXPRESSION && element.parent.firstChild == element -> {
                 val name = element.referencedName ?: return
-                holder.color(element.nameElement, if (name.first().isUpperCase()) PyColors.CLASS else PyColors.FUNCTION_CALL)
+                val color = when { name.first().isUpperCase() -> PyColors.CLASS; else -> PyColors.FUNCTION_CALL }
+                holder.color(element.nameElement, color)
             }
         }
     }
@@ -99,11 +113,14 @@ class PyCommenter : com.intellij.lang.Commenter {
 
 class PyFindUsagesProvider : LiteFindUsagesProvider(::PythonLexer, TokenSet.create(T.IDENTIFIER), PyParserDefinition.COMMENTS, T.STRING_NODES) {
     override fun isDeclaration(element: PsiElement) = element is PyNamedDecl
-    override fun kindOf(element: PsiElement) = when (element) {
-        is PyClass -> "class"
-        is PyFunction -> if (element.containingClass != null) "method" else "function"
-        is PyTarget -> if (element.qualifier != null) "attribute" else "variable"
-        else -> if (element.node.elementType == E.NAMED_PARAMETER) "parameter" else "name"
+    override fun kindOf(element: PsiElement) = when {
+        element is PyClass -> "class"
+        element is PyFunction && element.containingClass != null -> "method"
+        element is PyFunction -> "function"
+        element is PyTarget && element.qualifier != null -> "attribute"
+        element is PyTarget -> "variable"
+        element.node.elementType == E.NAMED_PARAMETER -> "parameter"
+        else -> "name"
     }
 }
 

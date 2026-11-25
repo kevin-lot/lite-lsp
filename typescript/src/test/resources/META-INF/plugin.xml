@@ -3,5 +3,7 @@
     <id>me.kevinlot.lite.typescript.test</id>
     <name>Lite typescript (tests)</name>
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.xml</depends>
+    <xi:include href="/META-INF/lite-angular.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-typescript.xml" xpointer="xpointer(/idea-plugin/*)"/>
 </idea-plugin>

@@ -31,41 +31,43 @@ object Pointers {
     fun nameRange(value: String): IntRange {
         val hash = value.indexOf('#')
         if (hash >= 0 && value.length > hash + 1) {
-            val start = value.lastIndexOf('/').let { if (it > hash) it + 1 else hash + 1 }
+            val start = maxOf(value.lastIndexOf('/'), hash) + 1
             return start until value.length
         }
-        val path = if (hash >= 0) value.substring(0, hash) else value
+        val path = value.substringBefore('#')
         return (path.lastIndexOf('/') + 1) until path.length
     }
 
     /** Targets of a reference [value] written in [from]. */
     fun resolve(from: PsiFile, value: String, linker: Linker): List<PsiElement> {
         val hash = value.indexOf('#')
-        val path = if (hash >= 0) value.substring(0, hash) else value
-        val pointer = if (hash >= 0) decode(value.substring(hash + 1)) else null
+        val path = value.substringBefore('#')
+        val pointer = value.takeIf { hash >= 0 }?.substring(hash + 1)?.let(::decode)
         if (hash < 0 && '/' !in value && !FILE.containsMatchIn(value)) {
             return BARE.firstNotNullOfOrNull { find(from, it + escape(value)) }?.let(::listOf).orEmpty()
         }
-        val file = if (path.isEmpty()) from else linker.resolvePath(from, path) as? PsiFile ?: return emptyList()
+        val file = from.takeIf { path.isEmpty() } ?: linker.resolvePath(from, path) as? PsiFile ?: return emptyList()
         if (pointer.isNullOrEmpty() || pointer == "/") return listOf(file)
-        return listOfNotNull(find(file, if (pointer.startsWith("/")) pointer else "/$pointer"))
+        return listOfNotNull(find(file, "/" + pointer.removePrefix("/")))
     }
 
     fun find(file: PsiFile, pointer: String): PsiElement? {
         if (file is FmtFile && file.format == Yaml) {
-            val decl = Fmt.links(file).decls.firstOrNull { it.key == "key:$pointer" } ?: return null
+            val decl = Fmt.links(file).declared("key:$pointer").firstOrNull() ?: return null
             val leaf = file.findElementAt(decl.range.startOffset)
             return PsiTreeUtil.getParentOfType(leaf, FmtWord::class.java, false) ?: leaf
         }
         return EP.extensionList.firstNotNullOfOrNull { it.find(file, pointer) }
     }
 
-    private fun decode(s: String): String =
-        if ('%' !in s) s else runCatching { java.net.URLDecoder.decode(s.replace("+", "%2B"), Charsets.UTF_8) }.getOrDefault(s)
+    private fun decode(s: String): String {
+        if ('%' !in s) return s
+        return runCatching { java.net.URLDecoder.decode(s.replace("+", "%2B"), Charsets.UTF_8) }.getOrDefault(s)
+    }
 
     // ---------------------------------------------------------------- YAML
 
-    private val REF = Regex("""(?:^|[\s{,])['"]?(?:\${'$'}ref|operationRef)['"]?[ \t]*:[ \t]*(?:'([^'\n]*)'|"([^"\n]*)"|((?:[^\s'"#,{}\[\]]|\{[^}\s]*})(?:[^\s,{}\[\]]|\{[^}\s]*})*))""", RegexOption.MULTILINE)
+    private val REF = Regex("""(?:^|[\s{,])['"]?(?:\${'$'}ref|operationRef)['"]?[ \t]*:[ \t]*(?:'([^'\n]*)'|"([^"\n]*)"|((?:[^\s'"#,{}\[\]]|\{[^}\s]*})[^\s,{}\[\]]*+(?:\{[^}\s]*}[^\s,{}\[\]]*+)*+))""", RegexOption.MULTILINE)
     /** Any quoted value that is a pointer (`mapping: { dog: '#/components/schemas/Dog' }`). */
     private val POINTER_VALUE = Regex(""":[ \t]*(?:'((?:[\w./-]+\.(?:ya?ml|json))?#/[^'\n]*)'|"((?:[\w./-]+\.(?:ya?ml|json))?#/[^"\n]*)")""")
 
@@ -81,7 +83,9 @@ object Pointers {
         return out.values.toList()
     }
 
-    private val KEY = Regex("""^("(?:\\.|[^"\\])*"|'(?:''|[^'])*'|[^\s#'"{\[\]},&*!|>%@`-][^:#\n]*?|-[^\s:#][^:#\n]*?)[ \t]*:(?=\s|$)""")
+    private val BLOCK_SCALAR = Regex("""^(?:&\S+\s+|!\S+\s+)*[|>][-+0-9]*(?:\s+#.*)?$""")
+    private val KEY = Regex("""^("[^"\\]*+(?:\\.[^"\\]*+)*+"|'[^']*+(?:''[^']*+)*+'|[^\s#'"{\[\]},&*!|>%@`-][^:#\n]*?|-[^\s:#][^:#\n]*?)[ \t]*:(?=\s|$)""")
+    private val NO_VALUE = Regex("""^(?:&\S+|!\S+)(?:\s+#.*)?$""")
 
     /** Block-mapping keys of a YAML text with their JSON pointer (`/paths/~1pets/get`, `/tags/0/name`). */
     fun yamlKeys(text: CharSequence): List<Pair<TextRange, String>> {
@@ -96,22 +100,24 @@ object Pointers {
             offset += line.length + 1
             var col = line.indexOfFirst { it != ' ' }
             if (col < 0 || line[col] == '#') continue
-            if (blockIndent >= 0) { if (col > blockIndent) continue else blockIndent = -1 }
+            if (blockIndent >= 0 && col > blockIndent) continue
+            blockIndent = -1
             if (col == 0 && (line.startsWith("---") || line.startsWith("..."))) { stack.clear(); counters.clear(); continue }
             var rest = line.substring(col)
             // `- ` items (possibly nested: `- - a`)
             while (rest == "-" || rest.startsWith("- ")) {
                 while (stack.isNotEmpty() && (stack.last().indent > col || (stack.last().indent == col && stack.last().item))) stack.removeLast()
                 val parent = stack.lastOrNull()?.path ?: ""
-                val index = counters.merge(parent, 1, Int::plus)!! - 1
+                val index = counters.getOrDefault(parent, 0)
+                counters[parent] = index + 1
                 stack.addLast(Frame(col, "$parent/$index", true))
-                val skip = rest.drop(1).indexOfFirst { it != ' ' }.let { if (it < 0) rest.length else it + 1 }
+                val skip = rest.drop(1).indexOfFirst { it != ' ' }.takeIf { it >= 0 }?.plus(1) ?: rest.length
                 col += skip
                 rest = rest.substring(minOf(skip, rest.length))
             }
             if (rest.isEmpty() || rest.startsWith("#")) continue
             val m = KEY.find(rest) ?: continue
-            val raw = m.groups[1]!!
+            val raw = m.group(1)
             while (stack.isNotEmpty() && stack.last().indent >= col && !(stack.last().item && stack.last().indent < col)) stack.removeLast()
             val name = when {
                 raw.value.startsWith("\"") -> raw.value.removeSurrounding("\"").replace("\\\"", "\"")
@@ -119,13 +125,13 @@ object Pointers {
                 else -> raw.value
             }
             val quoted = raw.value.length != name.length && (raw.value.startsWith("\"") || raw.value.startsWith("'"))
-            val nameStart = lineStart + col + raw.range.first + if (quoted) 1 else 0
+            val nameStart = lineStart + col + raw.range.first + (1.takeIf { quoted } ?: 0)
             val path = (stack.lastOrNull()?.path ?: "") + "/" + escape(name)
             out += TextRange(nameStart, nameStart + name.length) to path
             val value = rest.substring(m.range.last + 1).trim()
             when {
-                value.isEmpty() || value.startsWith("#") || Regex("""^(?:&\S+|!\S+)(?:\s+#.*)?$""").matches(value) -> stack.addLast(Frame(col, path, false))
-                Regex("""^(?:&\S+\s+|!\S+\s+)*[|>][-+0-9]*(?:\s+#.*)?$""").matches(value) -> blockIndent = col
+                value.isEmpty() || value.startsWith("#") || NO_VALUE.matches(value) -> stack.addLast(Frame(col, path, false))
+                BLOCK_SCALAR.matches(value) -> blockIndent = col
             }
         }
         return out

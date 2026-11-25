@@ -6,6 +6,7 @@ import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
+import me.kevinlot.lite.kotlin.gradle.GradleProjects
 
 /** `<ref>` marks the reference, `<def>` the expected target name (Kotlin or Java file). */
 class KtResolveTest : LightJavaCodeInsightFixtureTestCase() {
@@ -88,6 +89,13 @@ class KtResolveTest : LightJavaCodeInsightFixtureTestCase() {
     fun `test collection element it`() = one("class A { val <def>p = 1 } fun f(xs: List<A>) = xs.map { it.<ref>p }")
     fun `test for over list element`() = one("class A { val <def>p = 1 } fun f(xs: List<A>) { for (x in xs) x.<ref>p }")
     fun `test named argument`() = one("fun g(<def>count: Int) {} fun f() = g(<ref>count = 1)")
+    fun `test named argument of an annotation`() = one("annotation class Tag(val <def>label: String)\n@Tag(<ref>label = \"x\") fun f() {}")
+    fun `test named argument of a super constructor`() = one("open class Base(val <def>size: Int)\nclass Small : Base(<ref>size = 1)")
+    fun `test named argument of an unknown annotation resolves to nothing`() {
+        myFixture.configureByText("main.kt", "@Unknown(lab<caret>el = \"x\") fun f() {}")
+        val ref = myFixture.file.findReferenceAt(myFixture.caretOffset) as PsiPolyVariantReference
+        assertEmpty(ref.multiResolve(false))
+    }
     fun `test overload by arity`() = one("fun g(a: Int) {} fun <def>g(a: Int, b: Int) {} fun f() = <ref>g(1, 2)")
     fun `test lazy delegate type`() = one("class A { val <def>p = 1 } class U { val a by lazy { A() } fun f() = a.<ref>p }")
     fun `test destructured data class component type`() = one(
@@ -149,6 +157,27 @@ class KtResolveTest : LightJavaCodeInsightFixtureTestCase() {
         "src/lib/Lib.kt" to "package lib\nobject Tools { fun <def>run() {} }",
         "src/app/Main.kt" to "package app\nfun f() = lib.Tools.<ref>run()",
     )
+    fun `test import middle segment`() = check(
+        "src/j/Outer.java" to "package j; public class <def>Outer { public static class Inner {} }",
+        "src/app/Main.kt" to "package app\nimport j . <ref>Outer.Inner",
+    )
+    fun `test import added later`() {
+        myFixture.addFileToProject("src/lib/Lib.kt", "package lib\nclass Thing")
+        val main = myFixture.configureByText("Main.kt", "package app\n\nfun f(t: Thing) {}")
+        fun targets() = (main.findReferenceAt(main.text.lastIndexOf("Thing")) as PsiPolyVariantReference).multiResolve(false).mapNotNull { it.element }
+        assertEmpty(targets())
+        myFixture.editor.caretModel.moveToOffset(main.text.indexOf("fun"))
+        myFixture.type("import lib.Thing\n")
+        com.intellij.psi.PsiDocumentManager.getInstance(project).commitAllDocuments()
+        assertEquals(listOf("Lib.kt"), targets().map { it.containingFile.name })
+    }
+    fun `test default package source added later`() {
+        val main = myFixture.addFileToProject("src/main.kt", "fun f() = shout()")
+        fun targets() = (main.findReferenceAt(main.text.indexOf("shout")) as PsiPolyVariantReference).multiResolve(false).mapNotNull { it.element }
+        assertEmpty(targets())
+        myFixture.addFileToProject("src/text.kt", "package kotlin.text\nfun shout() = 1")
+        assertEquals(listOf("text.kt"), targets().map { it.containingFile.name })
+    }
 
     // ---------------------------------------------------------------- project boundaries
 

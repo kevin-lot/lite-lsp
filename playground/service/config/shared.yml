@@ -1,0 +1,4 @@
+region: eu-west-1
+limits:
+  max: 10
+  timeout: 30

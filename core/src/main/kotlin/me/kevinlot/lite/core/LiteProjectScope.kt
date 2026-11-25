@@ -29,17 +29,12 @@ data class ProjectLayout(
         file ?: return null
         if (file.fileSystem is JarFileSystem) return null
         val bound = ProjectFileIndex.getInstance(project).getContentRootForFile(file)?.path
-        var dir: VirtualFile? = if (file.isDirectory) file else file.parent
-        var module: String? = null
-        var marked: String? = null
-        while (dir != null && (bound == null || dir.path == bound || dir.path.startsWith("$bound/"))) {
-            if (rootManifests.any { dir!!.findChild(it) != null }) return dir.path
-            if (module == null && moduleManifests.any { dir!!.findChild(it) != null }) module = dir.path
-            if (dir.path == bound) break
-            if (MARKERS.any { dir!!.findChild(it)?.isDirectory == true }) marked = dir.path
-            dir = dir.parent
-        }
-        return module ?: marked ?: bound
+        val dirs = generateSequence(file.takeIf { it.isDirectory } ?: file.parent) { it.parent }
+            .takeWhile { bound == null || it.path == bound || it.path.startsWith("$bound/") }.toList()
+        val root = dirs.firstOrNull { dir -> rootManifests.any { dir.findChild(it) != null } }
+        val module = dirs.firstOrNull { dir -> moduleManifests.any { dir.findChild(it) != null } }
+        val marked = dirs.lastOrNull { dir -> dir.path != bound && MARKERS.any { dir.findChild(it)?.isDirectory == true } }
+        return (root ?: module ?: marked)?.path ?: bound
     }
 
     /**
@@ -50,7 +45,7 @@ data class ProjectLayout(
         val file = e.containingFile?.originalFile ?: return GlobalSearchScope.allScope(e.project)
         return CachedValuesManager.getCachedValue(file, key) {
             val project = file.project
-            val extra: (VirtualFile) -> Boolean = if (oracle == null) { _ -> false } else { vf -> oracle.isLibraryFile(project, vf) }
+            val extra: (VirtualFile) -> Boolean = { vf -> oracle?.isLibraryFile(project, vf) == true }
             val deps = listOfNotNull(PsiModificationTracker.MODIFICATION_COUNT, oracle?.tracker(file)).toTypedArray()
             CachedValueProvider.Result.create(LiteProjectScope.create(file.project, this, file.virtualFile, extra), *deps)
         }
@@ -87,13 +82,16 @@ class LiteProjectScope private constructor(
     companion object {
         fun create(project: Project, layout: ProjectLayout, file: VirtualFile?, extraLibrary: (VirtualFile) -> Boolean = { false }): LiteProjectScope {
             val root = layout.rootOf(project, file)
-            val path = file?.path
-            val ownOutput = if (root != null && path != null && path.startsWith("$root/")) {
-                val segments = path.substring(root.length + 1).split('/')
-                val i = segments.indexOfFirst { it in layout.outputDirs }
-                if (i >= 0 && i < segments.size - 1) root + "/" + segments.take(i + 1).joinToString("/") else null
-            } else null
-            return LiteProjectScope(project, root, ownOutput, layout.outputDirs, extraLibrary)
+            return LiteProjectScope(project, root, ownOutput(root, file?.path, layout.outputDirs), layout.outputDirs, extraLibrary)
+        }
+
+        /** The output dir of [root] that [path] is in, when it is below one. */
+        private fun ownOutput(root: String?, path: String?, outputDirs: Set<String>): String? {
+            if (root == null || path == null || !path.startsWith("$root/")) return null
+            val segments = path.substring(root.length + 1).split('/')
+            val i = segments.indexOfFirst { it in outputDirs }
+            if (i < 0 || i >= segments.size - 1) return null
+            return root + "/" + segments.take(i + 1).joinToString("/")
         }
     }
 }

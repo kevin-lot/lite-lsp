@@ -1,0 +1,21 @@
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+    outputs:
+      url:
+        value: ${{ jobs.run.outputs.url }}
+  schedule:
+    - cron: '17 5 * * 1'
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.publish.outputs.url }}
+    steps:
+      - id: publish
+        env:
+          VERSION: ${{ inputs.version }}
+        run: echo "url=https://example.test/$VERSION" >> "$GITHUB_OUTPUT"

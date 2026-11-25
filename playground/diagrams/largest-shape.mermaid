@@ -1,0 +1,9 @@
+sequenceDiagram
+  %% Ctrl+Click: `API`, `DB` → their participant line.
+  participant Player
+  participant API as Shapes API
+  participant DB as Database
+  Player ->> API: GET /shapes/largest
+  API ->> DB: select shapes
+  DB -->> API: rows
+  API -->> Player: 200 OK

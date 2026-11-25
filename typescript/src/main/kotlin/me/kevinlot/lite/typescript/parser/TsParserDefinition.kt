@@ -19,7 +19,8 @@ import me.kevinlot.lite.typescript.psi.TsPsiFactoryImpl
 
 /** File root: JSX is enabled from the file name (everything but `.ts`/`.mts`/`.cts`). */
 object TsFileElementType : IFileElementType("LITE_TS_FILE", TsLanguage) {
-    override fun doParseContents(chameleon: ASTNode, psi: PsiElement): ASTNode {
+    // null for an empty file: its tree has no node
+    override fun doParseContents(chameleon: ASTNode, psi: PsiElement): ASTNode? {
         val jsx = TsFile.hasJsx(psi.containingFile?.name)
         val builder = PsiBuilderFactory.getInstance().createBuilder(psi.project, chameleon, TsLexer(jsx), language, chameleon.chars)
         return TsParser(jsx).parse(this, builder).firstChildNode

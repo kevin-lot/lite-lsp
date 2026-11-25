@@ -53,7 +53,8 @@ object LiteCache {
     fun dependencies(e: PsiElement, oracle: LibraryOracle): Array<Any> {
         val roots = ProjectRootModificationTracker.getInstance(e.project)
         val own = oracle.tracker(e)
-        return if (oracle.isLibrary(e)) arrayOf(roots, own) else arrayOf(PsiModificationTracker.MODIFICATION_COUNT, roots, own)
+        if (oracle.isLibrary(e)) return arrayOf(roots, own)
+        return arrayOf(PsiModificationTracker.MODIFICATION_COUNT, roots, own)
     }
 }
 
@@ -77,7 +78,5 @@ class RecursionGuard(private val maxDepth: Int = 64) {
         return true
     }
 
-    fun exit() {
-        depth.get()[0]--
-    }
+    fun exit() { depth.get()[0]-- }
 }

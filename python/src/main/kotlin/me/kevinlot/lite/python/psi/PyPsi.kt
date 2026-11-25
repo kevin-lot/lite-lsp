@@ -8,6 +8,7 @@ import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.PsiReference
 import com.intellij.psi.tree.IElementType
+import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.IncorrectOperationException
 import me.kevinlot.lite.python.parser.PyFile
@@ -15,6 +16,8 @@ import me.kevinlot.lite.python.resolve.PyNameReference
 import me.kevinlot.lite.python.upstream.PyElementTypes as E
 import me.kevinlot.lite.python.upstream.PyTokenTypes as T
 import me.kevinlot.lite.python.upstream.PythonFileType
+
+private val IDENTIFIERS = TokenSet.create(T.IDENTIFIER)
 
 /** Minimal PSI over the upstream parser tree: declarations with names, references, imports. */
 open class PyElement(node: ASTNode) : ASTWrapperPsiElement(node) {
@@ -73,16 +76,16 @@ class PyClass(node: ASTNode) : PyNamedDecl(node) {
 
 /** A name in an expression, possibly qualified: `a.b.c` is REF(REF(REF(a).b).c). */
 class PyReferenceExpr(node: ASTNode) : PyElement(node) {
-    val nameElement: PsiElement? get() = node.getChildren(com.intellij.psi.tree.TokenSet.create(T.IDENTIFIER)).lastOrNull()?.psi
+    val nameElement: PsiElement? get() = node.getChildren(IDENTIFIERS).lastOrNull()?.psi
     val referencedName: String? get() = nameElement?.text
-    val qualifier: PsiElement? get() = if (node.findChildByType(T.DOT) != null) children.firstOrNull { it is PyElement } else null
+    val qualifier: PsiElement? get() = node.findChildByType(T.DOT)?.let { children.firstOrNull { c -> c is PyElement } }
     override fun getReference(): PsiReference? = nameElement?.let { PyNameReference(this) }
 }
 
 /** A target (`x = 1`, `self.x = 1`, `for x in`): a declaration, also a reference when qualified. */
 class PyTarget(node: ASTNode) : PyNamedDecl(node) {
-    val qualifier: PsiElement? get() = if (node.findChildByType(T.DOT) != null) children.firstOrNull { it is PyElement } else null
-    override fun getNameIdentifier(): PsiElement? = node.getChildren(com.intellij.psi.tree.TokenSet.create(T.IDENTIFIER)).lastOrNull()?.psi
+    val qualifier: PsiElement? get() = node.findChildByType(T.DOT)?.let { children.firstOrNull { c -> c is PyElement } }
+    override fun getNameIdentifier(): PsiElement? = node.getChildren(IDENTIFIERS).lastOrNull()?.psi
 }
 
 /** `import a.b as c` / `from m import a as c` element. */
@@ -92,7 +95,11 @@ class PyImportElement(node: ASTNode) : PyNamedDecl(node) {
     val alias: PyTarget? get() = children.firstOrNull { it is PyTarget } as? PyTarget
     /** Name bound in the importing scope: alias, else last segment (`from`) or first segment (`import a.b`). */
     val boundName: String?
-        get() = alias?.name ?: importedPath?.text?.let { if (parent?.node?.elementType == E.FROM_IMPORT_STATEMENT) it.substringAfterLast('.') else it.substringBefore('.') }
+        get() = alias?.name ?: importedPath?.text?.let { boundSegment(it) }
+    private fun boundSegment(path: String): String {
+        if (parent?.node?.elementType == E.FROM_IMPORT_STATEMENT) return path.substringAfterLast('.')
+        return path.substringBefore('.')
+    }
     override fun getNameIdentifier(): PsiElement? = alias?.nameIdentifier ?: importedPath?.nameElement
     override fun getName(): String? = boundName
 }

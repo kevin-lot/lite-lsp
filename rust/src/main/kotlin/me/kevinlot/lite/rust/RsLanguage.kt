@@ -5,8 +5,8 @@ import com.intellij.lang.Language
 import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.openapi.util.IconLoader
 import com.intellij.psi.FileViewProvider
-import me.kevinlot.lite.rust.psi.RsItemsOwner
 import javax.swing.Icon
+import me.kevinlot.lite.rust.psi.RsItemsOwner
 
 /** Distinct id from the official plugin ("Rust") so both can coexist on disk. */
 object RsLanguage : Language("LiteRust") {

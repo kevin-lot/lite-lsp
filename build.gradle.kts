@@ -7,7 +7,7 @@ plugins {
 
 allprojects {
     group = "me.kevinlot"
-    version = "0.14.0"
+    version = "0.36.0"
 }
 
 repositories {
@@ -27,9 +27,12 @@ dependencies {
         pluginComposedModule(implementation(project(":qml")))
         pluginComposedModule(implementation(project(":shell")))
         pluginComposedModule(implementation(project(":lua")))
+        pluginComposedModule(implementation(project(":groovy")))
+        pluginComposedModule(implementation(project(":scala")))
         pluginComposedModule(implementation(project(":markdown")))
         pluginComposedModule(implementation(project(":formats")))
         pluginComposedModule(implementation(project(":protobuf")))
+        pluginComposedModule(implementation(project(":terminal")))
     }
 }
 

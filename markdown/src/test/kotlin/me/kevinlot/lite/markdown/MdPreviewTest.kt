@@ -86,4 +86,32 @@ class MdPreviewTest : BasePlatformTestCase() {
             Disposer.dispose(editor)
         }
     }
+
+    private fun bodySize(html: String) = Regex("""body \{[^}]*font-size: (\d+)pt""").find(html)!!.groupValues[1].toInt()
+
+    fun `test zoom scales the text and the diagrams`() {
+        val markdown = "# T\n\n```mermaid\ngraph TD\n  A --> B\n```\n"
+        val width = Regex("""<img src="[^"]+" width="(\d+)"""")
+        val plain = MdHtml.render(markdown, null)
+        val zoomed = MdHtml.render(markdown, null, zoom = 2.0)
+        assertEquals(bodySize(plain) * 2, bodySize(zoomed))
+        assertEquals(width.find(plain)!!.groupValues[1].toDouble() * 2, width.find(zoomed)!!.groupValues[1].toDouble(), 1.0)
+    }
+
+    fun `test the preview zooms within its limits and resets`() {
+        val file = myFixture.addFileToProject("docs/zoom.md", "Hello\n").virtualFile
+        val editor = MdSplitEditorProvider().createEditor(project, file)
+        try {
+            val preview = (editor as TextEditorWithPreview).previewEditor as MdPreviewEditor
+            preview.zoomTo(1.0)
+            PlatformTestUtil.waitWithEventsDispatching("preview not rendered", { "Hello" in preview.shownText }, 10)
+            val normal = bodySize(preview.shownText)
+            preview.zoomTo(100.0)
+            PlatformTestUtil.waitWithEventsDispatching("preview not zoomed", { bodySize(preview.shownText) == normal * 4 }, 10)
+            preview.zoomTo(1.0)
+            PlatformTestUtil.waitWithEventsDispatching("zoom not reset", { bodySize(preview.shownText) == normal }, 10)
+        } finally {
+            Disposer.dispose(editor)
+        }
+    }
 }

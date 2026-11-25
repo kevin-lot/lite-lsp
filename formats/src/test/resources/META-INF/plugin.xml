@@ -5,7 +5,9 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.xml</depends>
     <depends>com.intellij.modules.json</depends>
+    <xi:include href="/META-INF/lite-core.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-formats.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-html.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-json.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-shell.xml" xpointer="xpointer(/idea-plugin/*)"/>
 </idea-plugin>

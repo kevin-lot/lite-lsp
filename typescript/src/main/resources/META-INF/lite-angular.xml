@@ -1,0 +1,16 @@
+<!-- Angular templates (`*.component.html`): HTML with expressions read as Lite TypeScript, their names the members of the component. Needs the XML and HTML plugin. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Angular template (Lite)" implementationClass="me.kevinlot.lite.typescript.angular.AngularFileType" fieldName="INSTANCE"
+                  language="LiteAngular" patterns="*.component.html"/>
+        <editorHighlighterProvider filetype="Angular template (Lite)" implementationClass="me.kevinlot.lite.typescript.angular.AngularEditorHighlighterProvider"/>
+        <lang.fileViewProviderFactory language="LiteAngular" implementationClass="me.kevinlot.lite.typescript.angular.AngularViewProviderFactory"/>
+        <lang.parserDefinition language="LiteAngular" implementationClass="me.kevinlot.lite.typescript.angular.AngularParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteAngular" implementationClass="me.kevinlot.lite.typescript.angular.AngularHighlighterFactory"/>
+        <multiHostInjector implementation="me.kevinlot.lite.typescript.angular.AngularInjector"/>
+        <multiHostInjector implementation="me.kevinlot.lite.typescript.angular.AngularInlineInjector"/>
+    </extensions>
+    <extensions defaultExtensionNs="me.kevinlot.lite">
+        <tsInjectionScope implementation="me.kevinlot.lite.typescript.angular.AngularScope"/>
+    </extensions>
+</idea-plugin>

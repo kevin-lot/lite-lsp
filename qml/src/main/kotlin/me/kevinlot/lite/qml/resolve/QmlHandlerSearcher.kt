@@ -8,8 +8,8 @@ import com.intellij.psi.search.UsageSearchContext
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.util.Processor
 import me.kevinlot.lite.qml.QmlFileType
-import me.kevinlot.lite.qml.psi.QmlNamed
 import me.kevinlot.lite.qml.parser.QmlElementTypes as Q
+import me.kevinlot.lite.qml.psi.QmlNamed
 
 /**
  * A property `count` is also used as `onCountChanged:` and a signal `moved` as `onMoved:`: words the default

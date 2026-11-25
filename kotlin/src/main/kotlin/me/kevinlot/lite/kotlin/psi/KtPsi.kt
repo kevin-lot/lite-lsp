@@ -9,9 +9,10 @@ import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.util.IncorrectOperationException
 import me.kevinlot.lite.kotlin.KtFile
+import me.kevinlot.lite.kotlin.resolve.KtOverrideReference
+import me.kevinlot.lite.kotlin.resolve.KtSimpleNameReference
 import me.kevinlot.lite.kotlin.upstream.lexer.KtTokens
 import me.kevinlot.lite.kotlin.upstream.parser.KtNodeTypes as N
-import me.kevinlot.lite.kotlin.resolve.KtSimpleNameReference
 
 /**
  * Hand-written, minimal PSI over the compiler parser's tree: only what highlighting, navigation,
@@ -28,6 +29,8 @@ open class KtElement(node: ASTNode) : ASTWrapperPsiElement(node) {
 abstract class KtNamedDeclaration(node: ASTNode) : KtElement(node), PsiNameIdentifierOwner {
     override fun getNameIdentifier(): PsiElement? = child(KtTokens.IDENTIFIER)
     override fun getName(): String? = nameIdentifier?.text?.removeSurrounding("`")
+    override fun getReference(): PsiReference? =
+        KtOverrideReference(this).takeIf { nameIdentifier != null && hasModifier(KtTokens.OVERRIDE_KEYWORD) }
     override fun getTextOffset(): Int = nameIdentifier?.textOffset ?: super.getTextOffset()
 
     override fun setName(name: String): PsiElement {
@@ -57,7 +60,7 @@ abstract class KtNamedDeclaration(node: ASTNode) : KtElement(node), PsiNameIdent
             this is KtDestructuringEntry -> p.parent
             p.node.elementType == N.BLOCK -> p // local val/fun/class
             p.node.elementType == N.FOR -> p
-            hasModifier(KtTokens.PRIVATE_KEYWORD) -> if (p is KtFile) p else p.parent // private top-level: file; member: class
+            hasModifier(KtTokens.PRIVATE_KEYWORD) -> p as? KtFile ?: p.parent // private top-level: file; member: class
             else -> null
         }
     }
@@ -80,7 +83,7 @@ class KtObjectDeclaration(node: ASTNode) : KtNamedDeclaration(node), KtMemberLik
     val body: KtElement? get() = child(N.CLASS_BODY) as? KtElement
     val superTypeReferences: List<KtElement> get() = superTypes(this)
     /** `companion object` without a name is called `Companion`. */
-    override fun getName(): String? = super.getName() ?: if (isCompanion) "Companion" else null
+    override fun getName(): String? = super.getName() ?: "Companion".takeIf { isCompanion }
 }
 
 /** `object : Runnable { … }` expression body. */

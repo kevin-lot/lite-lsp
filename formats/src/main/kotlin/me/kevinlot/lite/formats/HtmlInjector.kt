@@ -25,18 +25,20 @@ class HtmlInjector : MultiHostInjector {
         val range = ElementManipulators.getValueTextRange(host)
         if (range.isEmpty) return
         // a `style` attribute holds declarations: wrapped in a rule so they read as one
-        val (prefix, suffix) = if (context is XmlAttributeValue && id == "LiteCss") "x{" to "}" else null to null
-        registrar.startInjecting(language).addPlace(prefix, suffix, host, range).doneInjecting()
+        val wrapped = context is XmlAttributeValue && id == "LiteCss"
+        registrar.startInjecting(language).addPlace("x{".takeIf { wrapped }, "}".takeIf { wrapped }, host, range).doneInjecting()
     }
 
     /** The Lite language of an HTML host: `<script>`/`<style>` text, `style=`/`on…=` values (null: none). */
     fun languageFor(context: PsiElement): String? {
         if (context.containingFile?.language?.id?.let { it == "HTML" || it == "XHTML" || it.endsWith("HTML") } != true) return null
         return when (context) {
-            is XmlText -> when (context.parentTag?.name?.lowercase()) {
-                "script" -> scriptLanguage(context.parentTag!!)
-                "style" -> "LiteCss"
-                else -> null
+            is XmlText -> context.parentTag?.let { tag ->
+                when (tag.name.lowercase()) {
+                    "script" -> scriptLanguage(tag)
+                    "style" -> "LiteCss"
+                    else -> null
+                }
             }
             is XmlAttributeValue -> (context.parent as? XmlAttribute)?.name?.lowercase()?.let { name ->
                 when {
@@ -52,6 +54,6 @@ class HtmlInjector : MultiHostInjector {
     /** No `type`, a JavaScript type or `module`; not JSON, templates or other languages. */
     private fun scriptLanguage(tag: XmlTag): String? {
         val type = tag.getAttributeValue("type")?.lowercase() ?: return "LiteTypeScript"
-        return if (type == "module" || type.contains("javascript") || type.contains("ecmascript")) "LiteTypeScript" else null
+        return "LiteTypeScript".takeIf { type == "module" || type.contains("javascript") || type.contains("ecmascript") }
     }
 }

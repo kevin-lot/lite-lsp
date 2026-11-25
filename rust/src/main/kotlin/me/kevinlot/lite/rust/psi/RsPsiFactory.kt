@@ -7,6 +7,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.IncorrectOperationException
 import me.kevinlot.lite.rust.RsFile
 import me.kevinlot.lite.rust.RsFileType
+import me.kevinlot.lite.rust.psi.*
 
 /** Builds PSI from source snippets (used by rename). */
 class RsPsiFactory(private val project: Project) {

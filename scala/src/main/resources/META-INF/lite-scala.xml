@@ -1,0 +1,17 @@
+<!-- Scala support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Scala (Lite)" implementationClass="me.kevinlot.lite.scala.ScalaFileType" fieldName="INSTANCE" language="LiteScala"
+                  extensions="sbt;sc;scala"/>
+        <lang.parserDefinition language="LiteScala" implementationClass="me.kevinlot.lite.scala.ScalaParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteScala" implementationClass="me.kevinlot.lite.scala.ScalaSyntaxHighlighterFactory"/>
+        <annotator language="LiteScala" implementationClass="me.kevinlot.lite.scala.ScalaHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteScala" implementationClass="me.kevinlot.lite.scala.ScalaBraceMatcher"/>
+        <lang.commenter language="LiteScala" implementationClass="me.kevinlot.lite.scala.ScalaCommenter"/>
+        <lang.findUsagesProvider language="LiteScala" implementationClass="me.kevinlot.lite.scala.ScalaFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteScala" implementationClass="me.kevinlot.lite.scala.ScalaRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteScala" implementationClass="me.kevinlot.lite.scala.ScalaNamesValidator"/>
+        <fileBasedIndex implementation="me.kevinlot.lite.scala.ScalaNameIndex"/>
+        <renamePsiElementProcessor implementation="me.kevinlot.lite.scala.ScalaRenameProcessor"/>
+    </extensions>
+</idea-plugin>

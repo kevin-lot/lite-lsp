@@ -6,17 +6,20 @@ import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.PsiTreeUtil
 import me.kevinlot.lite.core.LiteCache
 import me.kevinlot.lite.qml.QmlFile
+import me.kevinlot.lite.qml.parser.QmlElementTypes as Q
+import me.kevinlot.lite.qml.psi.QmlBinding
+import me.kevinlot.lite.qml.psi.QmlImport
 import me.kevinlot.lite.qml.psi.QmlNamed
 import me.kevinlot.lite.qml.psi.QmlObject
 import me.kevinlot.lite.typescript.resolve.TsHostType
 import me.kevinlot.lite.typescript.resolve.TsTy
 import me.kevinlot.lite.typescript.resolve.TsTypes
-import me.kevinlot.lite.qml.parser.QmlElementTypes as Q
 
 /** QML values seen from JavaScript: objects (and Qt types) whose members are QML members. */
 object QmlTypes {
     private val COMPONENTS = Key.create<CachedValue<Map<String, QmlObject>>>("lite.qml.components")
     private val EXPORTS = Key.create<CachedValue<Map<String, QmlObject>>>("lite.qml.exports")
+    private val EXPORTED_NAME = Regex("\"([^\" ]+)[^\"]*\"")
     /** QML basic types and C++ value types → the JavaScript builtin describing their members (jsroot.qmltypes). */
     private val BASIC = mapOf(
         "string" to "String", "QString" to "String", "url" to "String", "QUrl" to "String",
@@ -64,7 +67,7 @@ object QmlTypes {
         val out = HashMap<String, QmlObject>()
         for (c in components(file).values) {
             val list = c.members.filterIsInstance<me.kevinlot.lite.qml.psi.QmlBinding>().firstOrNull { it.path == "exports" }?.value?.text ?: continue
-            Regex("\"([^\" ]+)[^\"]*\"").findAll(list).forEach { out.putIfAbsent(it.groupValues[1], c) }
+            EXPORTED_NAME.findAll(list).forEach { out.putIfAbsent(it.groupValues[1], c) }
         }
         out
     }

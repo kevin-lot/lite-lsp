@@ -13,14 +13,15 @@ import com.intellij.psi.tree.IFileElementType
 import com.intellij.psi.tree.TokenSet
 import me.kevinlot.lite.kotlin.KtFile
 import me.kevinlot.lite.kotlin.KtLanguage
+import me.kevinlot.lite.kotlin.psi.KtPsiFactoryImpl
 import me.kevinlot.lite.kotlin.upstream.lexer.KotlinLexer
 import me.kevinlot.lite.kotlin.upstream.lexer.KtTokens
-import me.kevinlot.lite.kotlin.psi.KtPsiFactoryImpl
 import me.kevinlot.lite.kotlin.upstream.parser.KtParser
 
 /** File root: `.kts` files are parsed as scripts (top-level statements), `.kt` as regular files. */
 object KtFileElementType : IFileElementType("LITE_KOTLIN_FILE", KtLanguage) {
-    override fun doParseContents(chameleon: ASTNode, psi: PsiElement): ASTNode {
+    // null for an empty file: its tree has no node
+    override fun doParseContents(chameleon: ASTNode, psi: PsiElement): ASTNode? {
         val builder = PsiBuilderFactory.getInstance().createBuilder(psi.project, chameleon, KotlinLexer(), language, chameleon.chars)
         val script = psi.containingFile?.name?.endsWith(".kts") == true
         return KtParser(script).parse(this, builder).firstChildNode

@@ -4,12 +4,21 @@ import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
 import me.kevinlot.lite.core.LiteCache
 import me.kevinlot.lite.core.RecursionGuard
-import me.kevinlot.lite.typescript.psi.*
 import me.kevinlot.lite.typescript.lexer.TsTokens as T
 import me.kevinlot.lite.typescript.parser.TsElementTypes as E
+import me.kevinlot.lite.typescript.psi.TsClass
+import me.kevinlot.lite.typescript.psi.TsElement
+import me.kevinlot.lite.typescript.psi.TsFunction
+import me.kevinlot.lite.typescript.psi.TsModuleSpecifier
+import me.kevinlot.lite.typescript.psi.TsNamedDecl
+import me.kevinlot.lite.typescript.psi.TsReferenceExpr
+import me.kevinlot.lite.typescript.psi.TsShorthandProperty
 
 /** Type parameter (or owner class, for `this`) → type. */
 typealias Env = Map<PsiElement, TsTy>
@@ -34,6 +43,11 @@ object TsTypes {
     private val GUARD = RecursionGuard(40)
     private val EXPR = Key.create<CachedValue<TsTy>>("lite.ts.exprTy")
     private val DECL = Key.create<CachedValue<TsTy>>("lite.ts.declTy")
+    private val ES5_ASSIGNED = Key.create<CachedValue<Map<Pair<String?, String?>, List<TsReferenceExpr>>>>("lite.ts.es5Assigned")
+    private val MEMBERS = Key.create<CachedValue<Map<String, List<TsNamedDecl>>>>("lite.ts.members")
+    private val MERGED = Key.create<CachedValue<List<TsClass>>>("lite.ts.merged")
+    private const val MAX_SELF_EXPANSIONS = 3
+    private val EXPANDING = ThreadLocal.withInitial { HashMap<PsiElement, Int>() }
     private val PRIMITIVES = mapOf("string" to "String", "number" to "Number", "boolean" to "Boolean", "bigint" to "BigInt", "symbol" to "Symbol", "object" to "Object")
     private val ITERABLES = setOf(
         "Array", "ReadonlyArray", "Set", "ReadonlySet", "Iterable", "IterableIterator", "Iterator", "AsyncIterable", "AsyncIterableIterator",
@@ -42,8 +56,16 @@ object TsTypes {
     private val PROMISES = setOf("Promise", "PromiseLike")
 
     fun union(parts: List<TsTy>): TsTy {
-        val flat = parts.flatMap { if (it is TsTy.Union) it.parts else listOf(it) }.filter { it != TsTy.Unknown }.distinct()
+        val flat = parts.flatMap { when (it) { is TsTy.Union -> it.parts; else -> listOf(it) } }.filter { it != TsTy.Unknown }.distinct()
         return when (flat.size) { 0 -> TsTy.Unknown; 1 -> flat[0]; else -> TsTy.Union(flat) }
+    }
+
+    /** A recursive alias or a cyclic `extends` re-enters [decl]: past a few rounds the work only grows (exponentially). */
+    private inline fun <R> expanding(decl: PsiElement, onCycle: R, block: () -> R): R {
+        val rounds = EXPANDING.get()
+        if ((rounds[decl] ?: 0) >= MAX_SELF_EXPANSIONS) return onCycle
+        rounds.merge(decl, 1, Int::plus)
+        try { return block() } finally { rounds.computeIfPresent(decl) { _, n -> (n - 1).takeIf { it > 0 } } }
     }
 
     private fun types(node: PsiElement) = node.children.filter { it.node.elementType in E.TYPES }
@@ -64,7 +86,10 @@ object TsTypes {
             E.MAPPED_TYPE -> mapped(node as TsElement, env)
             E.FUNCTION_TYPE, E.CONSTRUCTOR_TYPE -> TsTy.Fn(node, env)
             E.TYPEOF_TYPE -> (node as TsElement).child(E.REFERENCE)?.let { exprTy(it) } ?: TsTy.Unknown
-            E.TYPE_OPERATOR -> if (node.firstChild?.text == "keyof") global("String", node) else tyOf(types(node).firstOrNull(), env)
+            E.TYPE_OPERATOR -> when {
+                node.firstChild?.text == "keyof" -> global("String", node)
+                else -> tyOf(types(node).firstOrNull(), env)
+            }
             E.INDEXED_ACCESS_TYPE -> indexedAccess(node, env)
             E.CONDITIONAL_TYPE -> types(node).let { t -> union(listOfNotNull(t.getOrNull(2), t.getOrNull(3)).map { tyOf(it, env) }) }
             E.THIS_TYPE -> owner(node)?.let { env[it] ?: TsTy.Inst(it) } ?: TsTy.Unknown
@@ -85,16 +110,18 @@ object TsTypes {
     }
 
     private fun typeOfDecl(target: PsiElement, args: List<TsTy>, env: Env): TsTy = when (target.node.elementType) {
-        E.TYPE_PARAMETER -> env[target] ?: (target as TsElement).let { tp -> types(tp).firstOrNull()?.takeIf { tp.hasToken(T.kw("extends")) } }?.let { tyOf(it, env) } ?: TsTy.Unknown
+        E.TYPE_PARAMETER -> env[target] ?: expanding(target, TsTy.Unknown) {
+            (target as TsElement).let { tp -> types(tp).firstOrNull()?.takeIf { tp.hasToken(T.kw("extends")) } }?.let { tyOf(it, env) } ?: TsTy.Unknown
+        }
         E.CLASS_DECLARATION, E.CLASS_EXPRESSION, E.INTERFACE_DECLARATION, E.ENUM_DECLARATION -> TsTy.Inst(target, args)
-        E.TYPE_ALIAS -> {
+        E.TYPE_ALIAS -> expanding(target, TsTy.Unknown) {
             val alias = target as TsElement
             val params = alias.child(E.TYPE_PARAMETER_LIST)?.children?.filterIsInstance<TsNamedDecl>().orEmpty()
             tyOf(types(alias).lastOrNull(), env + bind(params, args, env))
         }
         E.ENUM_MEMBER -> TsTy.Inst(target.parent)
         E.NAMESPACE_DECLARATION, E.AMBIENT_MODULE -> TsTy.Static(target)
-        else -> if (target is PsiFile) TsTy.Static(target) else TsTy.Unknown
+        else -> when (target) { is PsiFile -> TsTy.Static(target); else -> TsTy.Unknown }
     }
 
     /** Type parameters bound to arguments, then to their defaults. */
@@ -113,7 +140,7 @@ object TsTypes {
         val (objNode, indexNode) = types(node).let { (it.getOrNull(0) ?: return TsTy.Unknown) to (it.getOrNull(1) ?: return TsTy.Unknown) }
         val obj = tyOf(objNode, env)
         val key = indexNode.takeIf { it.node.elementType == E.LITERAL_TYPE && it.firstChild?.node?.elementType == T.STRING }?.text?.let { TsNamedDecl.unquote(it) }
-        return if (key != null) members(obj, key).firstOrNull()?.let { memberTy(it.first, it.second) } ?: TsTy.Unknown else elementOf(obj)
+        return key?.let { member(obj, it) } ?: elementOf(obj)
     }
 
     private fun importType(node: TsElement, env: Env): TsTy {
@@ -150,10 +177,11 @@ object TsTypes {
     private fun computeExpr(e: PsiElement): TsTy = when (e.node.elementType) {
         E.REFERENCE -> {
             val r = e as TsReferenceExpr
-            val q = r.qualifier
-            if (q != null) members(exprTy(q), r.referencedName ?: "").firstOrNull()?.let { memberTy(it.first, it.second) } ?: TsTy.Unknown
-            // merged declarations (`function f` + `namespace f`): the value has the members of all of them
-            else union(TsResolver.resolve(r).map { declTy(it) })
+            when (val q = r.qualifier) {
+                // merged declarations (`function f` + `namespace f`): the value has the members of all of them
+                null -> union(TsResolver.resolve(r).map { declTy(it) })
+                else -> member(exprTy(q), r.referencedName ?: "")
+            }
         }
         E.THIS_EXPRESSION -> thisTy(e)
         E.SUPER_EXPRESSION -> (owner(e) as? TsClass)?.let { supertypes(TsTy.Inst(it)).firstOrNull() } ?: TsTy.Unknown
@@ -164,7 +192,7 @@ object TsTypes {
         E.AWAIT_EXPRESSION -> awaited(exprTy(operands(e).firstOrNull()))
         E.LITERAL -> literal(e.firstChild, e)
         E.TEMPLATE_EXPRESSION -> global("String", e)
-        E.ARRAY_LITERAL -> global("Array", e, listOf(union(operands(e).take(8).map { if (it.node.elementType == E.SPREAD) elementOf(exprTy(operands(it).firstOrNull())) else exprTy(it) })))
+        E.ARRAY_LITERAL -> global("Array", e, listOf(union(operands(e).take(8).map { arrayElementTy(it) })))
         E.OBJECT_LITERAL -> TsTy.Obj(e, emptyMap())
         E.ARROW_FUNCTION, E.FUNCTION_EXPRESSION -> TsTy.Fn(e, emptyMap())
         E.CLASS_EXPRESSION -> TsTy.Static(e)
@@ -182,11 +210,16 @@ object TsTypes {
             val (obj, index) = operands(e).let { it.getOrNull(0) to it.getOrNull(1) }
             val key = index?.takeIf { it.node.elementType == E.LITERAL && it.firstChild.node.elementType == T.STRING }?.let { TsNamedDecl.unquote(it.text) }
             val objTy = exprTy(obj)
-            if (key != null) members(objTy, key).firstOrNull()?.let { memberTy(it.first, it.second) } ?: TsTy.Unknown else elementOf(objTy)
+            key?.let { member(objTy, it) } ?: elementOf(objTy)
         }
         E.IMPORT_CALL -> ((e as TsElement).child(E.MODULE_SPECIFIER) as? TsModuleSpecifier)?.let { TsModules.targets(it).firstOrNull() }
             ?.let { global("Promise", e, listOf(TsTy.Static(it))) } ?: TsTy.Unknown
         else -> TsTy.Unknown
+    }
+
+    private fun arrayElementTy(e: PsiElement): TsTy {
+        if (e.node.elementType == E.SPREAD) return elementOf(exprTy(operands(e).firstOrNull()))
+        return exprTy(e)
     }
 
     private fun thisTy(e: PsiElement): TsTy {
@@ -197,7 +230,8 @@ object TsTypes {
                 val holder = p.parent
                 if (holder?.node?.elementType == E.OBJECT_LITERAL) return TsTy.Obj(holder, emptyMap())
                 val cls = holder?.parent as? TsClass ?: return TsTy.Unknown
-                return if (t == E.STATIC_BLOCK || (p as? TsNamedDecl)?.isStatic == true) TsTy.Static(cls) else TsTy.Inst(cls)
+                if (t == E.STATIC_BLOCK || (p as? TsNamedDecl)?.isStatic == true) return TsTy.Static(cls)
+                return TsTy.Inst(cls)
             }
             if (t == E.FUNCTION_DECLARATION || t == E.FUNCTION_EXPRESSION) return TsTy.Unknown
             p = p.parent
@@ -223,10 +257,37 @@ object TsTypes {
             TsResolver.resolveName(callee.referencedName ?: "", callee, Space.TYPE).firstOrNull { it is TsClass }?.let { return TsTy.Inst(it, args) }
         }
         return when (val ct = exprTy(callee)) {
-            is TsTy.Static -> if (ct.decl is TsClass) TsTy.Inst(ct.decl, args) else TsTy.Unknown
+            is TsTy.Static -> (ct.decl as? TsClass)?.let { TsTy.Inst(it, args) } ?: TsTy.Unknown
             is TsTy.Inst, is TsTy.Obj -> signatureMember(ct, E.CONSTRUCT_SIGNATURE)?.let { returnTy(it, n) } ?: TsTy.Unknown
+            // ES5: `new F()` where `F` is a plain function
+            is TsTy.Fn -> ct.sig.takeIf { it.node.elementType in ES5_CONSTRUCTORS }?.let { TsTy.Inst(it, args) } ?: TsTy.Unknown
             else -> TsTy.Unknown
         }
+    }
+
+    private val ES5_CONSTRUCTORS = setOf(E.FUNCTION_DECLARATION, E.FUNCTION_EXPRESSION)
+
+    /**
+     * ES5 "classes": `F.prototype.m = …` and `this.m = …` inside `F` are the members of its instances,
+     * `F.m = …` its static ones. The assigned name is the declaration, as for `exports.m = …`.
+     */
+    private fun es5Members(fn: PsiElement, name: String, static: Boolean): List<PsiElement> {
+        val fnName = (fn as? TsNamedDecl)?.name ?: return emptyList()
+        val owner = fnName.takeIf { static } ?: "$fnName.prototype"
+        val assigned = assignedMembers(fn.containingFile)[owner to name].orEmpty()
+        if (static || assigned.isNotEmpty()) return assigned
+        return PsiTreeUtil.findChildrenOfType(fn, TsReferenceExpr::class.java).filter { r ->
+            r.referencedName == name && r.qualifier?.node?.elementType == E.THIS_EXPRESSION &&
+                r.parent?.node?.elementType == E.ASSIGNMENT_EXPRESSION && r.parent.firstChild == r
+        }.take(1)
+    }
+
+    /** Top-level `a.b = …` targets of a file, by qualifier text (without spaces) and name. */
+    private fun assignedMembers(file: PsiFile): Map<Pair<String?, String?>, List<TsReferenceExpr>> = LiteCache.cached(file, ES5_ASSIGNED, TsLibraryOracle) {
+        file.children
+            .filter { it.node.elementType == E.EXPRESSION_STATEMENT }
+            .mapNotNull { it.firstChild?.takeIf { a -> a.node.elementType == E.ASSIGNMENT_EXPRESSION }?.firstChild as? TsReferenceExpr }
+            .groupBy { it.qualifier?.text?.replace(" ", "") to it.referencedName }
     }
 
     /** What calling [ty] at [call] runs: overload picked by argument count, type arguments bound. */
@@ -294,7 +355,9 @@ object TsTypes {
                 else -> return@forEachIndexed
             }
             val tp = typeParameterIn(refNode, tps)?.takeIf { refNode.node.elementType == E.TYPE_REFERENCE } ?: return@forEachIndexed
-            if (tp !in out) out[tp] = exprTy(arg).let { if (element) elementOf(it) else it }
+            if (tp in out) return@forEachIndexed
+            val argTy = exprTy(arg)
+            out[tp] = when { element -> elementOf(argTy); else -> argTy }
         }
         return bind(tps, tps.map { out[it] ?: TsTy.Unknown }, env).filterValues { it != TsTy.Unknown } + out
     }
@@ -316,22 +379,35 @@ object TsTypes {
 
     private fun returnTy(fn: TsTy.Fn, call: PsiElement?): TsTy {
         val sig = fn.sig
-        val annotation = if (sig.node.elementType == E.FUNCTION_TYPE || sig.node.elementType == E.CONSTRUCTOR_TYPE) types(sig).lastOrNull() else (sig as? TsElement)?.typeNode
+        val annotation = when (sig.node.elementType) {
+            E.FUNCTION_TYPE, E.CONSTRUCTOR_TYPE -> types(sig).lastOrNull()
+            else -> (sig as? TsElement)?.typeNode
+        }
         if (annotation != null) return tyOf(annotation, fn.env)
         val f = sig as? TsFunction ?: return TsTy.Unknown
         val body = f.body ?: return TsTy.Unknown
-        val inferred = if (body.node.elementType == E.BLOCK) firstReturn(body) else exprTy(body)
-        return if (f.hasModifier("async")) global("Promise", sig, listOf(inferred)) else inferred
+        val inferred = when { body.node.elementType == E.BLOCK -> firstReturn(body); else -> exprTy(body) }
+        if (!f.hasModifier("async")) return inferred
+        return global("Promise", sig, listOf(inferred))
     }
 
-    private fun firstReturn(block: PsiElement): TsTy {
-        val returns = PsiTreeUtil.findChildrenOfType(block, TsElement::class.java).asSequence()
-            .filter { it.type == E.RETURN_STATEMENT && PsiTreeUtil.findFirstParent(it, true) { p -> p.node?.elementType in E.FUNCTIONS } == block.parent }
-        return returns.mapNotNull { r -> r.children.firstOrNull { it is TsElement } }.map { exprTy(it) }.firstOrNull { it != TsTy.Unknown } ?: TsTy.Unknown
+    private fun firstReturn(block: PsiElement): TsTy =
+        returnsOf(block).mapNotNull { r -> r.children.firstOrNull { it is TsElement } }.map { exprTy(it) }.firstOrNull { it != TsTy.Unknown } ?: TsTy.Unknown
+
+    /** `return` statements below [e], in order, without those of nested functions. */
+    private fun returnsOf(e: PsiElement): Sequence<PsiElement> = e.children.asSequence().flatMap { c ->
+        when (c.node.elementType) {
+            E.RETURN_STATEMENT -> sequenceOf(c)
+            in E.FUNCTIONS -> emptySequence()
+            else -> returnsOf(c)
+        }
     }
 
     fun awaited(t: TsTy): TsTy = when (t) {
-        is TsTy.Inst -> if ((t.decl as? TsNamedDecl)?.name in PROMISES) awaited(t.args.firstOrNull() ?: TsTy.Unknown) else t
+        is TsTy.Inst -> when {
+            (t.decl as? TsNamedDecl)?.name in PROMISES -> awaited(t.args.firstOrNull() ?: TsTy.Unknown)
+            else -> t
+        }
         is TsTy.Union -> union(t.parts.map { awaited(it) })
         else -> t
     }
@@ -341,7 +417,7 @@ object TsTypes {
             in ITERABLES -> t.args.firstOrNull() ?: TsTy.Unknown
             "String" -> t
             "Map", "ReadonlyMap" -> TsTy.Unknown
-            else -> supertypes(t).firstNotNullOfOrNull { s -> elementOf(s).takeIf { it != TsTy.Unknown } } ?: TsTy.Unknown
+            else -> expanding(t.decl, TsTy.Unknown) { supertypes(t).firstNotNullOfOrNull { s -> elementOf(s).takeIf { it != TsTy.Unknown } } ?: TsTy.Unknown }
         }
         is TsTy.Union -> union(t.parts.map { elementOf(it) })
         else -> TsTy.Unknown
@@ -354,16 +430,21 @@ object TsTypes {
         return GUARD.run(TsTy.Unknown) { LiteCache.cachedNonRecursive(d, DECL, TsLibraryOracle, TsTy.Unknown) { computeDecl(d) } }
     }
 
-    private fun computeDecl(d: PsiElement): TsTy = if (d is TsHostDecl) d.hostType() else when (d.node.elementType) {
-        E.VARIABLE -> variableTy(d as TsElement)
-        E.BINDING -> bindingTy(d)
-        E.PARAMETER -> parameterTy(d as TsNamedDecl)
-        E.FUNCTION_DECLARATION, E.METHOD, E.FUNCTION_EXPRESSION, E.ARROW_FUNCTION -> TsTy.Fn(d, emptyMap())
-        E.CLASS_DECLARATION, E.CLASS_EXPRESSION, E.ENUM_DECLARATION, E.NAMESPACE_DECLARATION, E.AMBIENT_MODULE -> TsTy.Static(d)
-        E.PROPERTY, E.PROPERTY_ASSIGNMENT, E.SHORTHAND_PROPERTY, E.ENUM_MEMBER -> memberTy(d, TsTy.Unknown)
-        E.REFERENCE -> d.parent?.takeIf { it.node.elementType == E.ASSIGNMENT_EXPRESSION }?.let { exprTy(operands(it).lastOrNull()) } ?: TsTy.Unknown
-        E.IMPORT_SPECIFIER, E.IMPORT_DEFAULT, E.IMPORT_NAMESPACE, E.IMPORT_EQUALS -> declTy(TsResolver.follow(d).firstOrNull())
-        else -> if (d is PsiFile) TsTy.Static(d) else TsTy.Unknown
+    private fun computeDecl(d: PsiElement): TsTy {
+        if (d is TsHostDecl) return d.hostType()
+        return when (d.node.elementType) {
+            E.VARIABLE -> variableTy(d as TsElement)
+            E.BINDING -> bindingTy(d)
+            E.PARAMETER -> parameterTy(d as TsNamedDecl)
+            E.FUNCTION_DECLARATION, E.METHOD, E.FUNCTION_EXPRESSION, E.ARROW_FUNCTION -> TsTy.Fn(d, emptyMap())
+            E.CLASS_DECLARATION, E.CLASS_EXPRESSION, E.ENUM_DECLARATION, E.NAMESPACE_DECLARATION, E.AMBIENT_MODULE -> TsTy.Static(d)
+            // `module.exports = { … }`: the module required elsewhere is that object
+            E.OBJECT_LITERAL -> TsTy.Obj(d, emptyMap())
+            E.PROPERTY, E.PROPERTY_ASSIGNMENT, E.SHORTHAND_PROPERTY, E.ENUM_MEMBER -> memberTy(d, TsTy.Unknown)
+            E.REFERENCE -> d.parent?.takeIf { it.node.elementType == E.ASSIGNMENT_EXPRESSION }?.let { exprTy(operands(it).lastOrNull()) } ?: TsTy.Unknown
+            E.IMPORT_SPECIFIER, E.IMPORT_DEFAULT, E.IMPORT_NAMESPACE, E.IMPORT_EQUALS -> declTy(TsResolver.follow(d).firstOrNull())
+            else -> when (d) { is PsiFile -> TsTy.Static(d); else -> TsTy.Unknown }
+        }
     }
 
     private fun variableTy(v: TsElement): TsTy =
@@ -426,7 +507,7 @@ object TsTypes {
                 val call = parent.parent as? TsElement ?: return null
                 val index = operands(parent).indexOf(value)
                 val callee = operands(call).firstOrNull() ?: return null
-                val fn = if (call.type == E.NEW_EXPRESSION) constructorOf(exprTy(callee)) else callable(exprTy(callee))
+                val fn = when { call.type == E.NEW_EXPRESSION -> constructorOf(exprTy(callee)); else -> callable(exprTy(callee)) }
                 fn ?: return null
                 val sig = overload(fn.sig, operands(parent).size)
                 val env = fn.env + bindCall(sig, call, fn.env) + listOfNotNull(fn.self?.let { s -> owner(sig)?.let { it to s } })
@@ -452,12 +533,15 @@ object TsTypes {
     fun members(ty: TsTy, name: String): List<Pair<PsiElement, TsTy>> = GUARD.run(emptyList()) {
         when (ty) {
             is TsTy.Inst -> instanceMembers(ty, name).ifEmpty {
-                if ((ty.decl as? TsNamedDecl)?.name == "Object" || ty.decl !is TsClass) emptyList()
-                else TsGlobals.type("Object", ty.decl)?.let { instanceMembers(TsTy.Inst(it), name) }.orEmpty()
+                when {
+                    (ty.decl as? TsNamedDecl)?.name == "Object" || ty.decl !is TsClass -> emptyList()
+                    else -> TsGlobals.type("Object", ty.decl)?.let { instanceMembers(TsTy.Inst(it), name) }.orEmpty()
+                }
             }
             is TsTy.Static -> staticMembers(ty, name)
             is TsTy.Obj -> objectMembers(ty, name)
-            is TsTy.Fn -> TsGlobals.type("Function", ty.sig)?.let { instanceMembers(TsTy.Inst(it), name) }.orEmpty()
+            is TsTy.Fn -> es5Members(ty.sig, name, static = true).map { it to ty as TsTy }
+                .ifEmpty { TsGlobals.type("Function", ty.sig)?.let { instanceMembers(TsTy.Inst(it), name) }.orEmpty() }
             is TsTy.Union -> ty.parts.flatMap { members(it, name) }
             is TsTy.Host -> ty.type.hostMembers(name).map { it to ty }
             TsTy.Unknown -> emptyList()
@@ -465,18 +549,17 @@ object TsTypes {
     }
 
     private fun instanceMembers(ty: TsTy.Inst, name: String): List<Pair<PsiElement, TsTy>> {
-        val cls = ty.decl as? TsClass ?: return emptyList()
+        val cls = ty.decl as? TsClass ?: return es5Members(ty.decl, name, static = false).map { it to ty }
         val own = merged(cls).flatMap { d -> ownMembers(d, name, static = false).map { it to TsTy.Inst(d, ty.args) } }
         if (own.isNotEmpty()) return own
-        return supertypes(ty).flatMap { members(it, name) }
+        return expanding(cls, emptyList()) { supertypes(ty).flatMap { members(it, name) } }
     }
 
     private fun ownMembers(d: TsClass, name: String, static: Boolean): List<PsiElement> {
-        val declared = d.members.filter { m ->
-            (m.node.elementType == E.PROPERTY || m.node.elementType == E.METHOD) && (m as TsNamedDecl).name == name && m.isStatic == static
-        }
+        val named = namedMembers(d)
+        val declared = named[name].orEmpty().filter { it.isStatic == static }
         if (declared.isNotEmpty() || static || d.isInterface) return declared
-        val ctor = d.members.firstOrNull { (it as? TsFunction)?.isConstructor == true } as? TsFunction ?: return emptyList()
+        val ctor = named["constructor"].orEmpty().firstNotNullOfOrNull { m -> (m as? TsFunction)?.takeIf { it.isConstructor } } ?: return emptyList()
         // constructor(private readonly x: T): parameter properties
         ctor.parameters.firstOrNull { p -> p.name == name && PARAMETER_PROPERTY.any { p.hasModifier(it) } }?.let { return listOf(it) }
         // JavaScript: `this.x = …` in the constructor
@@ -488,13 +571,27 @@ object TsTypes {
 
     private val PARAMETER_PROPERTY = listOf("public", "private", "protected", "readonly")
 
+    /** Properties and methods of a class or interface body, by name (lib interfaces have hundreds of them). */
+    private fun namedMembers(d: TsClass): Map<String, List<TsNamedDecl>> = LiteCache.cached(d, MEMBERS, TsLibraryOracle) {
+        d.members.filter { it.node.elementType in TsNamedDecl.MEMBERS }.filterIsInstance<TsNamedDecl>()
+            .mapNotNull { m -> m.name?.let { it to m } }
+            .groupBy({ it.first }, { it.second })
+    }
+
+    // a project file can merge into a library class (`declare global`): edits invalidate library classes too
+    private fun merged(cls: TsClass): List<TsClass> = CachedValuesManager.getCachedValue(cls, MERGED) {
+        CachedValueProvider.Result.create(
+            computeMerged(cls), PsiModificationTracker.MODIFICATION_COUNT, TsEnvironments.getInstance(cls.project).modificationTracker,
+        )
+    }
+
     /** Declaration merging: same-named interfaces/classes of the same scope (and of the global scope). */
-    private fun merged(cls: TsClass): List<TsClass> {
+    private fun computeMerged(cls: TsClass): List<TsClass> {
         val name = cls.name ?: return listOf(cls)
         val container = cls.parent ?: return listOf(cls)
         val local = TsScopes.declarations(container)[name].orEmpty().filterIsInstance<TsClass>()
         val isGlobal = container is PsiFile && !TsModules.isModule(container) || container.parent?.node?.elementType == E.GLOBAL_DECLARATION
-        val global = if (isGlobal) TsGlobals.lookup(name, cls, Space.TYPE).filterIsInstance<TsClass>() else emptyList()
+        val global = when { isGlobal -> TsGlobals.lookup(name, cls, Space.TYPE).filterIsInstance<TsClass>(); else -> emptyList() }
         return (listOf(cls) + local + global).distinct()
     }
 
@@ -514,7 +611,7 @@ object TsTypes {
         val d = ty.decl
         return when {
             d is TsClass -> ownMembers(d, name, static = true).map { it to ty as TsTy } +
-                supertypes(TsTy.Inst(d)).filterIsInstance<TsTy.Inst>().flatMap { staticMembers(TsTy.Static(it.decl), name) } +
+                expanding(d, emptyList()) { supertypes(TsTy.Inst(d)).filterIsInstance<TsTy.Inst>().flatMap { staticMembers(TsTy.Static(it.decl), name) } } +
                 namespacesNamed(d).flatMap { ns -> TsModules.exports(ns, name).map { it to TsTy.Static(ns) } }
             d.node.elementType == E.ENUM_DECLARATION -> d.children.filter { it.node.elementType == E.ENUM_MEMBER && (it as TsNamedDecl).name == name }.map { it to ty }
             d.node.elementType == E.NAMESPACE_DECLARATION -> (listOf(d) + namespacesNamed(d)).distinct().flatMap { ns -> TsModules.exports(ns, name).map { it to TsTy.Static(ns) } }
@@ -555,7 +652,10 @@ object TsTypes {
         val env = envOf(receiver)
         return when (m.node.elementType) {
             E.PROPERTY, E.PARAMETER -> (m as TsElement).typeNode?.let { tyOf(it, env) } ?: m.initializer?.let { exprTy(it) } ?: TsTy.Unknown
-            E.METHOD -> if ((m as TsFunction).isGetter) m.returnType?.let { tyOf(it, env) } ?: TsTy.Unknown else TsTy.Fn(m, env, receiver)
+            E.METHOD -> when {
+                (m as TsFunction).isGetter -> m.returnType?.let { tyOf(it, env) } ?: TsTy.Unknown
+                else -> TsTy.Fn(m, env, receiver)
+            }
             E.PROPERTY_ASSIGNMENT -> exprTy(operands(m).lastOrNull())
             E.SHORTHAND_PROPERTY -> (m as TsShorthandProperty).reference?.resolve()?.let { declTy(it) } ?: TsTy.Unknown
             E.ENUM_MEMBER -> TsTy.Inst(m.parent)

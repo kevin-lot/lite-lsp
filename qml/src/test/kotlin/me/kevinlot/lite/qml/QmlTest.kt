@@ -7,8 +7,8 @@ import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import me.kevinlot.lite.qml.resolve.QmlEnvironment
 import java.io.File
+import me.kevinlot.lite.qml.resolve.QmlEnvironment
 
 class QmlTest : BasePlatformTestCase() {
 
@@ -56,6 +56,12 @@ class QmlTest : BasePlatformTestCase() {
     }
 
     // ---------------------------------------------------------------- parser
+
+    fun `test an empty file has no element`() {
+        listOf("Empty.qml", "empty.qmltypes").forEach { name ->
+            assertEmpty(name, myFixture.configureByText(name, "").children.toList())
+        }
+    }
 
     fun `test parses qml`() = parses("A.qml", """
         pragma Singleton
@@ -196,6 +202,29 @@ class QmlTest : BasePlatformTestCase() {
         val ms = (System.nanoTime() - started) / 1_000_000
         println("QMLPROJECT ${total - unresolved.values.sum()}/$total resolved in $ms ms; unresolved: " + unresolved.entries.sortedByDescending { it.value }.take(40).joinToString { "${it.key}×${it.value}" })
         if (System.getenv("LITE_SHOW") != null) println(where.take(60).joinToString("\n"))
+    }
+
+    private val typeInfo = arrayOf(
+        "Shapes/qmldir" to "module Shapes\ntypeinfo plugins.qmltypes",
+        "Shapes/plugins.qmltypes" to """
+            <def>Module {
+                Component {
+                    name: "ShapeItem"
+                    exports: ["Shapes/Shape 1.0"]
+                    Enum { name: "Mode"; values: ["Off", "On"] }
+                    Property { name: "size"; type: "int" }
+                }
+            }
+        """,
+    )
+
+    fun `test type description property`() = check(*typeInfo, "Main.qml" to "import Shapes\nShape { <ref>size: 1 }")
+    fun `test type description enum value`() = check(*typeInfo, "Main.qml" to "import Shapes\nShape { property int mode: Shape.<ref>On }")
+
+    fun `test deeply nested objects`() {
+        val depth = 20_000
+        val file = myFixture.configureByText("Deep.qml", "Item { ".repeat(depth) + "}".repeat(depth))
+        assertEquals("Item", (file as QmlFile).rootObject?.typeName)
     }
 
     /** LITE_QML_CORPUS=<dir>: every .qml / .qmltypes must parse. */

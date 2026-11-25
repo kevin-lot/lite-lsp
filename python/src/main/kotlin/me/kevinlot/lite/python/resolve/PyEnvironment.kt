@@ -1,12 +1,10 @@
 package me.kevinlot.lite.python.resolve
 
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.configurations.PathEnvironmentVariableUtil
 import com.intellij.execution.util.ExecUtil
 import com.intellij.navigation.ItemPresentation
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -14,17 +12,16 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.AdditionalLibraryRootsListener
 import com.intellij.openapi.roots.AdditionalLibraryRootsProvider
 import com.intellij.openapi.roots.SyntheticLibrary
 import com.intellij.openapi.startup.ProjectActivity
 import com.intellij.openapi.util.SimpleModificationTracker
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiManager
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import javax.swing.Icon
+import me.kevinlot.lite.core.LiteLibraryRoots
 
 /**
  * A Python project: its root (nearest `pyproject.toml`/`setup.py`/`setup.cfg`/`requirements.txt`, else the
@@ -97,13 +94,7 @@ class PyEnvironments(private val project: Project) {
         modificationTracker.incModificationCount()
         val fs = LocalFileSystem.getInstance()
         val roots = libraryRoots().mapNotNull { fs.refreshAndFindFileByPath(it) }
-        ApplicationManager.getApplication().invokeLater({
-            WriteAction.run<RuntimeException> {
-                AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(project, "Python", emptyList(), roots, "lite-python")
-            }
-            PsiManager.getInstance(project).dropPsiCaches()
-            DaemonCodeAnalyzer.getInstance(project).restart()
-        }, project.disposed)
+        LiteLibraryRoots.changed(project, "Python", emptyList(), roots, "lite-python")
     }
 
     companion object {
@@ -124,7 +115,8 @@ class PyLibraryRootsProvider : AdditionalLibraryRootsProvider() {
     override fun getAdditionalProjectLibraries(project: Project): Collection<SyntheticLibrary> {
         val fs = LocalFileSystem.getInstance()
         val roots = PyEnvironments.getInstance(project).libraryRoots().mapNotNull { fs.findFileByPath(it) }
-        return if (roots.isEmpty()) emptyList() else listOf(PyLibrary(roots))
+        if (roots.isEmpty()) return emptyList()
+        return listOf(PyLibrary(roots))
     }
 }
 

@@ -12,11 +12,13 @@ import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.IndexingTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import java.io.File
+import me.kevinlot.lite.typescript.lexer.TsLexer
 import me.kevinlot.lite.typescript.psi.TsFunction
+import me.kevinlot.lite.typescript.psi.TsNamedDecl
 import me.kevinlot.lite.typescript.psi.TsReferenceExpr
 import me.kevinlot.lite.typescript.resolve.TsEnvironments
 import me.kevinlot.lite.typescript.resolve.TsProjectEnv
-import java.io.File
 
 class TsTest : BasePlatformTestCase() {
 
@@ -85,6 +87,12 @@ class TsTest : BasePlatformTestCase() {
     }
 
     // ---------------------------------------------------------------- parser
+
+    fun `test an empty file has no element`() {
+        listOf("empty.ts", "empty.tsx", "empty.js", "empty.d.ts").forEach { name ->
+            assertEmpty(name, myFixture.configureByText(name, "").children.toList())
+        }
+    }
 
     fun `test parses typescript`() = parses("a.ts", """
         import type { A } from "./a";
@@ -256,6 +264,13 @@ class TsTest : BasePlatformTestCase() {
     )
     fun `test commonjs require`() = check("util.js" to "exports.<def>helper = function () {};", "main.js" to "const u = require('./util');\nu.<ref>helper();")
     fun `test commonjs module exports object`() = check("util.js" to "function <def>helper() {}\nmodule.exports = { helper };", "main.js" to "const { helper } = require('./util');\n<ref>helper();")
+    fun `test commonjs exported object member`() = check("util.js" to "module.exports = {\n  <def>plain: function (a) { return a; },\n  value: 42,\n};", "main.js" to "const u = require('./util');\nu.<ref>plain(1);")
+    fun `test commonjs exported object value`() = check("util.js" to "module.exports = {\n  plain: function (a) { return a; },\n  <def>value: 42,\n};", "main.js" to "const u = require('./util');\nu.<ref>value;")
+    fun `test commonjs renamed export`() = check("impl.js" to "function internal() {}\nmodule.exports = { <def>api: internal };", "main.js" to "const { api } = require('./impl');\n<ref>api();")
+    fun `test es5 prototype method`() = check("queue.js" to "function Queue() {}\nQueue.prototype.<def>push = function (x) {};\nmodule.exports = Queue;", "main.js" to "const Queue = require('./queue');\nconst q = new Queue();\nq.<ref>push(1);")
+    fun `test static assignment`() = check("model.js" to "function Model() {}\nModel.<def>findAll = function () {};\nmodule.exports = Model;", "main.js" to "const Model = require('./model');\nModel.<ref>findAll();")
+    fun `test jsconfig alias`() = check("src/svc.js" to "export function <def>svc() {}", "jsconfig.json" to "{ \"compilerOptions\": { \"baseUrl\": \".\", \"paths\": { \"@/*\": [\"src/*\"] } } }", "main.js" to "import { svc } from '@/svc';\n<ref>svc();")
+    fun `test es5 this member`() = check("main.js" to "function Counter() {\n  this.<def>count = 0;\n}\nconst c = new Counter();\nc.<ref>count;")
     fun `test module exports class`() = check("k.js" to "class <def>K {}\nmodule.exports = K;", "main.js" to "const K = require('./k');\nnew <ref>K();")
     fun `test bare specifier never above the project`() = checkNotIn("outer/node_modules",
         "outer/node_modules/lib/index.d.ts" to "export function run(): void;",
@@ -304,6 +319,31 @@ class TsTest : BasePlatformTestCase() {
         assertEquals(5, ReferencesSearch.search(fn, GlobalSearchScope.projectScope(project)).findAll().size)
         val onlyA = GlobalSearchScope.filesScope(project, listOf(myFixture.findFileInTempDir("a.ts")))
         assertEquals(2, ReferencesSearch.search(fn, onlyA).findAll().size)
+    }
+
+    // ---------------------------------------------------------------- robustness
+
+    fun `test lexer backslash at end of input`() {
+        val lexer = TsLexer()
+        lexer.start("a\\")
+        while (lexer.tokenType != null) lexer.advance()
+        assertEquals(2, lexer.tokenEnd)
+    }
+
+    fun `test self extending class static member`() = one("class A extends A {}\nA.<ref>nope;")
+    fun `test cyclic interfaces element`() = withLib("interface A extends B {}\ninterface B extends A {}\ndeclare const xs: A;\nfor (const x of xs) x.<ref>nope;")
+    fun `test recursive tuple alias`() = withLib("type Expr = [Expr, Expr, Expr, Expr, Expr, Expr, Expr, Expr] | { <def>v: number };\ndeclare const e: Expr;\ne.<ref>v;")
+    fun `test package exports pattern longer than subpath`() = check(
+        "package.json" to "{}",
+        "node_modules/p/package.json" to """{ "exports": { "./a*a": "./x/*.js" } }""",
+        "node_modules/p/a.d.ts" to "export function <def>go(): void;",
+        "main.ts" to "import { go } from 'p/a';\n<ref>go();",
+    )
+
+    fun `test deeply nested expression`() {
+        val depth = 20_000
+        val file = myFixture.configureByText("a.ts", "x = " + "(".repeat(depth) + "1" + ")".repeat(depth) + ";\nconst after = 1;")
+        assertNotNull(PsiTreeUtil.findChildrenOfType(file, TsNamedDecl::class.java).firstOrNull { it.name == "after" })
     }
 
     // ---------------------------------------------------------------- real code (read-only, optional)

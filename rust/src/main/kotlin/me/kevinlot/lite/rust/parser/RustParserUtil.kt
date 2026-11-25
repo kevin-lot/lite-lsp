@@ -18,6 +18,7 @@ import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.TokenSet
 import com.intellij.util.BitUtil
 import com.intellij.util.containers.Stack
+import kotlin.math.max
 import me.kevinlot.lite.rust.parser.RustParserDefinition.Companion.EOL_COMMENT
 import me.kevinlot.lite.rust.parser.RustParserDefinition.Companion.OUTER_BLOCK_DOC_COMMENT
 import me.kevinlot.lite.rust.parser.RustParserDefinition.Companion.OUTER_EOL_DOC_COMMENT
@@ -26,7 +27,14 @@ import me.kevinlot.lite.rust.psi.RS_BLOCK_LIKE_EXPRESSIONS
 import me.kevinlot.lite.rust.psi.RS_KEYWORDS
 import me.kevinlot.lite.rust.psi.RsElementTypes.*
 import me.kevinlot.lite.rust.psi.tokenSetOf
-import kotlin.math.max
+
+// Derived from intellij-rust (MIT, see THIRD_PARTY_LICENSE-intellij-rust.txt).
+/*
+ * Use of this source code is governed by the MIT license that can be
+ * found in the LICENSE file.
+ */
+
+
 
 @Suppress("UNUSED_PARAMETER")
 object RustParserUtil : GeneratedParserUtilBase() {
@@ -311,11 +319,7 @@ object RustParserUtil : GeneratedParserUtilBase() {
 
         // A hack that reduces the growth rate of `level`. This actually allows a deeper path nesting.
         val prevPathFrame = ErrorState.get(b).currentFrame?.parentFrame?.ancestorOfTypeOrSelf(PATH)
-        val nextLevel = if (prevPathFrame != null) {
-            max(prevPathFrame.level + 2, level - 9)
-        } else {
-            level
-        }
+        val nextLevel = prevPathFrame?.let { max(it.level + 2, level - 9) } ?: level
 
         val result = parser.parse(b, nextLevel)
         b.flags = oldFlags
@@ -630,11 +634,8 @@ object RustParserUtil : GeneratedParserUtilBase() {
             }
         }
 
-        return if (b.rawLookup(steps) == IDENTIFIER) {
-            b.rawLookupText(steps).toString()
-        } else {
-            null
-        }
+        if (b.rawLookup(steps) != IDENTIFIER) return null
+        return b.rawLookupText(steps).toString()
     }
 
     @JvmStatic
@@ -699,13 +700,11 @@ object RustParserUtil : GeneratedParserUtilBase() {
     fun parseSecondMinusInDecrement(b: PsiBuilder, level: Int): Boolean = noWhiteSpaceBefore(b, MINUS)
 
     @JvmStatic
-    private fun noWhiteSpaceBefore(b: PsiBuilder, token: IElementType): Boolean =
-        if (b.tokenType == token && b.rawLookup(-1) == token) {
-            b.advanceLexer()
-            true
-        } else {
-            false
-        }
+    private fun noWhiteSpaceBefore(b: PsiBuilder, token: IElementType): Boolean {
+        if (b.tokenType != token || b.rawLookup(-1) != token) return false
+        b.advanceLexer()
+        return true
+    }
 
     @JvmStatic
     private fun collapse(b: PsiBuilder, tokenType: IElementType, vararg parts: IElementType): Boolean {
@@ -849,18 +848,19 @@ object RustParserUtil : GeneratedParserUtilBase() {
             }
 
             var rightBrace = MacroBraces.fromToken(lastToken)
-            if (rightBrace == leftBrace) {
-                b.advanceLexer() // Consume '}' or ')' or ']'
-            } else {
-                b.error(parseError("parsing.error.expected", leftBrace.closeText))
-                if (leftBrace == rootBrace) {
-                    // Recovery loop. Consume everything until [rightBrace] is [leftBrace]
-                    while (rightBrace != leftBrace && !b.eof()) {
+            when {
+                rightBrace == leftBrace -> b.advanceLexer() // Consume '}' or ')' or ']'
+                else -> {
+                    b.error(parseError("parsing.error.expected", leftBrace.closeText))
+                    if (leftBrace == rootBrace) {
+                        // Recovery loop. Consume everything until [rightBrace] is [leftBrace]
+                        while (rightBrace != leftBrace && !b.eof()) {
+                            b.advanceLexer()
+                            val tokenType = b.tokenType ?: break
+                            rightBrace = MacroBraces.fromToken(tokenType)
+                        }
                         b.advanceLexer()
-                        val tokenType = b.tokenType ?: break
-                        rightBrace = MacroBraces.fromToken(tokenType)
                     }
-                    b.advanceLexer()
                 }
             }
 
@@ -893,25 +893,23 @@ object RustParserUtil : GeneratedParserUtilBase() {
     }
 
     private tailrec fun Frame.ancestorOfTypeOrSelf(elementType: IElementType): Frame? {
-        return if (this.elementType == elementType) {
-            this
-        } else {
-            parentFrame?.ancestorOfTypeOrSelf(elementType)
-        }
+        if (this.elementType == elementType) return this
+        return parentFrame?.ancestorOfTypeOrSelf(elementType)
     }
 }
 
 private fun makeBitMask(bitToSet: Int): Int = 1 shl bitToSet
 
 private fun PsiBuilder.Marker.close(result: Boolean): Boolean {
-    if (result) drop() else rollbackTo()
+    when { result -> drop(); else -> rollbackTo() }
     return result
 }
 
 private fun PsiBuilder.rawLookupText(steps: Int): CharSequence {
     val start = rawTokenTypeStart(steps)
     val end = rawTokenTypeStart(steps + 1)
-    return if (start == -1 || end == -1) "" else originalText.subSequence(start, end)
+    if (start == -1 || end == -1) return ""
+    return originalText.subSequence(start, end)
 }
 
 private fun parseError(key: String, vararg args: String): String = when (key) {

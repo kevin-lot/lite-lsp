@@ -8,10 +8,10 @@ import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
+import java.util.concurrent.ConcurrentHashMap
 import me.kevinlot.lite.core.LibraryOracle
 import me.kevinlot.lite.qml.QmlFile
 import me.kevinlot.lite.qml.psi.QmlObject
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Where QML modules live: Qt's import paths (`QML_IMPORT_PATH`, then the system Qt), the Quickshell config
@@ -33,7 +33,8 @@ object QmlEnvironment {
         val rel = uri.replace('.', '/')
         if (uri == "qs" || uri.startsWith("qs.")) {
             val root = quickshellRoot(from, project) ?: return emptyList()
-            return listOfNotNull(if (uri == "qs") root else root.findFileByRelativePath(rel.removePrefix("qs/")))
+            if (uri == "qs") return listOf(root)
+            return listOfNotNull(root.findFileByRelativePath(rel.removePrefix("qs/")))
         }
         val content = ProjectFileIndex.getInstance(project).getContentRootForFile(from)
         return (importPaths + listOfNotNull(content)).mapNotNull { it.findFileByRelativePath(rel)?.takeIf { d -> d.isDirectory } }
@@ -42,7 +43,7 @@ object QmlEnvironment {
     /** The folder holding `shell.qml` above [from], bounded by its content root. */
     fun quickshellRoot(from: VirtualFile, project: Project): VirtualFile? {
         val bound = ProjectFileIndex.getInstance(project).getContentRootForFile(from)
-        var dir: VirtualFile? = if (from.isDirectory) from else from.parent
+        var dir: VirtualFile? = when { from.isDirectory -> from; else -> from.parent }
         while (dir != null) {
             if (dir.findChild("shell.qml") != null) return dir
             if (dir == bound) return null
@@ -69,6 +70,7 @@ data class QmlDir(val types: Map<String, String>, val singletons: Set<String>, v
 
 object QmlDirs {
     private val cache = ConcurrentHashMap<String, Pair<Long, QmlDir>>()
+    private val SPACES = Regex("\\s+")
     private val TYPE_LINE = Regex("^(singleton\\s+|internal\\s+)?([A-Z]\\w*)\\s+(?:[\\d.]+\\s+)?(\\S+\\.(?:qml|js|mjs))$")
 
     fun read(dir: VirtualFile): QmlDir? {
@@ -76,7 +78,7 @@ object QmlDirs {
         cache[file.path]?.let { (stamp, d) -> if (stamp == file.modificationStamp) return d }
         val types = LinkedHashMap<String, String>(); val singletons = HashSet<String>(); val imports = mutableListOf<String>(); val typeInfo = mutableListOf<String>()
         String(file.contentsToByteArray(), Charsets.UTF_8).lineSequence().map { it.trim() }.forEach { line ->
-            val words = line.split(Regex("\\s+"))
+            val words = line.split(SPACES)
             when (words.firstOrNull()) {
                 "typeinfo" -> words.getOrNull(1)?.let { typeInfo += it }
                 "import" -> words.getOrNull(1)?.let { imports += it }

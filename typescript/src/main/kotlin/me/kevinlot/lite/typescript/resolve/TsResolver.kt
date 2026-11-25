@@ -1,5 +1,6 @@
 package me.kevinlot.lite.typescript.resolve
 
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
@@ -18,16 +19,24 @@ import me.kevinlot.lite.core.RecursionGuard
 import me.kevinlot.lite.typescript.JsFileType
 import me.kevinlot.lite.typescript.TsFile
 import me.kevinlot.lite.typescript.TsFileType
-import me.kevinlot.lite.typescript.psi.*
 import me.kevinlot.lite.typescript.lexer.TsTokens as T
 import me.kevinlot.lite.typescript.parser.TsElementTypes as E
+import me.kevinlot.lite.typescript.psi.TsClass
+import me.kevinlot.lite.typescript.psi.TsElement
+import me.kevinlot.lite.typescript.psi.TsModuleSpecifier
+import me.kevinlot.lite.typescript.psi.TsNamedDecl
+import me.kevinlot.lite.typescript.psi.TsPropertyKey
+import me.kevinlot.lite.typescript.psi.TsPsiFactory
+import me.kevinlot.lite.typescript.psi.TsReferenceExpr
+import me.kevinlot.lite.typescript.psi.TsShorthandProperty
+import me.kevinlot.lite.typescript.psi.TsSpecifier
 
 // ---------------------------------------------------------------- references
 
 class TsNameReference(element: TsReferenceExpr) : LiteReference<TsReferenceExpr>(element, { element.nameElement }) {
     override fun resolveTargets(): List<PsiElement> = TsResolver.resolve(element)
     override fun renameIdentifier(nameToken: PsiElement, newName: String): PsiElement? =
-        if (nameToken.node.elementType == T.IDENTIFIER) TsPsiFactory(element.project).identifier(newName) else null
+        nameToken.takeIf { it.node.elementType == T.IDENTIFIER }?.let { TsPsiFactory(element.project).identifier(newName) }
 }
 
 /** `{ x }`: the variable `x`. */
@@ -101,7 +110,10 @@ object TsScopes {
     /** What a statement declares in its scope. */
     fun declaredBy(statement: PsiElement): List<PsiElement> = when (statement.node?.elementType) {
         E.VAR_STATEMENT -> statement.children.filter { it.node.elementType == E.VARIABLE }.flatMap { v ->
-            if ((v as TsNamedDecl).nameIdentifier != null) listOf(v) else mutableListOf<PsiElement>().also { bindings(v, it) }
+            when {
+                (v as TsNamedDecl).nameIdentifier != null -> listOf(v)
+                else -> mutableListOf<PsiElement>().also { bindings(v, it) }
+            }
         }
         E.FUNCTION_DECLARATION, E.CLASS_DECLARATION, E.INTERFACE_DECLARATION, E.TYPE_ALIAS, E.ENUM_DECLARATION, E.NAMESPACE_DECLARATION, E.IMPORT_EQUALS ->
             listOf(statement).filter { (it as TsNamedDecl).name != null }
@@ -122,16 +134,17 @@ object TsScopes {
     private fun hoistedVars(e: PsiElement, out: MutableList<PsiElement>) {
         val t = e.node?.elementType ?: return
         if (t in STOP || t == E.VAR_STATEMENT) return
-        for (c in e.children) {
-            if (c.node.elementType == E.VAR_STATEMENT && c.firstChild?.node?.elementType == T.kw("var")) out += declaredBy(c)
-            else if (c is TsElement && c.node.elementType !in STOP) hoistedVars(c, out)
+        for (c in e.children) when {
+            c.node.elementType == E.VAR_STATEMENT && c.firstChild?.node?.elementType == T.kw("var") -> out += declaredBy(c)
+            c is TsElement && c.node.elementType !in STOP -> hoistedVars(c, out)
         }
     }
 
     private fun inferred(e: PsiElement, out: MutableList<PsiElement>) {
-        for (c in e.children) {
-            if (c.node.elementType == E.INFER_TYPE) (c as TsElement).child(E.TYPE_PARAMETER)?.let { out += it }
-            else if (c.node.elementType != E.CONDITIONAL_TYPE) inferred(c, out)
+        for (c in e.children) when (c.node.elementType) {
+            E.INFER_TYPE -> (c as TsElement).child(E.TYPE_PARAMETER)?.let { out += it }
+            E.CONDITIONAL_TYPE -> {}
+            else -> inferred(c, out)
         }
     }
 
@@ -254,7 +267,7 @@ object TsResolver {
         }
         val q = ref.qualifier
         if (q != null) {
-            val space = if (parent?.node?.elementType == E.TYPE_REFERENCE) Space.TYPE else Space.ANY
+            val space = when { parent?.node?.elementType == E.TYPE_REFERENCE -> Space.TYPE; else -> Space.ANY }
             return TsTypes.members(TsTypes.qualifierTy(q), name).map { it.first }.filter { TsScopes.matches(it, space) }
         }
         return resolveName(name, ref, spaceOf(ref))
@@ -278,7 +291,12 @@ object TsResolver {
             if (e is PsiFile) break
             e = e.parent
         }
-        return TsGlobals.lookup(name, place, space)
+        return injected(name, place) ?: TsGlobals.lookup(name, place, space)
+    }
+
+    private fun injected(name: String, place: PsiElement): List<PsiElement>? {
+        val host = InjectedLanguageManager.getInstance(place.project).getInjectionHost(place) ?: return null
+        return TsInjectionScope.EP.extensionList.firstNotNullOfOrNull { it.lookup(name, place, host) }?.ifEmpty { null }
     }
 
     /** `T` in a type is a type; `A` in `A.B` is a namespace inside a type, a value inside an expression. */
@@ -286,7 +304,7 @@ object TsResolver {
         var top: PsiElement = ref
         while (top.parent is TsReferenceExpr) top = top.parent
         return when (top.parent?.node?.elementType) {
-            E.TYPE_REFERENCE -> if (top == ref) Space.TYPE else Space.ANY
+            E.TYPE_REFERENCE -> when { top == ref -> Space.TYPE; else -> Space.ANY }
             E.IMPORT_EQUALS -> Space.ANY
             else -> Space.VALUE
         }
@@ -307,8 +325,10 @@ object TsResolver {
             E.BINDING -> {
                 val pattern = d.parent?.takeIf { it.node.elementType == E.OBJECT_PATTERN }
                 val variable = pattern?.parent as? TsElement
-                if (variable?.type == E.VARIABLE && required(variable) != null) TsTypes.members(TsTypes.patternTy(pattern), (d as TsNamedDecl).name ?: "").map { TsTypes.declarationOf(it.first) }
-                else emptyList()
+                when {
+                    variable?.type == E.VARIABLE && required(variable) != null -> TsTypes.members(TsTypes.patternTy(pattern), (d as TsNamedDecl).name ?: "").map { TsTypes.declarationOf(it.first) }
+                    else -> emptyList()
+                }
             }
             else -> emptyList()
         }

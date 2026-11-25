@@ -17,10 +17,10 @@ import me.kevinlot.lite.qml.QmlFile
 import me.kevinlot.lite.qml.QmlLanguage
 import me.kevinlot.lite.qml.psi.QmlPsiFactoryImpl
 import me.kevinlot.lite.typescript.lexer.TsLexer
-import me.kevinlot.lite.typescript.parser.TsParser
-import me.kevinlot.lite.typescript.psi.TsPsiFactoryImpl
 import me.kevinlot.lite.typescript.lexer.TsTokens as T
 import me.kevinlot.lite.typescript.parser.TsElementTypes as JS
+import me.kevinlot.lite.typescript.parser.TsParser
+import me.kevinlot.lite.typescript.psi.TsPsiFactoryImpl
 
 class QmlElementType(debugName: String) : IElementType(debugName, QmlLanguage)
 
@@ -88,11 +88,14 @@ class QmlParser : TsParser(jsx = false) {
     private fun import() {
         val m = mark()
         advance()
-        if (at(T.STRING)) advance() else {
-            val uri = mark()
-            expectIdent("module")
-            while (at(T.DOT) && la(1) == T.IDENTIFIER) { advance(); advance() }
-            uri.done(Q.MODULE_URI)
+        when {
+            at(T.STRING) -> advance()
+            else -> {
+                val uri = mark()
+                expectIdent("module")
+                while (at(T.DOT) && la(1) == T.IDENTIFIER) { advance(); advance() }
+                uri.done(Q.MODULE_URI)
+            }
         }
         if (at(T.NUMBER)) advance()
         if (atSoft("as")) { soft(); expectIdent() }
@@ -135,7 +138,9 @@ class QmlParser : TsParser(jsx = false) {
         m.done(Q.ANNOTATION)
     }
 
-    private fun member() {
+    private fun member() = nested { parseMember() }
+
+    private fun parseMember() {
         when {
             at(T.AT) -> annotation()
             atSoft("id") && la(1) == T.COLON -> { val m = mark(); soft(); advance(); expectIdent(); m.done(Q.ID) }
@@ -160,7 +165,7 @@ class QmlParser : TsParser(jsx = false) {
         var i = 0
         while (true) {
             val t = la(i) ?: return false
-            val text = laText(i)
+            val text = t.takeIf { it == T.IDENTIFIER }?.let { laText(i) }
             when {
                 t == T.kw("default") || (t == T.IDENTIFIER && text in PROPERTY_MODIFIERS) -> i++
                 t == T.IDENTIFIER && text == "property" -> return la(i + 1) == T.IDENTIFIER || la(i + 1) == T.kw("var")
@@ -171,11 +176,14 @@ class QmlParser : TsParser(jsx = false) {
 
     private fun property() {
         val m = mark()
-        while (!atSoft("property")) if (atKw("default")) advance() else soft()
+        while (!atSoft("property")) when { atKw("default") -> advance(); else -> soft() }
         soft()
-        if (atSoft("alias")) soft() else {
-            typeRef()
-            if (eat(T.LT)) { typeRef(); expect(T.GT, "'>'") }
+        when {
+            atSoft("alias") -> soft()
+            else -> {
+                typeRef()
+                if (eat(T.LT)) { typeRef(); expect(T.GT, "'>'") }
+            }
         }
         expectIdent()
         if (eat(T.COLON)) bindingValue()
@@ -190,7 +198,10 @@ class QmlParser : TsParser(jsx = false) {
         if (eat(T.LPAR)) {
             while (!at(T.RPAR) && !b.eof()) {
                 val p = mark()
-                if (identLike() && la(1) == T.COLON) { advance(); advance(); typeRef() } else { typeRef(); expectIdent() }
+                when {
+                    identLike() && la(1) == T.COLON -> { advance(); advance(); typeRef() }
+                    else -> { typeRef(); expectIdent() }
+                }
                 p.done(Q.SIGNAL_PARAMETER)
                 if (!eat(T.COMMA)) break
             }
@@ -239,14 +250,21 @@ class QmlParser : TsParser(jsx = false) {
         return j
     }
 
+    private fun propertyName() {
+        when {
+            nameLike() -> advanceAsIdent()
+            else -> b.error("property expected")
+        }
+    }
+
     private fun propertyRef() {
         var r = mark()
-        if (nameLike()) advanceAsIdent() else b.error("property expected")
+        propertyName()
         r.done(Q.PROPERTY_REF)
         while (at(T.DOT)) {
             r = r.precede()
             advance()
-            if (nameLike()) advanceAsIdent() else b.error("property expected")
+            propertyName()
             r.done(Q.PROPERTY_REF)
         }
     }
@@ -287,7 +305,8 @@ class QmlParser : TsParser(jsx = false) {
 }
 
 object QmlFileElementType : IFileElementType("LITE_QML_FILE", QmlLanguage) {
-    override fun doParseContents(chameleon: ASTNode, psi: PsiElement): ASTNode {
+    // null for an empty file: its tree has no node
+    override fun doParseContents(chameleon: ASTNode, psi: PsiElement): ASTNode? {
         val builder = PsiBuilderFactory.getInstance().createBuilder(psi.project, chameleon, TsLexer(jsx = false), language, chameleon.chars)
         return QmlParser().parse(this, builder).firstChildNode
     }
@@ -301,7 +320,9 @@ class QmlParserDefinition : ParserDefinition {
     override fun getStringLiteralElements(): TokenSet = T.STRINGS
     override fun getWhitespaceTokens(): TokenSet = T.WHITESPACES
     /** QML nodes get QML PSI; the embedded JavaScript gets the TypeScript/JavaScript PSI. */
-    override fun createElement(node: ASTNode): PsiElement =
-        if (node.elementType is QmlElementType) QmlPsiFactoryImpl.create(node) else TsPsiFactoryImpl.create(node)
+    override fun createElement(node: ASTNode): PsiElement {
+        if (node.elementType is QmlElementType) return QmlPsiFactoryImpl.create(node)
+        return TsPsiFactoryImpl.create(node)
+    }
     override fun createFile(viewProvider: FileViewProvider): PsiFile = QmlFile(viewProvider)
 }

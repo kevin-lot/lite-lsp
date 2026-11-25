@@ -16,6 +16,7 @@
         <fileType name="LitePythonStub" implementationClass="me.kevinlot.lite.python.upstream.pyi.PyiFileType" fieldName="INSTANCE"
                   language="LitePythonStub" extensions="pyi"/>
         <lang.parserDefinition language="LitePython" implementationClass="me.kevinlot.lite.python.parser.PyParserDefinition"/>
+        <lang.parserDefinition language="LitePythonStub" implementationClass="me.kevinlot.lite.python.parser.PyiParserDefinition"/>
         <lang.syntaxHighlighterFactory language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PySyntaxHighlighterFactory"/>
         <annotator language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PyHighlightingAnnotator"/>
         <lang.braceMatcher language="LitePython" implementationClass="me.kevinlot.lite.python.ide.PyBraceMatcher"/>

@@ -9,12 +9,12 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import java.io.File
 import me.kevinlot.lite.python.parser.PyFile
 import me.kevinlot.lite.python.psi.PyFunction
 import me.kevinlot.lite.python.psi.PyReferenceExpr
 import me.kevinlot.lite.python.resolve.PyEnvironments
 import me.kevinlot.lite.python.resolve.PyProjectEnv
-import java.io.File
 
 class PyTest : BasePlatformTestCase() {
 
@@ -43,6 +43,18 @@ class PyTest : BasePlatformTestCase() {
     fun `test parameter`() = one("def f(<def>a):\n    return <ref>a\n")
     fun `test global from function`() = one("<def>LIMIT = 3\ndef f():\n    return <ref>LIMIT\n")
     fun `test local assigned later in the function`() = one("def f():\n    g = lambda: <ref>y\n    <def>y = 2\n")
+    fun `test name inside a stub file`() = check("lib.pyi" to "class <def>Shape: ...\ndef largest() -> <ref>Shape: ...\n")
+    fun `test stub file is highlighted without error`() {
+        myFixture.configureByText("lib.pyi", "class Shape:\n    area: float\n")
+        myFixture.doHighlighting()
+        assertEquals("LitePythonStub", myFixture.file.language.id)
+    }
+    fun `test an empty file has no element`() {
+        listOf("empty.py", "empty.pyi", "pkg/__init__.py").forEach { name ->
+            assertEmpty(name, myFixture.addFileToProject(name, "").children.toList())
+        }
+    }
+
     fun `test class body not visible in method`() = one("<def>v = 1\nclass A:\n    v = 2\n    def m(self):\n        return <ref>v\n")
     fun `test for target`() = one("for <def>i in range(3):\n    print(<ref>i)\n")
     fun `test lambda parameter`() = one("f = lambda <def>k: <ref>k\n")
@@ -73,6 +85,17 @@ class PyTest : BasePlatformTestCase() {
     )
     fun `test star import`() = check("pkg/util.py" to "def <def>tool(): pass", "main.py" to "from pkg.util import *\n<ref>tool()")
     fun `test src layout`() = check("proj/pyproject.toml" to "", "proj/src/lib/core.py" to "def <def>run(): pass", "proj/app.py" to "from lib.core import run\n<ref>run()")
+
+    fun `test cyclic star imports end`() = check("a.py" to "from b import *", "b.py" to "from a import *", "main.py" to "import a\na.<ref>nope")
+    fun `test cyclic from imports end`() = check("a.py" to "from b import x", "b.py" to "from a import <def>x", "main.py" to "import a\na.<ref>x")
+    fun `test src layout created later`() {
+        myFixture.addFileToProject("proj/pyproject.toml", "")
+        val app = myFixture.addFileToProject("proj/app.py", "from lib.core import run\nrun()")
+        fun target() = (app.findReferenceAt(app.text.lastIndexOf("run")) as PsiPolyVariantReference).multiResolve(false).mapNotNull { it.element }
+        assertFalse(target().any { it is PyFunction })
+        myFixture.addFileToProject("proj/src/lib/core.py", "def run(): pass")
+        assertTrue(target().any { it is PyFunction })
+    }
 
     // ---------------------------------------------------------------- editing
     fun `test rename method follows calls`() {

@@ -20,7 +20,7 @@ object ShElementTypes {
     private fun t(name: String) = ShElementType(name)
     val FILE = IFileElementType("LITE_SHELL_FILE", ShLanguage)
     val FUNCTION_DEF = t("FUNCTION_DEF")
-    val VAR_DECL = t("VAR_DECL")             // NAME=value, local NAME, read NAME, for NAME in
+    val VAR_DECL = t("VAR_DECL")             // NAME=value, local NAME, read NAME, for NAME in, (( NAME = … )), ${NAME:=…}
     val VAR_REF = t("VAR_REF")               // $NAME, NAME in $(( ))
     val PARAM_EXPANSION = t("PARAM_EXPANSION") // ${NAME…}
     val COMMAND = t("COMMAND")
@@ -91,7 +91,7 @@ class ShParser : PsiParser {
         while (pendingHeredocs > 0 && !b.eof()) {
             pendingHeredocs--
             val m = b.mark()
-            while (!b.eof() && !at(T.HEREDOC_END)) if (b.tokenType in EXPANSIONS) part() else b.advanceLexer()
+            while (!b.eof() && !at(T.HEREDOC_END)) expansionOrToken()
             eat(T.HEREDOC_END)
             m.done(E.HEREDOC)
         }
@@ -127,7 +127,7 @@ class ShParser : PsiParser {
             t == T.LPAR -> compound(E.SUBSHELL) { list(STOP_RPAR); expect(T.RPAR, "')'") }
             t == T.TEST_START -> compound(E.TEST) {
                 // conditions may continue on the next line after `&&` / `||`
-                while (!b.eof() && !at(T.TEST_END)) if (isWordPart() && !at(T.TEST_START)) word() else b.advanceLexer()
+                while (!b.eof() && !at(T.TEST_END)) testWordOrToken()
                 expect(T.TEST_END, "']]'")
             }
             t == T.ARITH_START -> { val m = b.mark(); arithmetic(); redirections(); m.done(E.COMMAND) }
@@ -156,16 +156,23 @@ class ShParser : PsiParser {
 
     /** `for NAME in words; do …; done`, `for ((…)); do …; done`, `select NAME in …`. */
     private fun forCommand() = compound(E.LOOP) {
-        if (at(T.ARITH_START)) arithmetic() else {
-            val v = b.mark()
-            if (isWordPart()) { b.remapCurrentToken(T.WORD); b.advanceLexer() } else b.error("name expected")
-            v.done(E.VAR_DECL)
-            while (at(T.NEWLINE)) b.advanceLexer()
-            if (eat(T.kw("in"))) while (!b.eof() && !at(T.SEMI) && !at(T.NEWLINE) && !at(T.kw("do"))) if (isWordPart()) word() else b.advanceLexer()
-        }
+        forHeader()
         separators()
-        if (at(T.LBRACE)) { b.advanceLexer(); list(STOP_RBRACE); expect(T.RBRACE, "'}'") } // zsh short form
-        else { expectKw("do"); list(STOP_DONE); expectKw("done") }
+        forBody()
+    }
+
+    private fun forHeader() {
+        if (at(T.ARITH_START)) return arithmetic()
+        val v = b.mark()
+        name("name")
+        v.done(E.VAR_DECL)
+        while (at(T.NEWLINE)) b.advanceLexer()
+        if (eat(T.kw("in"))) while (!b.eof() && !at(T.SEMI) && !at(T.NEWLINE) && !at(T.kw("do"))) wordOrToken()
+    }
+
+    private fun forBody() {
+        if (at(T.LBRACE)) { b.advanceLexer(); list(STOP_RBRACE); expect(T.RBRACE, "'}'"); return } // zsh short form
+        expectKw("do"); list(STOP_DONE); expectKw("done")
     }
 
     private fun caseCommand() = compound(E.CASE) {
@@ -177,7 +184,7 @@ class ShParser : PsiParser {
             if (at(T.kw("esac")) || b.eof()) break
             val item = b.mark()
             eat(T.LPAR)
-            while (!b.eof() && !at(T.RPAR) && !at(T.NEWLINE)) if (isWordPart()) word() else b.advanceLexer()
+            while (!b.eof() && !at(T.RPAR) && !at(T.NEWLINE)) wordOrToken()
             expect(T.RPAR, "')'")
             list(STOP_CASE_ITEM)
             eat(T.CASE_END)
@@ -190,11 +197,18 @@ class ShParser : PsiParser {
     private fun functionDef() {
         val m = b.mark()
         eat(T.kw("function"))
-        if (isWordPart()) { b.remapCurrentToken(T.WORD); b.advanceLexer() } else b.error("function name expected")
+        name("function name")
         if (eat(T.LPAR)) expect(T.RPAR, "')'")
         while (at(T.NEWLINE)) b.advanceLexer()
         command()
         m.done(E.FUNCTION_DEF)
+    }
+
+    /** A name, reserved words included: taken as a plain word. */
+    private fun name(what: String) {
+        if (!isWordPart()) { b.error("$what expected"); return }
+        b.remapCurrentToken(T.WORD)
+        b.advanceLexer()
     }
 
     private fun redirections() {
@@ -217,7 +231,7 @@ class ShParser : PsiParser {
             }
         }
         if (isWordPart()) {
-            val name = if (at(T.WORD)) wordText() else null
+            val name = when { at(T.WORD) -> wordText(); else -> null }
             val n = b.mark()
             word()
             n.done(E.COMMAND_NAME)
@@ -228,46 +242,53 @@ class ShParser : PsiParser {
 
     private fun arguments(command: String?) {
         var first = true
-        var skipNext = false
+        var option: String? = null
         while (!b.eof()) {
             when {
                 at(T.REDIRECT) || at(T.HEREDOC_OP) -> redirections()
                 !isWordPart() -> return
-                command in DECLARE_BUILTINS && at(T.ASSIGN_NAME) -> assignment()
-                (command in DECLARE_BUILTINS || command == "read" || (command == "getopts" && !first)) && at(T.WORD) && !skipNext &&
-                    NAME.matches(wordText() ?: "") && !nextIsAdjacentPart() -> {
-                    val v = b.mark(); b.advanceLexer(); v.done(E.VAR_DECL)
-                }
+                command in ASSIGN_BUILTINS && at(T.ASSIGN_NAME) -> assignment()
+                declaresName(command, first, option) && at(T.WORD) && NAME.matches(wordText() ?: "") && !nextIsAdjacentPart() -> declaration()
                 (command == "source" || command == ".") && first -> { val s = b.mark(); word(); s.done(E.SOURCE_PATH) }
                 else -> {
-                    // `read -p prompt NAME`: the option argument is not a name
-                    skipNext = command == "read" && at(T.WORD) && wordText()?.let { it.startsWith("-") && it.last() in "pdntu" } == true
+                    option = wordText()?.takeIf { at(T.WORD) && it.startsWith("-") }
                     word()
                     first = false
                     continue
                 }
             }
             first = false
-            skipNext = false
+            option = null
         }
     }
 
-    private fun nextIsAdjacentPart(): Boolean {
-        val m = b.mark()
+    /** Whether a bare name here is a variable the command sets; [option] is the option word just before it. */
+    private fun declaresName(command: String?, first: Boolean, option: String?): Boolean = when (command) {
+        "getopts" -> !first
+        "printf" -> option == "-v"
+        in NAME_BUILTINS -> option == null || option.last() !in VALUE_OPTIONS[command].orEmpty()
+        else -> false
+    }
+
+    private fun nextIsAdjacentPart(): Boolean = b.rawLookup(1) in T.WORD_PARTS
+
+    private fun declaration() {
+        val v = b.mark()
         b.advanceLexer()
-        val adj = !b.eof() && isWordPart() && adjacent()
-        m.rollbackTo()
-        return adj
+        v.done(E.VAR_DECL)
     }
 
     private fun assignment() {
         val m = b.mark()
         b.advanceLexer()
-        if (at(T.LPAR) && adjacent()) {
-            b.advanceLexer()
-            while (!b.eof() && !at(T.RPAR)) if (isWordPart()) word() else b.advanceLexer()
-            expect(T.RPAR, "')'")
-        } else if (isWordPart() && adjacent()) word()
+        when {
+            at(T.LPAR) && adjacent() -> {
+                b.advanceLexer()
+                while (!b.eof() && !at(T.RPAR)) wordOrToken()
+                expect(T.RPAR, "')'")
+            }
+            isWordPart() && adjacent() -> word()
+        }
         m.done(E.VAR_DECL)
     }
 
@@ -280,13 +301,29 @@ class ShParser : PsiParser {
         m.done(E.WORD)
     }
 
+    private fun wordOrToken() {
+        if (isWordPart()) return word()
+        b.advanceLexer()
+    }
+
+    private fun testWordOrToken() {
+        if (isWordPart() && !at(T.TEST_START)) return word()
+        b.advanceLexer()
+    }
+
+    private fun expansionOrToken() {
+        if (b.tokenType in EXPANSIONS) return part()
+        b.advanceLexer()
+    }
+
     private fun part() {
         when (b.tokenType) {
             T.VAR -> { val r = b.mark(); b.advanceLexer(); r.done(E.VAR_REF) }
             T.PARAM_START -> {
                 val r = b.mark()
                 b.advanceLexer()
-                while (!b.eof() && !at(T.PARAM_END)) if (b.tokenType in EXPANSIONS) part() else b.advanceLexer()
+                if (at(T.VAR_NAME) && assignsDefault()) declaration()
+                while (!b.eof() && !at(T.PARAM_END)) expansionOrToken()
                 expect(T.PARAM_END, "'}'")
                 r.done(E.PARAM_EXPANSION)
             }
@@ -296,7 +333,7 @@ class ShParser : PsiParser {
             T.DQUOTE_START -> {
                 val m = b.mark()
                 b.advanceLexer()
-                while (!b.eof() && !at(T.DQUOTE_END)) if (b.tokenType in EXPANSIONS) part() else b.advanceLexer()
+                while (!b.eof() && !at(T.DQUOTE_END)) expansionOrToken()
                 expect(T.DQUOTE_END, "'\"'")
                 m.done(E.STRING)
             }
@@ -309,11 +346,30 @@ class ShParser : PsiParser {
         val m = b.mark()
         b.advanceLexer()
         while (!b.eof() && !at(T.ARITH_END)) {
-            if (at(T.VAR_NAME)) { val r = b.mark(); b.advanceLexer(); r.done(E.VAR_REF) }
-            else if (b.tokenType in EXPANSIONS) part() else b.advanceLexer()
+            when {
+                at(T.VAR_NAME) && assignsInArithmetic() -> declaration()
+                at(T.VAR_NAME) -> { val r = b.mark(); b.advanceLexer(); r.done(E.VAR_REF) }
+                else -> expansionOrToken()
+            }
         }
         expect(T.ARITH_END, "'))'")
         m.done(E.ARITH)
+    }
+
+    /** At a name of `(( … ))`: the operator after it is `=`, `+=`, `<<=`… and not a comparison. */
+    private fun assignsInArithmetic(): Boolean {
+        val m = b.mark()
+        b.advanceLexer()
+        val operator = generateSequence { b.tokenText?.takeIf { at(T.ARITH_OP) }?.also { b.advanceLexer() } }.take(4).joinToString("")
+        m.rollbackTo()
+        return ARITH_ASSIGNMENT.containsMatchIn(operator)
+    }
+
+    /** At the name of `${NAME:=default}` / `${NAME=default}`. */
+    private fun assignsDefault(): Boolean {
+        if (b.rawLookup(1) != T.PARAM_TEXT || !NAME.matches(wordText() ?: "")) return false
+        val text = b.originalText.subSequence(b.rawTokenTypeStart(1), b.rawTokenTypeStart(2))
+        return text.startsWith(":=") || text.startsWith("=")
     }
 
     private companion object {
@@ -332,6 +388,11 @@ class ShParser : PsiParser {
         val CLOSERS = TokenSet.orSet(TokenSet.create(T.RPAR, T.SUBST_END, T.BACKTICK_END, T.CASE_END, T.ARITH_END, T.TEST_END, T.PARAM_END, T.DQUOTE_END), kws("then", "elif", "else", "fi", "do", "done", "esac"))
         val EXPANSIONS = TokenSet.create(T.VAR, T.PARAM_START, T.SUBST_START, T.BACKTICK_START, T.ARITH_START, T.DQUOTE_START)
         val DECLARE_BUILTINS = setOf("local", "declare", "typeset", "export", "readonly", "integer", "float")
+        val ASSIGN_BUILTINS = DECLARE_BUILTINS + "let"
+        /** Options taking a value, which is then not a variable name: `read -p prompt NAME`. */
+        val VALUE_OPTIONS = mapOf("read" to "pdntu", "mapfile" to "dnOsuCc", "readarray" to "dnOsuCc")
+        val NAME_BUILTINS = DECLARE_BUILTINS + VALUE_OPTIONS.keys
+        val ARITH_ASSIGNMENT = Regex("^([-+*/%&|^]|<<|>>)?=(?!=)")
         val NAME = Regex("[A-Za-z_][A-Za-z0-9_]*")
     }
 }

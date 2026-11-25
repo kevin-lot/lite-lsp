@@ -5,10 +5,20 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.TokenSet
 import me.kevinlot.lite.core.LiteFindUsagesProvider
 import me.kevinlot.lite.core.LiteNamesValidator
+import me.kevinlot.lite.kotlin.parser.KtParserDefinition
+import me.kevinlot.lite.kotlin.psi.KtClass
+import me.kevinlot.lite.kotlin.psi.KtDestructuringEntry
+import me.kevinlot.lite.kotlin.psi.KtEnumEntry
+import me.kevinlot.lite.kotlin.psi.KtFunction
+import me.kevinlot.lite.kotlin.psi.KtNamedDeclaration
+import me.kevinlot.lite.kotlin.psi.KtNames
+import me.kevinlot.lite.kotlin.psi.KtObjectDeclaration
+import me.kevinlot.lite.kotlin.psi.KtParameter
+import me.kevinlot.lite.kotlin.psi.KtProperty
+import me.kevinlot.lite.kotlin.psi.KtTypeAlias
+import me.kevinlot.lite.kotlin.psi.KtTypeParameter
 import me.kevinlot.lite.kotlin.upstream.lexer.KotlinLexer
 import me.kevinlot.lite.kotlin.upstream.lexer.KtTokens
-import me.kevinlot.lite.kotlin.parser.KtParserDefinition
-import me.kevinlot.lite.kotlin.psi.*
 
 class KtFindUsagesProvider : LiteFindUsagesProvider(
     ::KotlinLexer, TokenSet.create(KtTokens.IDENTIFIER), KtParserDefinition.COMMENTS, KtTokens.STRINGS,
@@ -16,7 +26,7 @@ class KtFindUsagesProvider : LiteFindUsagesProvider(
     override fun isDeclaration(element: PsiElement): Boolean = element is KtNamedDeclaration
 
     override fun kindOf(element: PsiElement): String = when (element) {
-        is KtClass -> if (element.isInterface) "interface" else "class"
+        is KtClass -> when { element.isInterface -> "interface"; else -> "class" }
         is KtObjectDeclaration -> "object"
         is KtFunction -> "function"
         is KtProperty -> "property"

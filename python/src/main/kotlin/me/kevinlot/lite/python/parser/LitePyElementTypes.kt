@@ -4,9 +4,9 @@ import com.intellij.extapi.psi.ASTWrapperPsiElement
 import com.intellij.lang.ASTNode
 import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.IElementType
+import java.util.function.Function
 import me.kevinlot.lite.python.upstream.PyElementTypesFacade
 import me.kevinlot.lite.python.upstream.psi.PyElementType
-import java.util.function.Function
 
 /**
  * Element types for the upstream parser: plain types (no stubs, no upstream PSI). Our PSI is

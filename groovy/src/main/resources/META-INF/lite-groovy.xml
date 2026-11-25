@@ -1,0 +1,17 @@
+<!-- Groovy support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Groovy (Lite)" implementationClass="me.kevinlot.lite.groovy.GroovyFileType" fieldName="INSTANCE" language="LiteGroovy"
+                  extensions="gradle;groovy;gvy" fileNames="Jenkinsfile" hashBangs="groovy"/>
+        <lang.parserDefinition language="LiteGroovy" implementationClass="me.kevinlot.lite.groovy.GroovyParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteGroovy" implementationClass="me.kevinlot.lite.groovy.GroovySyntaxHighlighterFactory"/>
+        <annotator language="LiteGroovy" implementationClass="me.kevinlot.lite.groovy.GroovyHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteGroovy" implementationClass="me.kevinlot.lite.groovy.GroovyBraceMatcher"/>
+        <lang.commenter language="LiteGroovy" implementationClass="me.kevinlot.lite.groovy.GroovyCommenter"/>
+        <lang.findUsagesProvider language="LiteGroovy" implementationClass="me.kevinlot.lite.groovy.GroovyFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteGroovy" implementationClass="me.kevinlot.lite.groovy.GroovyRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteGroovy" implementationClass="me.kevinlot.lite.groovy.GroovyNamesValidator"/>
+        <fileBasedIndex implementation="me.kevinlot.lite.groovy.GroovyClassIndex"/>
+        <referencesSearch implementation="me.kevinlot.lite.groovy.GroovyStepUsageSearcher"/>
+    </extensions>
+</idea-plugin>

@@ -11,11 +11,22 @@ import com.intellij.psi.PsiTypeParameter
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.PsiTreeUtil
 import me.kevinlot.lite.core.RecursionGuard
-import me.kevinlot.lite.kotlin.upstream.parser.KtNodeTypes as N
-import me.kevinlot.lite.kotlin.psi.*
+import me.kevinlot.lite.kotlin.psi.KtClass
+import me.kevinlot.lite.kotlin.psi.KtDestructuringEntry
+import me.kevinlot.lite.kotlin.psi.KtElement
+import me.kevinlot.lite.kotlin.psi.KtEnumEntry
+import me.kevinlot.lite.kotlin.psi.KtFunction
+import me.kevinlot.lite.kotlin.psi.KtNameReferenceExpression
+import me.kevinlot.lite.kotlin.psi.KtNamedDeclaration
+import me.kevinlot.lite.kotlin.psi.KtObjectDeclaration
+import me.kevinlot.lite.kotlin.psi.KtParameter
+import me.kevinlot.lite.kotlin.psi.KtProperty
+import me.kevinlot.lite.kotlin.psi.KtTypeAlias
+import me.kevinlot.lite.kotlin.psi.KtTypeParameter
 import me.kevinlot.lite.kotlin.resolve.KtFiles
 import me.kevinlot.lite.kotlin.resolve.KtJava
 import me.kevinlot.lite.kotlin.resolve.KtResolver
+import me.kevinlot.lite.kotlin.upstream.parser.KtNodeTypes as N
 
 /** Small type model: a class (Kotlin or Java) with arguments, a type parameter, or unknown. */
 sealed class KtTy {
@@ -48,7 +59,10 @@ object KtTypes {
     fun typeOf(typeRef: PsiElement?, subst: Subst = emptyMap()): KtTy {
         typeRef ?: return KtTy.Unknown
         val inner = (typeRef as? KtElement)?.children?.firstOrNull { it.node.elementType in TYPE_NODES } ?: return KtTy.Unknown
-        val user = if (inner.node.elementType == N.NULLABLE_TYPE) inner.children.firstOrNull { it.node.elementType in TYPE_NODES } else inner
+        val user = when (inner.node.elementType) {
+            N.NULLABLE_TYPE -> inner.children.firstOrNull { it.node.elementType in TYPE_NODES }
+            else -> inner
+        }
         if (user?.node?.elementType == N.NULLABLE_TYPE) return typeOf(user.parent, subst)
         if (user?.node?.elementType != N.USER_TYPE) return KtTy.Unknown
         val name = user.children.lastOrNull { it is KtNameReferenceExpression } as? KtNameReferenceExpression ?: return KtTy.Unknown
@@ -91,7 +105,8 @@ object KtTypes {
         if (cls.args.size == 1) return cls.args[0]
         // Map<K, V> iterates over Map.Entry<K, V>
         val entry = (cls.decl as? PsiClass)?.takeIf { it.qualifiedName?.endsWith("Map") == true }?.findInnerClassByName("Entry", true)
-        return if (entry != null && cls.args.size == 2) KtTy.Cls(entry, cls.args) else KtTy.Unknown
+        if (entry == null || cls.args.size != 2) return KtTy.Unknown
+        return KtTy.Cls(entry, cls.args)
     }
 
     // ---------------------------------------------------------------- expressions
@@ -114,12 +129,13 @@ object KtTypes {
         N.WHEN -> inferType((e as KtElement).child(N.WHEN_ENTRY)?.children?.lastOrNull { it is KtElement })
         N.TRY -> inferType((e as KtElement).child(N.BLOCK))
         N.BLOCK -> inferType(e.children.lastOrNull { it is KtElement && it !is KtNamedDeclaration })
-        N.ARRAY_ACCESS_EXPRESSION -> inferType(e.children.firstOrNull { it is KtElement }).let { t ->
-            val c = t as? KtTy.Cls
-            if (c != null && c.args.size == 2) c.args[1] else elementType(t)
-        }
+        N.ARRAY_ACCESS_EXPRESSION -> indexedType(inferType(e.children.firstOrNull { it is KtElement }))
         else -> KtTy.Unknown
     }
+
+    /** `map[key]` is the value type, `list[i]` the element type. */
+    private fun indexedType(container: KtTy): KtTy =
+        (container as? KtTy.Cls)?.args?.takeIf { it.size == 2 }?.get(1) ?: elementType(container)
 
     /** Generic arguments of the receiver when [ref] is `receiver.ref`. */
     private fun receiverSubst(ref: PsiElement): Subst {
@@ -134,12 +150,16 @@ object KtTypes {
             is KtFunction -> returnType(target, subst)
             is KtClass -> KtTy.Cls(target, call.child(N.TYPE_ARGUMENT_LIST)?.children.orEmpty()
                 .filter { it.node.elementType == N.TYPE_PROJECTION }.map { typeOf((it as KtElement).child(N.TYPE_REFERENCE)) })
-            is PsiMethod -> if (target.isConstructor) target.containingClass?.let { KtTy.Cls(it) } ?: KtTy.Unknown
-                else fromPsiType(target.returnType, subst + argumentSubst(target, call) + extensionSubst(target, call))
+            is PsiMethod -> javaCallType(target, call, subst)
             is PsiClass -> KtTy.Cls(target)
             is KtParameter -> KtTy.Unknown // invoking a function-typed parameter
             else -> scopeFunctionResult(callee.referencedName, call)
         }
+    }
+
+    private fun javaCallType(method: PsiMethod, call: KtElement, subst: Subst): KtTy {
+        if (method.isConstructor) return method.containingClass?.let { KtTy.Cls(it) } ?: KtTy.Unknown
+        return fromPsiType(method.returnType, subst + argumentSubst(method, call) + extensionSubst(method, call))
     }
 
     /**
@@ -166,7 +186,10 @@ object KtTypes {
         if (method.typeParameters.isEmpty()) return emptyMap()
         val args = call.child(N.VALUE_ARGUMENT_LIST)?.children.orEmpty().filter { it.node.elementType == N.VALUE_ARGUMENT }
         val params = method.parameterList.parameters
-        val offset = if (KtResolver.receiverOf(call) != null && method.hasModifierProperty(com.intellij.psi.PsiModifier.STATIC)) 1 else 0
+        val offset = when {
+            KtResolver.receiverOf(call) != null && method.hasModifierProperty(com.intellij.psi.PsiModifier.STATIC) -> 1
+            else -> 0
+        }
         val out = HashMap<PsiElement, KtTy>()
         args.forEachIndexed { i, arg ->
             val p = params.getOrNull(i + offset) ?: params.lastOrNull()?.takeIf { it.isVarArgs } ?: return@forEachIndexed
@@ -189,7 +212,8 @@ object KtTypes {
     fun returnType(fn: KtFunction, subst: Subst = emptyMap()): KtTy {
         fn.returnTypeReference?.let { return typeOf(it, subst) }
         val body = fn.bodyExpression ?: return KtTy.Unknown
-        return if (body.node.elementType == N.BLOCK) KtTy.Unknown else inferType(body)
+        if (body.node.elementType == N.BLOCK) return KtTy.Unknown
+        return inferType(body)
     }
 
     /** Type of the value [target] denotes. */
@@ -203,7 +227,10 @@ object KtTypes {
         is KtObjectDeclaration -> KtTy.Cls(target)
         is KtClass -> target.body?.childrenOf<KtObjectDeclaration>()?.firstOrNull { it.isCompanion }?.let { KtTy.Cls(it) } ?: KtTy.Cls(target)
         is KtEnumEntry -> PsiTreeUtil.getParentOfType(target, KtClass::class.java)?.let { KtTy.Cls(it) } ?: KtTy.Unknown
-        is KtElement -> if (target.node.elementType == N.FUNCTION_LITERAL) itType(target) else KtTy.Unknown
+        is KtElement -> when (target.node.elementType) {
+            N.FUNCTION_LITERAL -> itType(target)
+            else -> KtTy.Unknown
+        }
         is PsiField -> fromPsiType(target.type, subst)
         is PsiMethod -> fromPsiType(target.returnType, subst)
         is PsiClass -> KtTy.Cls(target)
@@ -246,17 +273,15 @@ object KtTypes {
 
     /** Parameter of a lambda without explicit type: `list.map { x -> … }`. */
     private fun lambdaParameterType(param: KtParameter): KtTy {
-        val literal = param.parent?.parent ?: return KtTy.Unknown
-        if (literal.node.elementType != N.FUNCTION_LITERAL) {
-            // `for (x in xs)`
-            if (literal.node.elementType == N.FOR || param.parent?.node?.elementType == N.FOR) {
-                val loop = if (param.parent?.node?.elementType == N.FOR) param.parent!! else literal
-                return elementType(inferType((loop as KtElement).child(N.LOOP_RANGE)?.children?.firstOrNull()))
-            }
-            return KtTy.Unknown
+        val list = param.parent ?: return KtTy.Unknown
+        val literal = list.parent ?: return KtTy.Unknown
+        if (literal.node.elementType == N.FUNCTION_LITERAL) {
+            val index = (list as? KtElement)?.childrenOf<KtParameter>()?.indexOf(param) ?: 0
+            return lambdaArgumentType(literal as KtElement, index)
         }
-        val index = (param.parent as? KtElement)?.childrenOf<KtParameter>()?.indexOf(param) ?: 0
-        return lambdaArgumentType(literal as KtElement, index)
+        // `for (x in xs)`
+        val loop = listOf(list, literal).firstOrNull { it.node.elementType == N.FOR } ?: return KtTy.Unknown
+        return elementType(inferType((loop as KtElement).child(N.LOOP_RANGE)?.children?.firstOrNull()))
     }
 
     /** `it` of a lambda without parameters. */

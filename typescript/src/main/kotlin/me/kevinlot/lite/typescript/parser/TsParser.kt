@@ -25,6 +25,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
     private var noIn = false
     /** Inside the `extends` operand of a conditional type. */
     private var noConditionalType = false
+    protected var depth = 0
 
     override fun parse(root: IElementType, builder: PsiBuilder): ASTNode {
         b = builder
@@ -106,7 +107,8 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
     }
 
     protected fun expectIdent(what: String = "name") {
-        if (identLike() || nameLike()) advanceAsIdent() else b.error("$what expected")
+        if (!identLike() && !nameLike()) { b.error("$what expected"); return }
+        advanceAsIdent()
     }
 
     /** Runs [item] until [stop], always making progress (unexpected tokens are skipped with an error). */
@@ -118,6 +120,32 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         }
     }
 
+    protected fun tooDeep(): Boolean {
+        if (depth < MAX_DEPTH) return false
+        b.error("too deeply nested"); advance()
+        return true
+    }
+
+    /** Bounds the recursion: past [MAX_DEPTH] nested constructs (`((((…`) the next token is an error, not a stack overflow. */
+    protected inline fun nested(parse: () -> Unit) {
+        if (tooDeep()) return
+        depth++
+        try { parse() } finally { depth-- }
+    }
+
+    /** Significant tokens from lookahead [from], [limit] at most, with their lookahead index: linear, where `la(i)` is O(i). */
+    private inline fun ahead(from: Int, limit: Int, action: (index: Int, type: IElementType) -> Unit) {
+        b.tokenType // skips whitespace: raw offset 0 is then the current token
+        var raw = 0
+        var index = 0
+        while (index < from + limit) {
+            val t = b.rawLookup(raw++) ?: return
+            if (t == T.WHITE_SPACE || t in T.COMMENTS) continue
+            if (index >= from) action(index, t)
+            index++
+        }
+    }
+
     private inline fun <T> withNoIn(value: Boolean, f: () -> T): T {
         val saved = noIn
         noIn = value
@@ -126,13 +154,18 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
 
     // ---------------------------------------------------------------- statements
 
-    protected fun statement() {
+    protected fun statement() = nested { parseStatement() }
+
+    private fun parseStatement() {
         val t = b.tokenType
         when {
             t == T.LBRACE -> block()
             t == T.SEMICOLON -> { val m = mark(); advance(); m.done(E.STATEMENT) }
             t == T.kw("var") || t == T.kw("let") -> { val m = mark(); varDeclList(); semi(); m.done(E.VAR_STATEMENT) }
-            t == T.kw("const") -> if (la(1) == T.kw("enum")) declaration() else { val m = mark(); varDeclList(); semi(); m.done(E.VAR_STATEMENT) }
+            t == T.kw("const") -> when {
+                la(1) == T.kw("enum") -> declaration()
+                else -> { val m = mark(); varDeclList(); semi(); m.done(E.VAR_STATEMENT) }
+            }
             // `using x = …`, `await using x = …`
             (atSoft("using") && la(1) == T.IDENTIFIER && !newlineBeforeNext()) || (t == T.kw("await") && laText(1) == "using" && la(2) == T.IDENTIFIER) -> {
                 val m = mark(); eatKw("await"); varDeclList(); semi(); m.done(E.VAR_STATEMENT)
@@ -258,7 +291,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
             advance()
             if (eat(T.LPAR)) {
                 val p = mark()
-                if (identLike()) advance() else bindingTarget()
+                when { identLike() -> advance(); else -> bindingTarget() }
                 typeAnnotation()
                 p.done(E.PARAMETER)
                 expect(T.RPAR, "')'")
@@ -277,7 +310,10 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         expect(T.LBRACE, "'{'")
         while (!at(T.RBRACE) && !b.eof()) {
             val c = mark()
-            if (eatKw("case")) expression() else if (!eatKw("default")) { b.error("'case' expected"); advance() }
+            when {
+                eatKw("case") -> expression()
+                !eatKw("default") -> { b.error("'case' expected"); advance() }
+            }
             expect(T.COLON, "':'")
             statements { atKw("case") || atKw("default") || at(T.RBRACE) }
             c.done(E.CASE_CLAUSE)
@@ -289,20 +325,25 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
     // ---------------------------------------------------------------- variables and patterns
 
     private fun varDeclList() {
-        if (atSoft("using")) soft() else advance() // var / let / const
+        when {
+            atSoft("using") -> soft()
+            else -> advance() // var / let / const
+        }
         do variable() while (eat(T.COMMA))
     }
 
     private fun variable() {
         val m = mark()
-        if (identLike() || atKw("let") || atKw("yield") || atKw("await")) advanceAsIdent() else bindingTarget()
+        when { identLike() || atKw("let") || atKw("yield") || atKw("await") -> advanceAsIdent(); else -> bindingTarget() }
         eat(T.EXCL)
         typeAnnotation()
         if (eat(T.EQ)) assignment()
         m.done(E.VARIABLE)
     }
 
-    private fun bindingTarget() {
+    private fun bindingTarget() = nested { parseBindingTarget() }
+
+    private fun parseBindingTarget() {
         when {
             at(T.LBRACE) -> objectPattern()
             at(T.LBRACKET) -> arrayPattern()
@@ -362,7 +403,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         typeParameters()
         parameterList()
         typeAnnotation()
-        if (at(T.LBRACE)) block() else semi()
+        when { at(T.LBRACE) -> block(); else -> semi() }
         m.done(type)
     }
 
@@ -481,14 +522,14 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
             typeParameters()
             parameterList()
             typeAnnotation()
-            if (at(T.LBRACE)) block() else memberEnd()
+            when { at(T.LBRACE) -> block(); else -> memberEnd() }
             m.done(E.METHOD)
-        } else {
-            typeAnnotation()
-            if (inClass && eat(T.EQ)) assignment()
-            memberEnd()
-            m.done(E.PROPERTY)
+            return
         }
+        typeAnnotation()
+        if (inClass && eat(T.EQ)) assignment()
+        memberEnd()
+        m.done(E.PROPERTY)
     }
 
     private fun memberEnd() {
@@ -533,7 +574,11 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         expect(T.LBRACE, "'{'")
         while (!at(T.RBRACE) && !b.eof()) {
             val e = mark()
-            if (nameLike()) advanceAsIdent() else if (at(T.STRING) || at(T.NUMBER)) advance() else { b.error("member expected"); e.drop(); advance(); continue }
+            when {
+                nameLike() -> advanceAsIdent()
+                at(T.STRING) || at(T.NUMBER) -> advance()
+                else -> { b.error("member expected"); e.drop(); advance(); continue }
+            }
             if (eat(T.EQ)) assignment()
             e.done(E.ENUM_MEMBER)
             if (!eat(T.COMMA)) break
@@ -546,7 +591,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         soft()
         if (at(T.STRING)) {
             advance()
-            if (at(T.LBRACE)) moduleBlock() else semi()
+            when { at(T.LBRACE) -> moduleBlock(); else -> semi() }
             m.done(E.AMBIENT_MODULE)
             return
         }
@@ -569,12 +614,13 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
     private fun importDeclaration(m: PsiBuilder.Marker) {
         advance() // import
         if (atSoft("type") && (la(1) == T.LBRACE || la(1) == T.MUL || (la(1) == T.IDENTIFIER && (laText(1) != "from" || la(2) != T.STRING)))) soft()
-        if (at(T.STRING)) {
-            moduleSpecifier(); importAttributes(); semi(); m.done(E.IMPORT_DECLARATION); return
-        }
+        if (at(T.STRING)) { moduleSpecifier(); importAttributes(); semi(); m.done(E.IMPORT_DECLARATION); return }
         if (identLike() && la(1) == T.EQ) {
             advance(); advance()
-            if (atSoft("require") && la(1) == T.LPAR) { soft(); advance(); moduleSpecifier(); expect(T.RPAR, "')'") } else entityName()
+            when {
+                atSoft("require") && la(1) == T.LPAR -> { soft(); advance(); moduleSpecifier(); expect(T.RPAR, "')'") }
+                else -> entityName()
+            }
             semi()
             m.done(E.IMPORT_EQUALS)
             return
@@ -583,14 +629,15 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
             val d = mark(); advance(); d.done(E.IMPORT_DEFAULT)
             eat(T.COMMA)
         }
-        if (at(T.MUL)) {
-            val n = mark()
-            advance()
-            if (atSoft("as")) soft() else b.error("'as' expected")
-            expectIdent()
-            n.done(E.IMPORT_NAMESPACE)
-        } else if (at(T.LBRACE)) {
-            specifiers(E.IMPORT_SPECIFIER)
+        when {
+            at(T.MUL) -> {
+                val n = mark()
+                advance()
+                when { atSoft("as") -> soft(); else -> b.error("'as' expected") }
+                expectIdent()
+                n.done(E.IMPORT_NAMESPACE)
+            }
+            at(T.LBRACE) -> specifiers(E.IMPORT_SPECIFIER)
         }
         fromClause()
         semi()
@@ -608,7 +655,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
                 at(T.STRING) -> advance()
                 else -> b.error("name expected")
             }
-            if (atSoft("as")) { soft(); if (at(T.STRING)) advance() else expectIdent() }
+            if (atSoft("as")) { soft(); when { at(T.STRING) -> advance(); else -> expectIdent() } }
             s.done(type)
             if (!eat(T.COMMA)) break
         }
@@ -616,14 +663,17 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
     }
 
     private fun fromClause() {
-        if (atSoft("from")) soft() else { b.error("'from' expected"); return }
+        if (!atSoft("from")) { b.error("'from' expected"); return }
+        soft()
         moduleSpecifier()
         importAttributes()
     }
 
     private fun importAttributes() {
-        if ((atSoft("with") || atSoft("assert")) && la(1) == T.LBRACE) { soft(); objectLiteral() }
-        else if (atKw("with") && la(1) == T.LBRACE) { advance(); objectLiteral() }
+        when {
+            (atSoft("with") || atSoft("assert")) && la(1) == T.LBRACE -> { soft(); objectLiteral() }
+            atKw("with") && la(1) == T.LBRACE -> { advance(); objectLiteral() }
+        }
     }
 
     private fun moduleSpecifier() {
@@ -653,7 +703,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
             at(T.MUL) || (atSoft("type") && la(1) == T.MUL) -> {
                 if (atSoft("type")) soft()
                 advance()
-                if (atSoft("as")) { soft(); if (at(T.STRING)) advance() else expectIdent() }
+                if (atSoft("as")) { soft(); when { at(T.STRING) -> advance(); else -> expectIdent() } }
                 fromClause(); semi()
                 m.done(E.EXPORT_STAR)
             }
@@ -689,7 +739,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         advance()
         while (!at(T.GT) && !b.eof()) {
             val p = mark()
-            while ((atKw("in") || atSoft("out") || atKw("const")) && la(1) == T.IDENTIFIER) { if (at(T.IDENTIFIER)) soft() else advance() }
+            while ((atKw("in") || atSoft("out") || atKw("const")) && la(1) == T.IDENTIFIER) { when { at(T.IDENTIFIER) -> soft(); else -> advance() } }
             expectIdent("type parameter")
             if (eatKw("extends")) type()
             if (eat(T.EQ)) type()
@@ -711,18 +761,19 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         m.done(E.TYPE_ARGUMENT_LIST)
     }
 
-    private fun type() {
+    private fun type() = nested { parseType() }
+
+    private fun parseType() {
         val m = mark()
         unionType()
-        if (atKw("extends") && !noConditionalType && !newlineBefore()) {
-            advance()
-            val saved = noConditionalType
-            noConditionalType = true
-            unionType()
-            noConditionalType = saved
-            expect(T.QUEST, "'?'"); type(); expect(T.COLON, "':'"); type()
-            m.done(E.CONDITIONAL_TYPE)
-        } else m.drop()
+        if (!atKw("extends") || noConditionalType || newlineBefore()) { m.drop(); return }
+        advance()
+        val saved = noConditionalType
+        noConditionalType = true
+        unionType()
+        noConditionalType = saved
+        expect(T.QUEST, "'?'"); type(); expect(T.COLON, "':'"); type()
+        m.done(E.CONDITIONAL_TYPE)
     }
 
     private fun functionType(type: IElementType) {
@@ -757,7 +808,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         intersectionType()
         var n = 1
         while (at(T.OR)) { advance(); intersectionType(); n++ }
-        if (n > 1) m.done(E.UNION_TYPE) else m.drop()
+        doneIfSeveral(n, m, E.UNION_TYPE)
     }
 
     private fun intersectionType() {
@@ -766,10 +817,17 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         typeOperator()
         var n = 1
         while (at(T.AND)) { advance(); typeOperator(); n++ }
-        if (n > 1) m.done(E.INTERSECTION_TYPE) else m.drop()
+        doneIfSeveral(n, m, E.INTERSECTION_TYPE)
     }
 
-    private fun typeOperator() {
+    private fun doneIfSeveral(count: Int, m: PsiBuilder.Marker, type: IElementType) {
+        if (count > 1) { m.done(type); return }
+        m.drop()
+    }
+
+    private fun typeOperator() = nested { parseTypeOperator() }
+
+    private fun parseTypeOperator() {
         when {
             atSoft(TYPE_OPERATORS) && la(1).let { it != null && it !in TYPE_FOLLOW } -> {
                 val m = mark(); soft(); typeOperator(); m.done(E.TYPE_OPERATOR)
@@ -791,8 +849,10 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         var m = mark()
         primaryType()
         while (at(T.LBRACKET) && !newlineBefore()) {
-            if (la(1) == T.RBRACKET) { advance(); advance(); m.done(E.ARRAY_TYPE) }
-            else { advance(); type(); expect(T.RBRACKET, "']'"); m.done(E.INDEXED_ACCESS_TYPE) }
+            when {
+                la(1) == T.RBRACKET -> { advance(); advance(); m.done(E.ARRAY_TYPE) }
+                else -> { advance(); type(); expect(T.RBRACKET, "']'"); m.done(E.INDEXED_ACCESS_TYPE) }
+            }
             m = m.precede()
         }
         m.drop()
@@ -811,11 +871,11 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
             }
             t == T.LPAR -> { val m = mark(); advance(); type(); expect(T.RPAR, "')'"); m.done(E.PAREN_TYPE) }
             t == T.LBRACKET -> tupleType()
-            t == T.LBRACE -> if (mappedTypeAhead()) mappedType() else objectType()
+            t == T.LBRACE -> when { mappedTypeAhead() -> mappedType(); else -> objectType() }
             t == T.kw("typeof") -> {
                 val m = mark()
                 advance()
-                if (atKw("import")) importType() else entityName()
+                when { atKw("import") -> importType(); else -> entityName() }
                 if (at(T.LT) && !newlineBefore()) typeArguments()
                 m.done(E.TYPEOF_TYPE)
             }
@@ -823,23 +883,28 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
             t == T.kw("this") -> {
                 val m = mark()
                 advance()
-                if (atSoft("is") && !newlineBefore()) { soft(); type(); m.done(E.TYPE_PREDICATE) } else m.done(E.THIS_TYPE)
+                when {
+                    atSoft("is") && !newlineBefore() -> { soft(); type(); m.done(E.TYPE_PREDICATE) }
+                    else -> m.done(E.THIS_TYPE)
+                }
             }
             atSoft("asserts") && (la(1) == T.IDENTIFIER || la(1) == T.kw("this")) && !newlineBeforeNext() -> {
                 val m = mark()
                 soft()
-                if (atKw("this")) advance() else { val r = mark(); advance(); r.done(E.REFERENCE) }
+                when {
+                    atKw("this") -> advance()
+                    else -> { val r = mark(); advance(); r.done(E.REFERENCE) }
+                }
                 if (atSoft("is")) { soft(); type() }
                 m.done(E.TYPE_PREDICATE)
             }
-            t == T.IDENTIFIER -> {
-                if (la(1) == T.IDENTIFIER && laText(1) == "is" && !newlineBeforeNext()) {
-                    val m = mark()
-                    val r = mark(); advance(); r.done(E.REFERENCE)
-                    soft(); type()
-                    m.done(E.TYPE_PREDICATE)
-                } else typeReference()
+            t == T.IDENTIFIER && la(1) == T.IDENTIFIER && laText(1) == "is" && !newlineBeforeNext() -> {
+                val m = mark()
+                val r = mark(); advance(); r.done(E.REFERENCE)
+                soft(); type()
+                m.done(E.TYPE_PREDICATE)
             }
+            t == T.IDENTIFIER -> typeReference()
             // `var` as a type: QML function parameters (`function f(x: var)`)
             t == T.kw("var") -> { val m = mark(); val r = mark(); advanceAsIdent(); r.done(E.REFERENCE); m.done(E.TYPE_REFERENCE) }
             t == T.kw("void") || t == T.kw("null") || t == T.STRING || t == T.NUMBER || t == T.kw("true") || t == T.kw("false") ||
@@ -888,10 +953,9 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         advance()
         while (!at(T.RBRACKET) && !b.eof()) {
             eat(T.ELLIPSIS)
-            if (nameLike() && (la(1) == T.COLON || (la(1) == T.QUEST && la(2) == T.COLON))) {
-                advanceAsIdent(); eat(T.QUEST); advance(); type()
-            } else {
-                type(); eat(T.QUEST)
+            when {
+                nameLike() && (la(1) == T.COLON || (la(1) == T.QUEST && la(2) == T.COLON)) -> { advanceAsIdent(); eat(T.QUEST); advance(); type() }
+                else -> { type(); eat(T.QUEST) }
             }
             if (!eat(T.COMMA)) break
         }
@@ -949,22 +1013,19 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
             }
             else -> {
                 memberModifiers()
-                if (at(T.LBRACKET) && isIndexSignature()) indexSignatureRest(m) else memberRest(m, inClass = false)
+                when { at(T.LBRACKET) && isIndexSignature() -> indexSignatureRest(m); else -> memberRest(m, inClass = false) }
             }
         }
     }
 
     /** Index of the token closing the bracket at lookahead [open] (`(`, `[`, `{`, `<`), or null. */
     private fun matching(open: Int): Int? {
-        var depth = 0
-        var i = open
-        while (i < open + 400) {
-            when (la(i) ?: return null) {
-                T.LPAR, T.LBRACKET, T.LBRACE, T.TEMPLATE_HEAD -> depth++
-                T.RPAR, T.RBRACKET, T.RBRACE, T.TEMPLATE_TAIL -> { depth--; if (depth == 0) return i }
-                else -> {}
+        var nest = 0
+        ahead(open, 400) { i, t ->
+            when (t) {
+                T.LPAR, T.LBRACKET, T.LBRACE, T.TEMPLATE_HEAD -> nest++
+                T.RPAR, T.RBRACKET, T.RBRACE, T.TEMPLATE_TAIL -> { nest--; if (nest == 0) return i }
             }
-            i++
         }
         return null
     }
@@ -974,13 +1035,14 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
     protected fun expression() {
         val m = mark()
         assignment()
-        if (at(T.COMMA)) {
-            while (eat(T.COMMA)) assignment()
-            m.done(E.BINARY_EXPRESSION)
-        } else m.drop()
+        if (!at(T.COMMA)) { m.drop(); return }
+        while (eat(T.COMMA)) assignment()
+        m.done(E.BINARY_EXPRESSION)
     }
 
-    protected fun assignment() {
+    protected fun assignment() = nested { parseAssignment() }
+
+    private fun parseAssignment() {
         if (arrowFunction()) return
         if (atKw("yield")) {
             val m = mark()
@@ -991,11 +1053,10 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         }
         val m = mark()
         conditional()
-        if (at(T.EQ) || (at(T.OPERATOR) && isAssignmentOperator(b.tokenText))) {
-            advance()
-            assignment()
-            m.done(E.ASSIGNMENT_EXPRESSION)
-        } else m.drop()
+        if (!at(T.EQ) && !(at(T.OPERATOR) && isAssignmentOperator(b.tokenText))) { m.drop(); return }
+        advance()
+        assignment()
+        m.done(E.ASSIGNMENT_EXPRESSION)
     }
 
     private fun startsExpression() = b.tokenType.let {
@@ -1005,13 +1066,12 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
     private fun conditional() {
         val m = mark()
         binary()
-        if (at(T.QUEST)) {
-            advance()
-            withNoIn(false) { assignment() }
-            expect(T.COLON, "':'")
-            assignment()
-            m.done(E.CONDITIONAL_EXPRESSION)
-        } else m.drop()
+        if (!at(T.QUEST)) { m.drop(); return }
+        advance()
+        withNoIn(false) { assignment() }
+        expect(T.COLON, "':'")
+        assignment()
+        m.done(E.CONDITIONAL_EXPRESSION)
     }
 
     private fun binary() {
@@ -1030,7 +1090,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
                 t == T.OPERATOR && !isAssignmentOperator(b.tokenText) || t in BINARY || (t == T.kw("in") && !noIn) -> { advance(); unary() }
                 (atSoft("as") || atSoft("satisfies")) && !newlineBefore() -> {
                     soft()
-                    if (atKw("const")) advance() else type()
+                    when { atKw("const") -> advance(); else -> type() }
                     m.done(E.AS_EXPRESSION)
                     m = m.precede()
                     continue
@@ -1043,7 +1103,9 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         m.drop()
     }
 
-    private fun unary() {
+    private fun unary() = nested { parseUnary() }
+
+    private fun parseUnary() {
         val t = b.tokenType
         when {
             t in PREFIX -> { val m = mark(); advance(); unary(); m.done(E.UNARY_EXPRESSION) }
@@ -1059,7 +1121,10 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
             else -> {
                 val m = mark()
                 leftHandSide()
-                if ((at(T.PLUSPLUS) || at(T.MINUSMINUS)) && !newlineBefore()) { advance(); m.done(E.UNARY_EXPRESSION) } else m.drop()
+                when {
+                    (at(T.PLUSPLUS) || at(T.MINUSMINUS)) && !newlineBefore() -> { advance(); m.done(E.UNARY_EXPRESSION) }
+                    else -> m.drop()
+                }
             }
         }
     }
@@ -1076,7 +1141,11 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
                         optional && at(T.LPAR) -> { arguments(); m.done(E.CALL_EXPRESSION) }
                         optional && at(T.LBRACKET) -> { advance(); withNoIn(false) { expression() }; expect(T.RBRACKET, "']'"); m.done(E.INDEX_EXPRESSION) }
                         else -> {
-                            if (at(T.PRIVATE_NAME)) advance() else if (nameLike()) advanceAsIdent() else b.error("name expected")
+                            when {
+                                at(T.PRIVATE_NAME) -> advance()
+                                nameLike() -> advanceAsIdent()
+                                else -> b.error("name expected")
+                            }
                             m.done(E.REFERENCE)
                         }
                     }
@@ -1085,7 +1154,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
                 at(T.LPAR) -> { arguments(); m.done(E.CALL_EXPRESSION) }
                 at(T.LT) && typeArgumentsCallAhead() -> {
                     typeArguments()
-                    if (at(T.LPAR)) arguments() else template()
+                    when { at(T.LPAR) -> arguments(); else -> template() }
                     m.done(E.CALL_EXPRESSION)
                 }
                 at(T.TEMPLATE_FULL) || at(T.TEMPLATE_HEAD) -> { template(); m.done(E.CALL_EXPRESSION) }
@@ -1104,9 +1173,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
     private fun typeArgumentsEnd(o: Int): Int? {
         var angles = 0
         var nest = 0
-        var i = o
-        while (i < o + 200) {
-            val t = la(i) ?: return null
+        ahead(o, 200) { i, t ->
             when (t) {
                 T.LT -> angles++
                 T.GT -> { angles--; if (angles == 0 && nest == 0) return i }
@@ -1114,7 +1181,6 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
                 T.RPAR, T.RBRACKET, T.RBRACE -> { nest--; if (nest < 0) return null }
                 else -> if (t !in TYPE_ARGUMENT_TOKENS) return null
             }
-            i++
         }
         return null
     }
@@ -1128,12 +1194,17 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         advance()
         withNoIn(false) {
             while (!at(T.RPAR) && !b.eof()) {
-                if (at(T.ELLIPSIS)) { val s = mark(); advance(); assignment(); s.done(E.SPREAD) } else assignment()
+                spreadOrAssignment()
                 if (!eat(T.COMMA)) break
             }
         }
         expect(T.RPAR, "')'")
         m.done(E.ARGUMENT_LIST)
+    }
+
+    private fun spreadOrAssignment() {
+        if (at(T.ELLIPSIS)) { val s = mark(); advance(); assignment(); s.done(E.SPREAD); return }
+        assignment()
     }
 
     private fun primary() {
@@ -1169,7 +1240,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
                 advance()
                 if (eat(T.DOT)) { expectIdent(); m.done(E.LITERAL); return } // import.meta
                 expect(T.LPAR, "'('")
-                if (at(T.STRING) && (la(1) == T.RPAR || la(1) == T.COMMA)) moduleSpecifier() else assignment()
+                when { at(T.STRING) && (la(1) == T.RPAR || la(1) == T.COMMA) -> moduleSpecifier(); else -> assignment() }
                 if (eat(T.COMMA) && !at(T.RPAR)) assignment()
                 expect(T.RPAR, "')'")
                 m.done(E.IMPORT_CALL)
@@ -1182,19 +1253,24 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         }
     }
 
-    private fun newExpression() {
+    private fun newExpression() = nested { parseNewExpression() }
+
+    private fun parseNewExpression() {
         val m = mark()
         advance()
         if (eat(T.DOT)) { expectIdent(); m.done(E.LITERAL); return } // new.target
         var c = mark()
-        if (atKw("new")) newExpression() else primary()
+        when { atKw("new") -> newExpression(); else -> primary() }
         while (at(T.DOT) || at(T.LBRACKET)) {
-            if (eat(T.DOT)) {
-                if (at(T.PRIVATE_NAME)) advance() else expectIdent()
-                c.done(E.REFERENCE)
-            } else {
-                advance(); expression(); expect(T.RBRACKET, "']'")
-                c.done(E.INDEX_EXPRESSION)
+            when {
+                eat(T.DOT) -> {
+                    when { at(T.PRIVATE_NAME) -> advance(); else -> expectIdent() }
+                    c.done(E.REFERENCE)
+                }
+                else -> {
+                    advance(); expression(); expect(T.RBRACKET, "']'")
+                    c.done(E.INDEX_EXPRESSION)
+                }
             }
             c = c.precede()
         }
@@ -1213,7 +1289,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
     /** `x =>`, `async x =>`, `(…) =>`, `(…): T =>`, `<T>(…) =>` (not in JSX files). */
     private fun arrowFunction(): Boolean {
         val async = atSoft("async") && !newlineBeforeNext() && la(1).let { it == T.IDENTIFIER || it == T.LPAR || it == T.LT }
-        val o = if (async) 1 else 0
+        val o = when { async -> 1; else -> 0 }
         val first = la(o)
         val simple = (first == T.IDENTIFIER || first == T.kw("yield") || first == T.kw("await")) && la(o + 1) == T.ARROW
         val parens = first == T.LPAR && parenArrowAhead(o)
@@ -1221,15 +1297,18 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         if (!simple && !parens && !generic) return false
         val m = mark()
         if (async) soft()
-        if (simple) {
-            val list = mark(); val p = mark(); advanceAsIdent(); p.done(E.PARAMETER); list.done(E.PARAMETER_LIST)
-        } else {
-            typeParameters()
-            parameterList()
-            typeAnnotation()
+        when {
+            simple -> {
+                val list = mark(); val p = mark(); advanceAsIdent(); p.done(E.PARAMETER); list.done(E.PARAMETER_LIST)
+            }
+            else -> {
+                typeParameters()
+                parameterList()
+                typeAnnotation()
+            }
         }
         expect(T.ARROW, "'=>'")
-        if (at(T.LBRACE)) block() else assignment()
+        when { at(T.LBRACE) -> block(); else -> assignment() }
         m.done(E.ARROW_FUNCTION)
         return true
     }
@@ -1240,17 +1319,14 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         return when (la(close + 1)) {
             T.ARROW -> true
             T.COLON -> {
-                var depth = 0
-                var i = close + 2
-                while (i < close + 200) {
-                    val t = la(i) ?: return false
+                var nest = 0
+                ahead(close + 2, 198) { _, t ->
                     when {
-                        t == T.ARROW && depth == 0 -> return true
-                        t == T.LPAR || t == T.LBRACKET || t == T.LBRACE || t == T.LT -> depth++
-                        t == T.RPAR || t == T.RBRACKET || t == T.RBRACE || t == T.GT -> { depth--; if (depth < 0) return false }
-                        depth == 0 && t !in TYPE_ARGUMENT_TOKENS -> return false
+                        t == T.ARROW && nest == 0 -> return true
+                        t == T.LPAR || t == T.LBRACKET || t == T.LBRACE || t == T.LT -> nest++
+                        t == T.RPAR || t == T.RBRACKET || t == T.RBRACE || t == T.GT -> { nest--; if (nest < 0) return false }
+                        nest == 0 && t !in TYPE_ARGUMENT_TOKENS -> return false
                     }
-                    i++
                 }
                 false
             }
@@ -1282,7 +1358,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         withNoIn(false) {
             while (!at(T.RBRACKET) && !b.eof()) {
                 if (eat(T.COMMA)) continue
-                if (at(T.ELLIPSIS)) { val s = mark(); advance(); assignment(); s.done(E.SPREAD) } else assignment()
+                spreadOrAssignment()
                 if (!eat(T.COMMA)) break
             }
         }
@@ -1326,13 +1402,15 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         typeParameters()
         parameterList()
         typeAnnotation()
-        if (at(T.LBRACE)) block() else b.error("'{' expected")
+        when { at(T.LBRACE) -> block(); else -> b.error("'{' expected") }
         p.done(E.METHOD)
     }
 
     // ---------------------------------------------------------------- JSX
 
-    private fun jsxElement() {
+    private fun jsxElement() = nested { parseJsxElement() }
+
+    private fun parseJsxElement() {
         val m = mark()
         advance() // <
         if (eat(T.GT)) {
@@ -1382,7 +1460,8 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
             when {
                 at(T.JSX_TEXT) -> advance()
                 at(T.LBRACE) -> jsxExpression()
-                at(T.LT) -> if (la(1) == T.DIV) return else jsxElement()
+                at(T.LT) && la(1) == T.DIV -> return
+                at(T.LT) -> jsxElement()
                 else -> return
             }
         }
@@ -1406,7 +1485,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
                 while (at(T.DOT)) {
                     r = r.precede()
                     advance()
-                    if (at(T.IDENTIFIER)) advance() else b.error("name expected")
+                    when { at(T.IDENTIFIER) -> advance(); else -> b.error("name expected") }
                     r.done(E.REFERENCE)
                 }
                 if (eat(T.COLON)) { if (at(T.IDENTIFIER) || at(T.JSX_NAME)) advance() }
@@ -1423,6 +1502,7 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         val MEMBER_MODIFIERS = setOf("public", "private", "protected", "static", "readonly", "abstract", "override", "declare", "accessor", "async", "get", "set")
         val OBJECT_MODIFIERS = setOf("get", "set", "async")
         val TYPE_OPERATORS = setOf("keyof", "unique", "readonly")
+        const val MAX_DEPTH = 500
         val ASSIGNMENT_OPERATORS = setOf("+=", "-=", "*=", "/=", "%=", "**=", "<<=", "&=", "|=", "^=", "&&=", "||=", "??=")
 
         fun isAssignmentOperator(text: String?) = text in ASSIGNMENT_OPERATORS

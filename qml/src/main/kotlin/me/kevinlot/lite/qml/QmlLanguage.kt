@@ -5,11 +5,11 @@ import com.intellij.lang.Language
 import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.openapi.util.IconLoader
 import com.intellij.psi.FileViewProvider
+import javax.swing.Icon
 import me.kevinlot.lite.qml.psi.QmlObject
 import me.kevinlot.lite.qml.resolve.QmlTypes
 import me.kevinlot.lite.typescript.resolve.TsHostDecl
 import me.kevinlot.lite.typescript.resolve.TsTy
-import javax.swing.Icon
 
 object QmlLanguage : Language("LiteQml") {
     private fun readResolve(): Any = QmlLanguage
@@ -36,7 +36,7 @@ object QmlTypesFileType : LanguageFileType(QmlLanguage, true) {
 
 /** A QML document: a component whose type name is the file name (`Button.qml` defines `Button`). */
 class QmlFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, QmlLanguage), TsHostDecl {
-    override fun getFileType() = if (name.endsWith(".qmltypes")) QmlTypesFileType else QmlFileType
+    override fun getFileType() = when { name.endsWith(".qmltypes") -> QmlTypesFileType; else -> QmlFileType }
     override fun toString(): String = "QML file"
 
     val rootObject: QmlObject? get() = children.firstOrNull { it is QmlObject } as? QmlObject

@@ -35,15 +35,16 @@ object JsFileType : LanguageFileType(TsLanguage, true) {
 }
 
 class TsFile(viewProvider: FileViewProvider) : PsiFileBase(viewProvider, TsLanguage) {
-    override fun getFileType() = if (isJavaScript(name)) JsFileType else TsFileType
+    override fun getFileType() = when { isJavaScript(name) -> JsFileType; else -> TsFileType }
     override fun toString(): String = "TypeScript file"
     val isDeclarationFile: Boolean get() = isDeclaration(name)
 
     companion object {
         private val JS = setOf("js", "jsx", "mjs", "cjs")
+        private val NO_JSX = setOf("ts", "mts", "cts")
         fun isJavaScript(name: String) = name.substringAfterLast('.') in JS
         fun isDeclaration(name: String) = name.endsWith(".d.ts") || name.endsWith(".d.mts") || name.endsWith(".d.cts")
         /** JSX everywhere but in `.ts` files (where `<T>x` is a type assertion). */
-        fun hasJsx(name: String?) = name == null || name.substringAfterLast('.') !in setOf("ts", "mts", "cts")
+        fun hasJsx(name: String?) = name == null || name.substringAfterLast('.') !in NO_JSX
     }
 }

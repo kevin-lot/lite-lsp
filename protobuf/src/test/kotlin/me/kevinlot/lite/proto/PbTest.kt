@@ -144,7 +144,9 @@ class PbTest : BasePlatformTestCase() {
             val psi = psiManager.findFile(LocalFileSystem.getInstance().refreshAndFindFileByIoFile(f)!!) ?: continue
             PsiTreeUtil.findChildOfType(psi, PsiErrorElement::class.java)?.let { broken++; errors += "${f.path}: ${it.errorDescription}" }
             PsiTreeUtil.findChildrenOfType(psi, PbSymbolPath::class.java).filter { it.parent !is PbSymbolPath && it.text !in PbResolver.SCALARS }.forEach {
-                total++; if (PbResolver.resolve(it).isNotEmpty()) resolved++ else if (System.getenv("LITE_SHOW") != null) println("  unresolved ${f.name}: ${it.text}")
+                total++
+                if (PbResolver.resolve(it).isNotEmpty()) { resolved++; return@forEach }
+                if (System.getenv("LITE_SHOW") != null) println("  unresolved ${f.name}: ${it.text}")
             }
         }
         println("proto corpus: ${files.size - broken}/${files.size} files without errors, $resolved/$total names resolved\n" + errors.take(15).joinToString("\n"))

@@ -74,7 +74,8 @@ class JsonPointerReference(literal: JsonStringLiteral, private val value: String
     /** The last pointer segment (or the file name) takes the new name. */
     override fun handleElementRename(newElementName: String): PsiElement {
         val name = Pointers.nameRange(value)
-        val segment = if ('#' in value && name.first > value.indexOf('#')) Pointers.escape(newElementName) else newElementName
+        val inPointer = '#' in value && name.first > value.indexOf('#')
+        val segment = newElementName.takeUnless { inPointer } ?: Pointers.escape(newElementName)
         return ElementManipulators.handleContentChange(element, rangeInElement, value.replaceRange(name, segment)) ?: element
     }
 }

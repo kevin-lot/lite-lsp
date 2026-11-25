@@ -125,12 +125,12 @@ class LuaParser : PsiParser {
                 expr(); expect(T.COMMA, "','"); expr(); if (eat(T.COMMA)) expr()
                 expect(T.kw("do"), "'do'"); block(); expect(T.kw("end"), "'end'")
                 m.done(E.FOR_NUM)
-            } else {
-                while (eat(T.COMMA)) nameDecl()
-                expect(T.kw("in"), "'in'"); exprList()
-                expect(T.kw("do"), "'do'"); block(); expect(T.kw("end"), "'end'")
-                m.done(E.FOR_IN)
+                return
             }
+            while (eat(T.COMMA)) nameDecl()
+            expect(T.kw("in"), "'in'"); exprList()
+            expect(T.kw("do"), "'do'"); block(); expect(T.kw("end"), "'end'")
+            m.done(E.FOR_IN)
         }
 
         private fun localStmt() {
@@ -149,16 +149,12 @@ class LuaParser : PsiParser {
             val m = b.mark()
             val targets = b.mark()
             if (!suffixedExpr()) { targets.drop(); m.drop(); return }
-            if (at(T.ASSIGN) || at(T.COMMA)) {
-                while (eat(T.COMMA)) suffixedExpr()
-                targets.done(E.TARGETS)
-                expect(T.ASSIGN, "'='")
-                exprList()
-                m.done(E.ASSIGN_STMT)
-            } else {
-                targets.drop()
-                m.done(E.CALL_STMT)
-            }
+            if (!at(T.ASSIGN) && !at(T.COMMA)) { targets.drop(); m.done(E.CALL_STMT); return }
+            while (eat(T.COMMA)) suffixedExpr()
+            targets.done(E.TARGETS)
+            expect(T.ASSIGN, "'='")
+            exprList()
+            m.done(E.ASSIGN_STMT)
         }
 
         private fun funcName() {
@@ -184,7 +180,8 @@ class LuaParser : PsiParser {
             expect(T.LPAREN, "'('")
             if (!at(T.RPAREN)) do {
                 if (eat(T.ELLIPSIS)) break
-                if (at(T.IDENT)) nameDecl() else { b.error("Parameter expected"); break }
+                if (!at(T.IDENT)) { b.error("Parameter expected"); break }
+                nameDecl()
             } while (eat(T.COMMA))
             expect(T.RPAREN, "')'")
             p.done(E.PARAMS)
@@ -224,10 +221,9 @@ class LuaParser : PsiParser {
 
         fun expr(limit: Int = 0) {
             var m = b.mark()
-            if (at(T.kw("not")) || at(T.MINUS) || at(T.LEN) || at(T.BXOR)) {
-                b.advanceLexer(); expr(12); m.done(E.UNARY); m = m.precede()
-            } else if (!simpleExpr()) {
-                b.error("Expression expected"); m.drop(); return
+            when {
+                at(T.kw("not")) || at(T.MINUS) || at(T.LEN) || at(T.BXOR) -> { b.advanceLexer(); expr(12); m.done(E.UNARY); m = m.precede() }
+                !simpleExpr() -> { b.error("Expression expected"); m.drop(); return }
             }
             while (true) {
                 val (left, right) = binaryPriority(at) ?: break
@@ -313,6 +309,7 @@ class LuaParserDefinition : ParserDefinition {
         E.NAME_DECL -> LuaNameDecl(node)
         E.NAME_REF -> LuaNameRef(node)
         E.INDEX_EXPR -> LuaIndexExpr(node)
+        E.BRACKET_INDEX -> LuaBracketIndex(node)
         E.TABLE_FIELD -> LuaTableField(node)
         E.TABLE -> LuaTable(node)
         E.CALL_EXPR -> LuaCall(node)

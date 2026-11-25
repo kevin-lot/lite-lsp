@@ -3,10 +3,13 @@ package me.kevinlot.lite.typescript.psi
 import com.intellij.extapi.psi.ASTWrapperPsiElement
 import com.intellij.lang.ASTNode
 import com.intellij.openapi.project.Project
+import com.intellij.psi.LiteralTextEscaper
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.PsiLanguageInjectionHost
 import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.PsiReference
+import com.intellij.psi.impl.source.tree.LeafElement
 import com.intellij.psi.search.SearchScope
 import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.TokenSet
@@ -15,12 +18,13 @@ import com.intellij.util.IncorrectOperationException
 import me.kevinlot.lite.core.localUseScope
 import me.kevinlot.lite.typescript.TsFile
 import me.kevinlot.lite.typescript.TsFileType
-import me.kevinlot.lite.typescript.resolve.TsMemberKeyReference
-import me.kevinlot.lite.typescript.resolve.TsModuleReference
-import me.kevinlot.lite.typescript.resolve.TsNameReference
-import me.kevinlot.lite.typescript.resolve.TsShorthandReference
 import me.kevinlot.lite.typescript.lexer.TsTokens as T
 import me.kevinlot.lite.typescript.parser.TsElementTypes as E
+import me.kevinlot.lite.typescript.resolve.TsMemberKeyReference
+import me.kevinlot.lite.typescript.resolve.TsModuleReference
+import me.kevinlot.lite.typescript.resolve.TsModules
+import me.kevinlot.lite.typescript.resolve.TsNameReference
+import me.kevinlot.lite.typescript.resolve.TsShorthandReference
 
 open class TsElement(node: ASTNode) : ASTWrapperPsiElement(node) {
     val type: IElementType get() = node.elementType
@@ -31,13 +35,7 @@ open class TsElement(node: ASTNode) : ASTWrapperPsiElement(node) {
     val typeNode: PsiElement? get() = child(E.TYPE_ANNOTATION)?.let { a -> a.children.firstOrNull { it.node.elementType in E.TYPES } }
     /** The expression after `=` (variables, parameters, properties, enum members). */
     val initializer: PsiElement?
-        get() {
-            var seenEq = false
-            for (c in node.getChildren(null)) {
-                if (c.elementType == T.EQ) seenEq = true else if (seenEq && c.psi is TsElement) return c.psi
-            }
-            return null
-        }
+        get() = node.getChildren(null).dropWhile { it.elementType != T.EQ }.firstNotNullOfOrNull { it.psi as? TsElement }
 
     private companion object {
         val MODIFIER_TOKENS = TokenSet.orSet(TokenSet.create(T.SOFT_KEYWORD), T.KEYWORD_SET)
@@ -79,7 +77,10 @@ open class TsNamedDecl(node: ASTNode) : TsElement(node), PsiNameIdentifierOwner 
 
     private fun isTopLevelPrivate(file: TsFile): Boolean {
         if (isExported || file.isDeclarationFile) return false
-        val statement = if (type == E.VARIABLE || type == E.BINDING) PsiTreeUtil.findFirstParent(this) { it.node?.elementType == E.VAR_STATEMENT } else this
+        val statement = when {
+            type == E.VARIABLE || type == E.BINDING -> PsiTreeUtil.findFirstParent(this) { it.node?.elementType == E.VAR_STATEMENT }
+            else -> this
+        }
         if (statement?.parent != file) return false
         if ((statement as? TsElement)?.hasModifier("export") == true) return false
         return me.kevinlot.lite.typescript.resolve.TsModules.isModule(file)
@@ -88,7 +89,7 @@ open class TsNamedDecl(node: ASTNode) : TsElement(node), PsiNameIdentifierOwner 
     companion object {
         val NAME_TOKENS = TokenSet.create(T.IDENTIFIER, T.STRING, T.NUMBER, T.PRIVATE_NAME)
         val MEMBERS = TokenSet.create(E.PROPERTY, E.METHOD)
-        fun unquote(s: String) = if (s.length >= 2 && (s[0] == '"' || s[0] == '\'')) s.substring(1, s.length - 1) else s
+        fun unquote(s: String) = when { s.length >= 2 && (s[0] == '"' || s[0] == '\'') -> s.substring(1, s.length - 1); else -> s }
     }
 }
 
@@ -98,7 +99,10 @@ class TsFunction(node: ASTNode) : TsNamedDecl(node) {
     val typeParameters: List<TsNamedDecl> get() = child(E.TYPE_PARAMETER_LIST)?.children?.filterIsInstance<TsNamedDecl>().orEmpty()
     val returnType: PsiElement? get() = typeNode
     /** Block body, or the expression of a concise arrow. */
-    val body: PsiElement? get() = child(E.BLOCK) ?: if (type == E.ARROW_FUNCTION) node.getChildren(null).lastOrNull()?.psi?.takeIf { it is TsElement && it.node.elementType != E.TYPE_ANNOTATION && it.node.elementType != E.PARAMETER_LIST } else null
+    val body: PsiElement? get() = child(E.BLOCK) ?: when {
+        type == E.ARROW_FUNCTION -> node.getChildren(null).lastOrNull()?.psi?.takeIf { it is TsElement && it.node.elementType != E.TYPE_ANNOTATION && it.node.elementType != E.PARAMETER_LIST }
+        else -> null
+    }
     val isGetter: Boolean get() = hasModifier("get")
     val isConstructor: Boolean get() = type == E.METHOD && name == "constructor"
 }
@@ -116,7 +120,7 @@ class TsClass(node: ASTNode) : TsNamedDecl(node) {
 class TsReferenceExpr(node: ASTNode) : TsElement(node) {
     val nameElement: PsiElement? get() = node.getChildren(REF_NAMES).lastOrNull()?.psi
     val referencedName: String? get() = nameElement?.text
-    val qualifier: PsiElement? get() = if (hasToken(T.DOT) || hasToken(T.QUEST_DOT)) firstChild?.takeIf { it is TsElement } else null
+    val qualifier: PsiElement? get() = when { hasToken(T.DOT) || hasToken(T.QUEST_DOT) -> firstChild?.takeIf { it is TsElement }; else -> null }
     /** Navigation lands on the name (`exports.helper = …`, `this.count = …` are declarations too). */
     override fun getTextOffset(): Int = nameElement?.textOffset ?: super.getTextOffset()
 
@@ -134,6 +138,20 @@ class TsReferenceExpr(node: ASTNode) : TsElement(node) {
     private companion object {
         val REF_NAMES = TokenSet.create(T.IDENTIFIER, T.PRIVATE_NAME)
         val BUILTIN_TYPES = setOf("string", "number", "boolean", "bigint", "symbol", "object", "any", "unknown", "never", "undefined", "void")
+    }
+}
+
+/** A literal; a string without `${…}` can hold another language (an Angular template). */
+class TsStringLiteral(node: ASTNode) : TsElement(node), PsiLanguageInjectionHost {
+    override fun isValidHost(): Boolean = node.firstChildNode == node.lastChildNode && node.firstChildNode?.elementType in HOSTS
+    override fun createLiteralTextEscaper(): LiteralTextEscaper<TsStringLiteral> = LiteralTextEscaper.createSimple(this)
+    override fun updateText(text: String): PsiLanguageInjectionHost {
+        (node.firstChildNode as LeafElement).replaceWithText(text)
+        return this
+    }
+
+    private companion object {
+        val HOSTS = TokenSet.create(T.STRING, T.TEMPLATE_FULL)
     }
 }
 
@@ -160,12 +178,16 @@ class TsSpecifier(node: ASTNode) : TsNamedDecl(node) {
     val sourceName: String? get() = ref?.referencedName ?: node.findChildByType(T.STRING)?.text?.let(::unquote)
     private val alias: PsiElement?
         get() {
-            val asToken = node.getChildren(TokenSet.create(T.SOFT_KEYWORD)).firstOrNull { it.text == "as" } ?: return null
+            val asToken = node.getChildren(SOFT_KEYWORDS).firstOrNull { it.text == "as" } ?: return null
             var n = asToken.treeNext
             while (n != null && (n.elementType == T.WHITE_SPACE || n.elementType in T.COMMENTS)) n = n.treeNext
             return n?.psi
         }
     override fun getNameIdentifier(): PsiElement? = alias ?: ref?.nameElement ?: node.findChildByType(T.STRING)?.psi
+
+    private companion object {
+        val SOFT_KEYWORDS = TokenSet.create(T.SOFT_KEYWORD)
+    }
 }
 
 object TsPsiFactoryImpl {
@@ -175,6 +197,7 @@ object TsPsiFactoryImpl {
         E.REFERENCE -> TsReferenceExpr(node)
         E.SHORTHAND_PROPERTY -> TsShorthandProperty(node)
         E.PROPERTY_KEY -> TsPropertyKey(node)
+        E.LITERAL, E.TEMPLATE_EXPRESSION -> TsStringLiteral(node)
         E.MODULE_SPECIFIER -> TsModuleSpecifier(node)
         E.IMPORT_SPECIFIER, E.EXPORT_SPECIFIER -> TsSpecifier(node)
         E.VARIABLE, E.BINDING, E.PARAMETER, E.TYPE_PARAMETER, E.PROPERTY, E.PROPERTY_ASSIGNMENT, E.TYPE_ALIAS, E.ENUM_DECLARATION,

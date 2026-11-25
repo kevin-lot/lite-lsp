@@ -21,6 +21,8 @@ object MdElementTypes {
     val FILE = IFileElementType("LITE_MARKDOWN_FILE", MdLanguage)
     val HEADER = t("HEADER")
     val CODE_BLOCK = t("CODE_BLOCK")
+    val CODE_SPAN = t("CODE_SPAN_ELEMENT")
+    val HTML_TAG = t("HTML_TAG")
     val LINK = t("LINK")                     // [text](dest), ![alt](src), [text][label], [label]
     val LINK_DESTINATION = t("LINK_DESTINATION")
     val LINK_LABEL_REF = t("LINK_LABEL_REF")
@@ -30,19 +32,21 @@ object MdElementTypes {
 
 private val E = MdElementTypes
 
-/** Only what navigation and coloring need: headers, fenced code, links, link definitions, emphasis spans. */
+/** Only what navigation and coloring need: headers, fenced code, links, link definitions, code spans, HTML tags, emphasis spans. */
 class MdParser : PsiParser {
     private lateinit var b: PsiBuilder
+    private var wrapping = true
 
     override fun parse(root: IElementType, builder: PsiBuilder): ASTNode {
         b = builder
         val m = b.mark()
         while (!b.eof()) {
+            while (at(T.QUOTE_MARKER)) b.advanceLexer()
             when {
                 at(T.FENCE_START) -> codeBlock()
-                at(T.HEADER_MARKER) -> { val h = b.mark(); b.advanceLexer(); inline(); h.done(E.HEADER) }
+                at(T.HEADER_MARKER) -> header()
                 at(T.LBRACKET) && b.lookAhead(1) == T.LINK_LABEL -> definition()
-                else -> inline()
+                else -> paragraphLine()
             }
             eat(T.NEWLINE)
         }
@@ -54,12 +58,32 @@ class MdParser : PsiParser {
     private fun eat(t: IElementType): Boolean { if (!at(t)) return false; b.advanceLexer(); return true }
     private fun lineEnded() = b.eof() || at(T.NEWLINE)
 
+    private fun header() {
+        val m = b.mark()
+        b.advanceLexer()
+        wrapping = false
+        inline()
+        wrapping = true
+        m.done(E.HEADER)
+    }
+
+    /** A line of text, and the header it is when a `===` or `---` line underlines it. */
+    private fun paragraphLine() {
+        if (lineEnded()) return
+        val m = b.mark()
+        inline()
+        if (!(at(T.NEWLINE) && b.lookAhead(1) == T.SETEXT_MARKER)) return m.drop()
+        b.advanceLexer()
+        b.advanceLexer()
+        m.done(E.HEADER)
+    }
+
     private fun codeBlock() {
         val m = b.mark()
         b.advanceLexer()
         eat(T.FENCE_INFO)
         eat(T.NEWLINE)
-        while (at(T.CODE_TEXT)) b.advanceLexer()
+        while (at(T.CODE_TEXT) || at(T.QUOTE_MARKER)) b.advanceLexer()
         eat(T.FENCE_END)
         m.done(E.CODE_BLOCK)
     }
@@ -70,7 +94,7 @@ class MdParser : PsiParser {
         b.advanceLexer() // label
         eat(T.RBRACKET)
         eat(T.DEF_COLON)
-        if (at(T.LINK_DEST)) { val d = b.mark(); b.advanceLexer(); d.done(E.LINK_DESTINATION) }
+        if (at(T.LINK_DEST)) wrapped(E.LINK_DESTINATION)
         while (!lineEnded()) b.advanceLexer()
         m.done(E.LINK_DEFINITION)
     }
@@ -82,17 +106,46 @@ class MdParser : PsiParser {
                 T.STRONG -> span(T.STRONG, E.STRONG)
                 T.EMPH -> span(T.EMPH, E.EMPHASIS)
                 T.STRIKE -> span(T.STRIKE, E.STRIKE)
-                else -> b.advanceLexer()
+                else -> token()
             }
         }
+    }
+
+    /** One token, as an element of its own when it holds references. */
+    private fun token() = when (b.tokenType) {
+        T.CODE_SPAN -> wrapped(E.CODE_SPAN)
+        T.HTML -> wrapped(E.HTML_TAG)
+        else -> b.advanceLexer()
+    }
+
+    private fun wrapped(type: IElementType) {
+        val m = b.mark()
+        b.advanceLexer()
+        m.done(type)
+    }
+
+    /** A link text may wrap inside its paragraph: not over a blank line, nor into another block. */
+    private fun wraps(): Boolean {
+        if (!wrapping || !at(T.NEWLINE)) return false
+        val quoted = b.lookAhead(1) == T.QUOTE_MARKER
+        val first = when { quoted -> 2; else -> 1 }
+        val next = b.lookAhead(first) ?: return false
+        return next !in BLOCK_STARTS && !(next == T.LBRACKET && b.lookAhead(first + 1) == T.LINK_LABEL)
     }
 
     /** `**…**`, `*…*`, `~~…~~` on one line; a lone marker stays a marker. */
     private fun span(marker: IElementType, type: IElementType) {
         val m = b.mark()
         b.advanceLexer()
-        while (!lineEnded() && !at(marker)) if (at(T.LBRACKET) || at(T.IMAGE_START)) link() else b.advanceLexer()
-        if (at(marker)) { b.advanceLexer(); m.done(type) } else m.rollbackTo().also { b.advanceLexer() }
+        while (!lineEnded() && !at(marker)) {
+            when (b.tokenType) {
+                T.LBRACKET, T.IMAGE_START -> link()
+                else -> token()
+            }
+        }
+        if (!at(marker)) { m.rollbackTo(); b.advanceLexer(); return }
+        b.advanceLexer()
+        m.done(type)
     }
 
     private fun link() {
@@ -101,10 +154,11 @@ class MdParser : PsiParser {
         b.advanceLexer()
         val text = b.mark()
         var depth = 1
-        while (!lineEnded()) {
-            if (at(T.LBRACKET) || at(T.IMAGE_START)) depth++
+        while (!lineEnded() || wraps()) {
+            if (at(T.IMAGE_START)) { link(); continue }
+            if (at(T.LBRACKET)) depth++
             if (at(T.RBRACKET) && --depth == 0) break
-            b.advanceLexer()
+            token()
         }
         if (!at(T.RBRACKET)) { text.drop(); m.rollbackTo(); b.advanceLexer(); return }
         val textEnd = b.mark()
@@ -113,7 +167,7 @@ class MdParser : PsiParser {
             at(T.LPAREN) -> {
                 textEnd.drop(); text.drop()
                 b.advanceLexer()
-                if (at(T.LINK_DEST)) { val d = b.mark(); b.advanceLexer(); d.done(E.LINK_DESTINATION) }
+                if (at(T.LINK_DEST)) wrapped(E.LINK_DESTINATION)
                 while (!lineEnded() && !at(T.RPAREN)) b.advanceLexer()
                 eat(T.RPAREN)
                 m.done(E.LINK)
@@ -136,6 +190,10 @@ class MdParser : PsiParser {
             }
             else -> { textEnd.drop(); text.drop(); m.done(E.LINK) }
         }
+    }
+
+    private companion object {
+        val BLOCK_STARTS = TokenSet.create(T.NEWLINE, T.HEADER_MARKER, T.SETEXT_MARKER, T.FENCE_START, T.LIST_MARKER, T.HR)
     }
 }
 

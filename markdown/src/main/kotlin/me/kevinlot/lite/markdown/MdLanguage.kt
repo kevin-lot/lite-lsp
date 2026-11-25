@@ -38,6 +38,7 @@ object MdTokens {
     val NEWLINE = t("NEWLINE")
     val WHITE_SPACE: IElementType = TokenType.WHITE_SPACE
     val HEADER_MARKER = t("HEADER_MARKER")
+    val SETEXT_MARKER = t("SETEXT_MARKER")    // the `===` or `---` line under a title
     val QUOTE_MARKER = t("QUOTE_MARKER")
     val LIST_MARKER = t("LIST_MARKER")
     val CHECKBOX = t("CHECKBOX")

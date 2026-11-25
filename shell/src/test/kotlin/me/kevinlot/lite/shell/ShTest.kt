@@ -73,6 +73,21 @@ class ShTest : BasePlatformTestCase() {
         echo done fi then
     """)
 
+    /** The editor re-lexes from the nearest token whose state is 0: the tokens must come out the same. */
+    fun `test a line continuation ends a keyword`() = parses("if [ -z \"\$x\" ]; then\\\n\techo empty;\\\nfi\nfor f in a b; do\\\n  echo \$f;\\\ndone\n")
+
+    fun `test lexing restarts at any state 0 token`() {
+        val text = "cat <<EOF >out\nhello \$who\nEOF\necho \"a \$b\" \$(( c + 1 )) <<-'X'\n\tbody\n\tX\n"
+        fun tokens(from: Int): List<Triple<String, Int, Int>> {
+            val lexer = ShLexer()
+            lexer.start(text, from, text.length, 0)
+            return generateSequence { lexer.tokenType?.let { type -> Triple(type.toString(), lexer.tokenStart, lexer.state).also { lexer.advance() } } }.toList()
+        }
+        val all = tokens(0)
+        assertTrue(all.any { it.first == "HEREDOC_TEXT" })
+        all.forEachIndexed { i, (_, start, state) -> if (state == 0) assertEquals("restart at $start", all.drop(i), tokens(start)) }
+    }
+
     // ---------------------------------------------------------------- functions
 
     fun `test function call`() = one("<def>greet() { echo hi; }\n<ref>greet")
@@ -94,12 +109,29 @@ class ShTest : BasePlatformTestCase() {
     fun `test heredoc variable`() = one("<def>who=me\ncat <<EOF\nhello \$<ref>who\nEOF")
     fun `test reassignment points to the first assignment`() = one("<def>COUNT=0\nfor f in *; do <ref>COUNT=1; done")
     fun `test environment variable is unresolved`() = one("echo \$<ref>HOME")
+    fun `test arithmetic for declares its counter`() = one("for ((<def>i=0; i<3; i++)); do echo \"\$<ref>i\"; done")
+    fun `test arithmetic assignment`() = one("a=1\n(( <def>total = a + 2 ))\necho \$<ref>total")
+    fun `test arithmetic compound assignment`() = one("(( <def>sum <<= 2 ))\n(( sum += 1 ))\necho \$<ref>sum")
+    fun `test arithmetic comparison declares nothing`() = one("(( n == 1 || n <= 2 || n != 3 ))\necho \$<ref>n")
+    fun `test arithmetic assignment to a local`() = one("i=0\nf() {\n  local <def>i\n  (( <ref>i = 1 ))\n}")
+    fun `test let`() = one("let <def>i=1+1\necho \$<ref>i")
+    fun `test mapfile`() = one("mapfile -t <def>lines < f\necho \"\${<ref>lines[0]}\"")
+    fun `test readarray skips option values`() = one("readarray -n 2 -t <def>rows < f\necho \"\${<ref>rows[@]}\"")
+    fun `test printf -v`() = one("printf -v <def>stamp '%s' now\necho \$<ref>stamp")
+    fun `test printf arguments declare nothing`() = one("printf '%s' now\necho \$<ref>now")
+    fun `test default assignment`() = one(": \"\${<def>LEVEL:=info}\" \"\${OTHER:-x}\"\necho \$<ref>LEVEL")
+    fun `test default assignment after an assignment`() = one("<def>LEVEL=debug\n: \"\${<ref>LEVEL=info}\"")
+    fun `test default value declares nothing`() = one(": \"\${LEVEL:-info}\"\necho \$<ref>LEVEL")
+    fun `test old arithmetic`() = one("<def>x=1\narr=(1 2)\necho \$[ <ref>x + arr[1] ] \"\$[x * (2 + 1)]\" done")
 
     // ---------------------------------------------------------------- source
 
     fun `test sourced function`() = check("lib.sh" to "<def>helper() { :; }", "main.sh" to "source ./lib.sh\n<ref>helper")
     fun `test dot source relative to script`() = check(
         "lib/common.sh" to "<def>LOG_LEVEL=info", "main.sh" to ". \"$(dirname \"$0\")/lib/common.sh\"\necho \$<ref>LOG_LEVEL",
+    )
+    fun `test scripts sourcing each other`() = check(
+        "lib.sh" to "source ./main.sh\n<def>helper() { :; }", "main.sh" to "source ./lib.sh\nsource ./lib.sh\n<ref>helper\nmissing",
     )
     fun `test source path navigates`() = check("lib.sh" to "<def>x=1", "main.sh" to "source <ref>lib.sh")
 
@@ -115,6 +147,12 @@ class ShTest : BasePlatformTestCase() {
         myFixture.configureByText("a.sh", "CO<caret>UNT=1\necho \$COUNT \"\${COUNT}\" $(( COUNT + 1 ))\nCOUNT=2\n")
         myFixture.renameElementAtCaret("TOTAL")
         myFixture.checkResult("TOTAL=1\necho \$TOTAL \"\${TOTAL}\" $(( TOTAL + 1 ))\nTOTAL=2\n")
+    }
+
+    fun `test rename variable declared in arithmetic or by default`() {
+        myFixture.configureByText("a.sh", "for ((i=0; i<3; i++)); do echo \$<caret>i; done\n: \"\${i:=1}\"\n")
+        myFixture.renameElementAtCaret("idx")
+        myFixture.checkResult("for ((idx=0; idx<3; idx++)); do echo \$idx; done\n: \"\${idx:=1}\"\n")
     }
 
     fun `test find usages honours scope`() {
@@ -149,5 +187,10 @@ class ShTest : BasePlatformTestCase() {
         }
         println("shell corpus: ${files.size - broken.size}/${files.size} files without errors\n" + broken.take(30).joinToString("\n"))
         assertTrue(broken.size * 100 <= files.size * 2)
+    }
+
+    fun `test a script without extension is recognised by its shebang, fish is not shell`() {
+        assertTrue(myFixture.configureByText("deploy", "#!/usr/bin/env bash\necho hi\n") is ShFile)
+        assertFalse(myFixture.configureByText("greet", "#!/usr/bin/env fish\necho hi\n") is ShFile)
     }
 }

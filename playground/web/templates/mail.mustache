@@ -1,0 +1,7 @@
+{{! Ctrl+Click: `signature` → signature.mustache. }}
+Hello {{name}},
+{{#orders}}
+  - {{label}}: {{{price}}}
+{{/orders}}
+{{^orders}}No order yet.{{/orders}}
+{{> signature}}

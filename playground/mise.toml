@@ -1,0 +1,15 @@
+# mise tasks: the `run` of each task is read as shell
+[tools]
+node = "22"
+
+[tasks.check]
+description = "Syntax checks of the playground"
+run = """
+set -euo pipefail
+for script in scripts/*.sh; do
+  bash -n "$script"
+done
+"""
+
+[tasks.greet]
+run = "echo hello {{arg(name=\"who\", default=\"world\")}}"

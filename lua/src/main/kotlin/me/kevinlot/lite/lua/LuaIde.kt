@@ -5,6 +5,7 @@ import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.refactoring.RefactoringSupportProvider
 import com.intellij.lexer.Lexer
+import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.colors.TextAttributesKey.createTextAttributesKey
 import com.intellij.openapi.fileTypes.SyntaxHighlighter
@@ -20,7 +21,6 @@ import me.kevinlot.lite.core.LiteBraceMatcher
 import me.kevinlot.lite.core.LiteFindUsagesProvider
 import me.kevinlot.lite.core.LiteNamesValidator
 import me.kevinlot.lite.core.color
-import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import me.kevinlot.lite.lua.LuaElementTypes as E
 import me.kevinlot.lite.lua.LuaTokens as T
 
@@ -101,9 +101,11 @@ class LuaCommenter : Commenter {
 }
 
 class LuaFindUsagesProvider : LiteFindUsagesProvider(::LuaLexer, TokenSet.create(T.IDENT), T.COMMENTS, T.STRINGS) {
-    override fun isDeclaration(element: PsiElement) = element is LuaNameDecl || element is LuaTableField ||
-        (element is LuaNameRef && element.isGlobalDefinition) || (element is LuaIndexExpr && element.isDefinitionSite)
+    override fun isDeclaration(element: PsiElement) = element is LuaNameDecl || element is LuaTableField || element is LuaDocDeclaration ||
+        (element is LuaNameRef && element.isGlobalDefinition) || (element is LuaFieldAccess && element.isDefinitionSite)
     override fun kindOf(element: PsiElement) = when {
+        element is LuaDocDeclaration && element.tag == LuaTag.CLASS -> "class"
+        element is LuaFieldAccess && element.isGlobalDefinition -> "global"
         element is LuaNameDecl && element.isParameter -> "parameter"
         element is LuaNameDecl && element.isLabel -> "label"
         element is LuaNameDecl && element.isLocalFunction -> "local function"

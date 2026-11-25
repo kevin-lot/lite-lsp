@@ -18,6 +18,9 @@ import com.intellij.psi.tree.IElementType
 import me.kevinlot.lite.rust.parser.RsLexer
 import me.kevinlot.lite.rust.parser.RustParserDefinition
 import me.kevinlot.lite.rust.psi.*
+import me.kevinlot.lite.rust.psi.RS_DOC_COMMENTS
+import me.kevinlot.lite.rust.psi.RS_KEYWORDS
+import me.kevinlot.lite.rust.psi.RS_OPERATORS
 import me.kevinlot.lite.rust.psi.RsElementTypes.*
 
 /** Color keys, mapped onto the theme's defaults so every color scheme works out of the box. */
@@ -122,14 +125,20 @@ class RsHighlightingAnnotator : Annotator {
     private fun pathColor(path: RsPath): Pair<PsiElement?, TextAttributesKey> {
         val id = path.identifier ?: return null to RsColors.TYPE
         val parent = path.parent
+        val name = id.text
+        val capitalized = name.first().isUpperCase()
         return when {
             parent is RsPathType -> id to RsColors.TYPE
-            parent is RsPathExpr && parent.parent is RsCallExpr && (parent.parent as RsCallExpr).expr == parent ->
-                id to if (id.text.first().isUpperCase()) RsColors.TYPE else RsColors.FUNCTION_CALL
-            parent is RsPath -> if (id.text.first().isUpperCase()) id to RsColors.TYPE else null to RsColors.TYPE
-            else -> if (id.text.length > 1 && id.text.all { it.isUpperCase() || it == '_' || it.isDigit() })
-                id to RsColors.CONSTANT else null to RsColors.TYPE
+            parent is RsPathExpr && (parent.parent as? RsCallExpr)?.expr == parent ->
+                id to calleeColor(capitalized)
+            parent is RsPath -> id.takeIf { capitalized } to RsColors.TYPE
+            else -> id.takeIf { name.length > 1 && name.all { it.isUpperCase() || it == '_' || it.isDigit() } } to RsColors.CONSTANT
         }
+    }
+
+    private fun calleeColor(capitalized: Boolean): TextAttributesKey {
+        if (capitalized) return RsColors.TYPE
+        return RsColors.FUNCTION_CALL
     }
 }
 

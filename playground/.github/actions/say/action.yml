@@ -1,0 +1,11 @@
+name: say
+inputs:
+  text:
+    required: true
+runs:
+  using: composite
+  steps:
+    - env:
+        TEXT: ${{ inputs.text }}
+      run: echo "$TEXT"
+      shell: bash

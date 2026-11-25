@@ -1,0 +1,19 @@
+<# Ctrl+Click: `runner`, `deploy_with`, `envname`, `line`, and the included file. Custom delimiters, as in a workflow generator. #>
+<% set runner = config.get('runner', 'l') %>
+<% macro deploy_with(envname) %>
+<% set lines = ['environment: ' ~ envname, 'version: ${{ needs.setup.outputs.version }}'] %>
+<% for line in lines|sort %>
+      << line >>
+<% endfor %>
+<% endmacro %>
+name: Release
+on:
+  push:
+    branches: [master]
+jobs:
+  deploy:
+    runs-on: << runner >>
+    if: ${{ github.ref == 'refs/heads/master' }}
+    with:
+<< deploy_with('prod') >>
+<% include "parts/_notify.yml.j2" %>

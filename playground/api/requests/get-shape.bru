@@ -1,0 +1,23 @@
+meta {
+  name: get shape
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{host}}/shapes/{{shape}}?page={{page}}
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  X-Request-Id: {{requestId}}
+}
+
+vars:pre-request {
+  page: 1
+}
+
+script:pre-request {
+  bru.setVar("requestId", Date.now());
+}

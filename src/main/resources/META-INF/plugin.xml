@@ -20,13 +20,18 @@
 <table>
   <tr><th>Language</th><th>Highlighting</th><th>Ctrl+Click</th><th>Rename / Usages</th><th>Replaces</th></tr>
   <tr><td>Rust</td><td>yes</td><td>yes, with types (std, Cargo crates)</td><td>yes</td><td>Rust (RustRover plugin)</td></tr>
-  <tr><td>Kotlin</td><td>yes</td><td>yes, with types (JDK, Gradle-cache jars)</td><td>yes</td><td>Kotlin</td></tr>
+  <tr><td>Kotlin</td><td>yes</td><td>yes, with types (JDK, Gradle-cache jars); Go to Implementation, override → overridden member</td><td>yes</td><td>Kotlin</td></tr>
   <tr><td>Python</td><td>yes</td><td>yes, with annotation types (venv, stdlib)</td><td>yes</td><td>Python / Python Community</td></tr>
   <tr><td>TypeScript, JavaScript, JSX/TSX</td><td>yes</td><td>yes, with types (node_modules, @types, lib.d.ts, tsconfig paths)</td><td>yes</td><td>JavaScript and TypeScript</td></tr>
+  <tr><td>Angular templates (*.component.html, inline template:)</td><td>yes</td><td>yes: component members with types, template variables, pipes</td><td>yes</td><td>Angular and AngularJS</td></tr>
   <tr><td>QML</td><td>yes</td><td>yes (ids, properties, types, Qt .qmltypes, qs.* of Quickshell)</td><td>yes</td><td>QML</td></tr>
   <tr><td>Shell (sh, bash, zsh)</td><td>yes</td><td>functions, variables, sourced scripts</td><td>yes</td><td>Shell Script</td></tr>
-  <tr><td>Markdown</td><td>yes (code blocks in their Lite language)</td><td>links, #anchors, [references]; preview beside the editor (Swing, no embedded browser)</td><td>headers, linked files</td><td>Markdown</td></tr>
-  <tr><td>Lua</td><td>yes</td><td>scopes, globals, require &rarr; file, table fields (modules, self, setmetatable)</td><td>yes</td><td>EmmyLua, Luanalysis (third-party)</td></tr>
+  <tr><td>fish</td><td>yes</td><td>functions (autoloaded files included), variables with function-local scope, sourced files</td><td>yes</td><td>&ndash;</td></tr>
+  <tr><td>Rego (Open Policy Agent)</td><td>yes</td><td>rule variables, rules and functions of the package (any file), imports, data.a.b.rule, package segments</td><td>yes</td><td>Open Policy Agent</td></tr>
+  <tr><td>Markdown</td><td>yes (code blocks in their Lite language)</td><td>links, #anchors, file#L10, [references], code spans naming a file; preview beside the editor (Swing, no embedded browser), Mermaid blocks drawn in it</td><td>headers, linked files</td><td>Markdown</td></tr>
+  <tr><td>Scala (.scala, .sc, .sbt)</td><td>yes</td><td>scopes, patterns, for comprehensions, names in strings, classes / objects and imports, members of written types (project sources; no library or DSL)</td><td>yes</td><td>Scala</td></tr>
+  <tr><td>Groovy (.groovy, .gradle, Jenkinsfile)</td><td>yes</td><td>scopes, closures, names in strings, classes and imports, members of declared types, Jenkins vars/ steps, load / apply from: &rarr; file</td><td>yes</td><td>Groovy</td></tr>
+  <tr><td>Lua</td><td>yes</td><td>scopes, globals, require &rarr; file, table fields (modules, self, setmetatable), ---@class / ---@field / ---@param annotations</td><td>yes</td><td>EmmyLua, Luanalysis (third-party)</td></tr>
   <tr><td>Protocol Buffers</td><td>yes (protoeditor grammar)</td><td>package-qualified and nested types, options, imports, well-known types</td><td>yes</td><td>Protocol Buffers</td></tr>
 </table>
 
@@ -35,22 +40,40 @@
   <tr><th>Format</th><th>Ctrl+Click / Rename / Usages</th><th>Replaces</th></tr>
   <tr><td>TOML</td><td>&ndash;</td><td>Toml</td></tr>
   <tr><td>YAML</td><td>*alias &rarr; &amp;anchor, $ref</td><td>YAML</td></tr>
+  <tr><td>Serverless Framework and CloudFormation (YAML)</td><td>${self:a.b.c} &rarr; the key of each level, through ${file(&hellip;)} values; ${file(x):a.b}, ${param:x}; !Ref, !GetAtt, !Sub, DependsOn, Condition, !If, !FindInMap &rarr; resource, parameter, condition, mapping, across the files a service includes</td><td>Serverless Framework, AWS CloudFormation</td></tr>
+  <tr><td>GitHub Actions workflows and actions (YAML)</td><td>in ${{ &hellip; }} and if: &mdash; needs / jobs / steps / inputs / env / matrix / secrets &rarr; job, step id, output, input, env key; needs: &rarr; job; local uses: &rarr; file, its with: / secrets: keys &rarr; the inputs it declares; run: scripts read as Shell</td><td>GitHub Actions Manager (third-party)</td></tr>
+  <tr><td>JFlex (.flex, .jflex)</td><td>{MACRO} &rarr; its definition; states in &lt;A, B&gt;, yybegin(A) and Java code &rarr; %state</td><td>Grammar-Kit (JFlex part)</td></tr>
+  <tr><td>Jinja2 (.j2, .jinja, .jinja2)</td><td>variables (set, for, macro parameters), macros, imported macros, include/import/extends &rarr; file; default or &lt;% %&gt; / &lt;&lt; &gt;&gt; delimiters; surrounding text colored as the generated format</td><td>&ndash;</td></tr>
+  <tr><td>Mermaid (.mermaid, .mmd, Markdown blocks)</td><td>identifiers of flowchart, sequence, state, class and ER diagrams &rarr; first appearance; :::name &rarr; classDef; drawn in the Markdown preview only</td><td>Mermaid</td></tr>
+  <tr><td>Mustache (.mustache)</td><td>{{&gt; partial}} &rarr; partial file</td><td>Handlebars/Mustache</td></tr>
   <tr><td>OpenAPI v1 (Swagger 1.2), v2, v3 &mdash; YAML and JSON</td><td>$ref &rarr; key / file (JSON pointers, other files, mapping), Swagger 1.2 models; rename follows</td><td>OpenAPI Specifications</td></tr>
   <tr><td>KDL</td><td>&ndash;</td><td>KDL Document Language</td></tr>
-  <tr><td>INI, .properties, .editorconfig, .gitconfig, systemd units</td><td>&ndash;</td><td>Ini, Properties</td></tr>
+  <tr><td>INI, .editorconfig, .gitconfig, systemd units</td><td>&ndash;</td><td>Ini</td></tr>
+  <tr><td>.properties</td><td>${key} &rarr; key= (the file and the .properties files beside it)</td><td>Properties</td></tr>
   <tr><td>.env</td><td>${VAR} &rarr; VAR=</td><td>.env files support</td></tr>
   <tr><td>JSON5</td><td>&ndash;</td><td>&ndash;</td></tr>
-  <tr><td>HOCON</td><td>${a.b} &rarr; key, include &rarr; file</td><td>HOCON</td></tr>
+  <tr><td>HOCON (.hocon, .conf)</td><td>each segment of ${a.b.c} &rarr; its key, across the project; include &rarr; file</td><td>HOCON</td></tr>
   <tr><td>Dockerfile</td><td>$VAR &rarr; ARG/ENV, --from &rarr; stage</td><td>Docker (language part)</td></tr>
   <tr><td>SQL</td><td>&ndash;</td><td>Database Tools and SQL (language part)</td></tr>
-  <tr><td>CSS, SCSS, Sass</td><td>var(--x), $x, mixins, @use/@import/url() &rarr; file</td><td>CSS, Sass</td></tr>
+  <tr><td>CSS</td><td>var(--x), @import/url() &rarr; file</td><td>CSS</td></tr>
+  <tr><td>Sass (indented syntax)</td><td>var(--x), $x, +mixin, @use/@import/url() &rarr; file</td><td>Sass</td></tr>
+  <tr><td>SCSS</td><td>var(--x), $x, @include, @use/@import/url() &rarr; file</td><td>Sass</td></tr>
   <tr><td>Makefile</td><td>$(VAR), $(call f), ifdef, prerequisites (rules, source files), .PHONY, include (both ways)</td><td>Makefile Language</td></tr>
   <tr><td>just</td><td>recipes, dependencies, alias, {{variables}}, parameters, import, mod</td><td>Just (third-party)</td></tr>
-  <tr><td>HCL: Terraform, Terragrunt</td><td>var., local., module., data., resources, dependency., .tfvars, source paths</td><td>Terraform and HCL</td></tr>
-  <tr><td>CSV, TSV</td><td>&ndash; (a color per column)</td><td>&ndash;</td></tr>
+  <tr><td>Bruno (.bru)</td><td>{{variable}} &rarr; vars block, vars:secret, bru.setVar of the request, its folders and the collection environments</td><td>&ndash;</td></tr>
+  <tr><td>CODEOWNERS</td><td>literal patterns &rarr; file or folder</td><td>&ndash;</td></tr>
+  <tr><td>D2 (.d2), C4 models written in D2</td><td>shapes (each level of a.b.c), class: x &rarr; classes block, ${x} &rarr; vars, ...@file imports; no rendered preview</td><td>&ndash;</td></tr>
+  <tr><td>Gherkin (.feature)</td><td>step &rarr; its definition (Cucumber for Rust, JVM, JavaScript, Go, .NET; behave, pytest-bdd); &lt;placeholder&gt; &rarr; Examples column</td><td>Gherkin, Cucumber plugins</td></tr>
+  <tr><td>Handlebars (.hbs, .handlebars)</td><td>{{&gt; partial}} &rarr; inline partial or partial file, block parameters (as |x i|)</td><td>Handlebars/Mustache</td></tr>
+  <tr><td>HCL: Terraform, Terragrunt</td><td>var., local., module., data., resources, dependency., include.; module outputs and arguments, Terragrunt inputs, dependency outputs and included locals across modules; .tfvars; source paths, find_in_parent_folders, modules downloaded by terraform init</td><td>Terraform and HCL</td></tr>
+  <tr><td>CSV, TSV</td><td>&ndash; (a color per column; table preview beside the editor)</td><td>&ndash;</td></tr>
   <tr><td>.gitignore, .dockerignore, .gitattributes&hellip;</td><td>literal patterns &rarr; file or folder</td><td>.ignore</td></tr>
   <tr><td>HTML &lt;script&gt; / &lt;style&gt;, style= / on…=</td><td>as Lite JavaScript / CSS</td><td>JavaScript and CSS inside HTML (HTML itself stays with XML and HTML)</td></tr>
 </table>
+<p>Rainbow brackets: (), [] and {} are colored by nesting depth in every language and format above (replaces Rainbow Brackets for these files).</p>
+<p>Shell scripts inside other files are read as Shell: run: of workflows, RUN of Dockerfiles, recipes of Makefiles and justfiles, mise tasks, scripts of package.json (yarn build → its script).</p>
+<p>Cron expressions inside YAML and HCL, parsed as a language: one color per field and syntax errors, for the five-field form and for AWS cron(…) / rate(…).</p>
+<p>Terminal (macOS): Cmd+Left / Cmd+Right move by word (ESC b / ESC f) instead of sending Ctrl+A / Ctrl+E.</p>
 <p>With Lite, TextMate Bundles is not needed for these. Disable the plugins Lite replaces: Lite takes their file types.</p>
 
 <p>Rust grammar derived from intellij-rust (MIT); Kotlin lexer/parser derived from the Kotlin compiler (Apache 2.0);
@@ -62,6 +85,7 @@ and Google's well-known types (BSD-3). Everything else written for Lite.</p>
     <!-- Kotlin -> Java navigation (JDK, Java sources). Java is an essential plugin of IntelliJ IDEA. -->
     <depends>com.intellij.java</depends>
 
+    <xi:include href="/META-INF/lite-core.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <!-- One fragment per language module (see rust/, kotlin/). -->
     <xi:include href="/META-INF/lite-rust.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-kotlin.xml" xpointer="xpointer(/idea-plugin/*)"/>
@@ -70,10 +94,15 @@ and Google's well-known types (BSD-3). Everything else written for Lite.</p>
     <xi:include href="/META-INF/lite-qml.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-shell.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-lua.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-groovy.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-scala.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-markdown.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-formats.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <xi:include href="/META-INF/lite-protobuf.xml" xpointer="xpointer(/idea-plugin/*)"/>
     <!-- `<script>`/`<style>` of HTML: only with the XML and HTML plugin (always there in IntelliJ IDEA). -->
+    <depends optional="true" config-file="lite-angular.xml">com.intellij.xml</depends>
     <depends optional="true" config-file="lite-html.xml">com.intellij.xml</depends>
     <depends optional="true" config-file="lite-json.xml">com.intellij.modules.json</depends>
+    <!-- Cmd+arrows by word in the IDE's terminal: only with the Terminal plugin. -->
+    <depends optional="true" config-file="lite-terminal.xml">org.jetbrains.plugins.terminal</depends>
 </idea-plugin>

@@ -1,21 +1,33 @@
 package me.kevinlot.lite.python.resolve
 
+import com.intellij.openapi.roots.ProjectRootModificationTracker
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiDirectory
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
+import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiTreeUtil
 import me.kevinlot.lite.core.LibraryOracle
 import me.kevinlot.lite.core.LiteCache
 import me.kevinlot.lite.core.LiteReference
 import me.kevinlot.lite.core.RecursionGuard
 import me.kevinlot.lite.python.parser.PyFile
-import me.kevinlot.lite.python.psi.*
+import me.kevinlot.lite.python.psi.PyClass
+import me.kevinlot.lite.python.psi.PyElement
+import me.kevinlot.lite.python.psi.PyFunction
+import me.kevinlot.lite.python.psi.PyImportElement
+import me.kevinlot.lite.python.psi.PyNamedDecl
+import me.kevinlot.lite.python.psi.PyPsiFactory
+import me.kevinlot.lite.python.psi.PyReferenceExpr
+import me.kevinlot.lite.python.psi.PyTarget
 import me.kevinlot.lite.python.upstream.PyElementTypes as E
 import me.kevinlot.lite.python.upstream.PyTokenTypes as T
 
@@ -42,7 +54,7 @@ sealed class PyTy {
 
 /** Names bound in a scope (module, class body, function), not descending into nested scopes. */
 object PyScopes {
-    private val NESTED = com.intellij.psi.tree.TokenSet.create(E.LAMBDA_EXPRESSION, E.LIST_COMP_EXPRESSION, E.SET_COMP_EXPRESSION, E.DICT_COMP_EXPRESSION, E.GENERATOR_EXPRESSION)
+    private val NESTED = TokenSet.create(E.LAMBDA_EXPRESSION, E.LIST_COMP_EXPRESSION, E.SET_COMP_EXPRESSION, E.DICT_COMP_EXPRESSION, E.GENERATOR_EXPRESSION)
     private val KEY = Key.create<CachedValue<List<PsiElement>>>("lite.py.bindings")
 
     fun bindings(scope: PsiElement): List<PsiElement> = LiteCache.cached(scope, KEY, PyLibraryOracle) {
@@ -68,13 +80,34 @@ object PyScopes {
         body?.let { walk(it) }
         out
     }
+
+    fun named(scope: PsiElement, name: String): List<PsiElement> = index(scope).byName[name].orEmpty()
+
+    fun starImports(scope: PsiElement): List<PsiElement> = index(scope).stars
+
+    private class Index(val byName: Map<String, List<PsiElement>>, val stars: List<PsiElement>)
+
+    private val INDEX = Key.create<CachedValue<Index>>("lite.py.bindingIndex")
+
+    private fun index(scope: PsiElement): Index = LiteCache.cached(scope, INDEX, PyLibraryOracle) {
+        val all = bindings(scope)
+        val byName = HashMap<String, MutableList<PsiElement>>()
+        all.forEach { b -> (b as? PyNamedDecl)?.name?.let { byName.getOrPut(it) { ArrayList() } += b } }
+        Index(byName, all.filter { it.node.elementType == E.STAR_IMPORT_ELEMENT })
+    }
 }
+
+/** A `(module, name)` lookup in progress: cyclic imports meet their own entry and stop there. */
+private typealias Visiting = MutableSet<Pair<PsiElement, String>>
 
 object PyResolver {
     private val GUARD = RecursionGuard(48)
     private val SPACES = Regex("\\s")
     private val RESOLVE = Key.create<CachedValue<List<PsiElement>>>("lite.py.resolve")
     private val TYPE = Key.create<CachedValue<PyTy>>("lite.py.type")
+    private val IMPORT_ROOTS = Key.create<CachedValue<List<VirtualFile>>>("lite.py.importRoots")
+    private val SELF_ATTRIBUTES = Key.create<CachedValue<Map<String, PyTarget>>>("lite.py.selfAttributes")
+    private val IMPORT_STATEMENTS = TokenSet.create(E.IMPORT_STATEMENT, E.FROM_IMPORT_STATEMENT)
     private val TYPING_ONE = setOf("Optional", "Final", "ClassVar", "Annotated", "Type", "type")
     private val TYPING_COLL = setOf("list", "List", "set", "Set", "frozenset", "Sequence", "Iterable", "Iterator", "Collection", "tuple", "Tuple", "MutableSequence", "Generator", "deque")
 
@@ -84,34 +117,29 @@ object PyResolver {
     private fun doResolve(ref: PyReferenceExpr): List<PsiElement> {
         val name = ref.referencedName ?: return emptyList()
         importPath(ref)?.let { return it }
-        val q = ref.qualifier
-        return if (q != null) members(q, name) else lexical(name, ref).flatMap { follow(it) }
+        val q = ref.qualifier ?: return lexical(name, ref).flatMap { follow(it) }
+        return members(q, name)
     }
 
     // ---------------------------------------------------------------- imports
 
     /** `import a.b`, `from a.b import c`, `from . import x`: resolved as module paths, never lexically. */
     private fun importPath(ref: PyReferenceExpr): List<PsiElement>? {
-        val stmt = PsiTreeUtil.getParentOfType(ref, PyElement::class.java)?.let {
-            PsiTreeUtil.findFirstParent(ref) { e -> e.node?.elementType == E.IMPORT_STATEMENT || e.node?.elementType == E.FROM_IMPORT_STATEMENT }
-        } ?: return null
+        val stmt = PsiTreeUtil.findFirstParent(ref) { it.node?.elementType in IMPORT_STATEMENTS } ?: return null
         val path = ref.text.replace(SPACES, "")
-        val element = PsiTreeUtil.getParentOfType(ref, PyImportElement::class.java)
-        if (stmt.node.elementType == E.FROM_IMPORT_STATEMENT && element != null) {
-            // `from m import name`: name is an attribute of m (or a submodule)
-            val module = fromModule(stmt, ref) ?: return emptyList()
-            return moduleMember(module, path, ref)
-        }
-        val base = if (stmt.node.elementType == E.FROM_IMPORT_STATEMENT) relativeBase(stmt, ref) else null
-        return listOfNotNull(findModule(ref, path, base))
+        if (stmt.node.elementType == E.IMPORT_STATEMENT) return listOfNotNull(findModule(ref, path))
+        PsiTreeUtil.getParentOfType(ref, PyImportElement::class.java) ?: return listOfNotNull(findModule(ref, path, relativeBase(stmt, ref)))
+        // `from m import name`: name is an attribute of m (or a submodule)
+        val module = fromModule(stmt, ref) ?: return emptyList()
+        return moduleMember(module, path, ref)
     }
 
     /** Module of a `from ... import` statement. */
     private fun fromModule(stmt: PsiElement, place: PsiElement): PsiElement? {
         val modRef = stmt.children.firstOrNull { it is PyReferenceExpr } as? PyReferenceExpr
         val base = relativeBase(stmt, place)
-        return if (modRef == null) base?.let { PsiManager.getInstance(place.project).findDirectory(it) }
-        else findModule(place, modRef.text.replace(SPACES, ""), base)
+        modRef ?: return base?.let { PsiManager.getInstance(place.project).findDirectory(it) }
+        return findModule(place, modRef.text.replace(SPACES, ""), base)
     }
 
     /** `from ..pkg import x`: the directory the dots point to (null for absolute imports). */
@@ -131,9 +159,8 @@ object PyResolver {
 
     /** `a.b.c` -> `a/b/c.py`, `a/b/c/__init__.py` or the namespace package directory, in the import roots. */
     fun findModule(place: PsiElement, dotted: String, base: VirtualFile? = null): PsiElement? {
-        val vf = place.containingFile.originalFile.virtualFile
         val rel = dotted.replace('.', '/')
-        val candidates = if (base != null) listOf(base) else PyEnvironments.getInstance(place.project).rootsFor(vf).mapNotNull { dirOf(it, vf) }
+        val candidates = base?.let { listOf(it) } ?: importRoots(place.containingFile.originalFile)
         val pm = PsiManager.getInstance(place.project)
         for (root in candidates) {
             val file = root.findFileByRelativePath("$rel.py") ?: root.findFileByRelativePath("$rel/__init__.py")
@@ -143,13 +170,33 @@ object PyResolver {
         return null
     }
 
+    /** Import root directories of [file]: they only move with the directory layout, the content roots or the environment. */
+    private fun importRoots(file: PsiFile): List<VirtualFile> = CachedValuesManager.getCachedValue(file, IMPORT_ROOTS) {
+        val vf = file.virtualFile
+        val envs = PyEnvironments.getInstance(file.project)
+        CachedValueProvider.Result.create(
+            envs.rootsFor(vf).mapNotNull { dirOf(it, vf) },
+            VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS, ProjectRootModificationTracker.getInstance(file.project), envs.modificationTracker,
+        )
+    }
+
     private fun dirOf(path: String, hint: VirtualFile?): VirtualFile? =
         hint?.fileSystem?.findFileByPath(path) ?: LocalFileSystem.getInstance().findFileByPath(path)
 
     /** What a module (file or package directory) exposes as [name]: bindings, then submodules. */
-    private fun moduleMember(module: PsiElement, name: String, place: PsiElement): List<PsiElement> {
+    private fun moduleMember(module: PsiElement, name: String, place: PsiElement, visiting: Visiting = HashSet()): List<PsiElement> {
+        val entry = module to name
+        if (!visiting.add(entry)) return emptyList()
+        try {
+            return exposed(module, name, place, visiting)
+        } finally {
+            visiting -= entry
+        }
+    }
+
+    private fun exposed(module: PsiElement, name: String, place: PsiElement, visiting: Visiting): List<PsiElement> {
         val file = module as? PyFile ?: (module as? PsiDirectory)?.findFile("__init__.py") as? PyFile
-        val bound = file?.let { f -> PyScopes.bindings(f).filter { (it as? PyNamedDecl)?.name == name }.flatMap { follow(it) } }.orEmpty()
+        val bound = file?.let { f -> PyScopes.named(f, name).flatMap { follow(it, visiting) } }.orEmpty()
         if (bound.isNotEmpty()) return bound
         val dir = (module as? PsiDirectory) ?: module.takeIf { (it as? PyFile)?.name == "__init__.py" }?.let { (it as PyFile).containingDirectory }
         dir?.let { d ->
@@ -157,22 +204,20 @@ object PyResolver {
             d.findSubdirectory(name)?.let { s -> return listOf(s.findFile("__init__.py") ?: s) }
         }
         // `from m import *` in the module itself
-        return file?.let { f -> PyScopes.bindings(f).filter { it.node.elementType == E.STAR_IMPORT_ELEMENT }
-            .flatMap { star -> star.parent?.let { fromModule(it, place) }?.let { moduleMember(it, name, place) }.orEmpty() } }.orEmpty()
+        return file?.let { starImports(it, name, place, visiting) }.orEmpty()
     }
 
     /** An import binding navigates to what it imports. */
-    private fun follow(e: PsiElement): List<PsiElement> {
+    private fun follow(e: PsiElement, visiting: Visiting = HashSet()): List<PsiElement> {
         if (e !is PyImportElement) return listOf(e)
         val stmt = e.parent ?: return listOf(e)
         val path = e.importedPath?.text?.replace(SPACES, "") ?: return listOf(e)
-        return if (stmt.node.elementType == E.FROM_IMPORT_STATEMENT) {
-            fromModule(stmt, e)?.let { moduleMember(it, path, e) }.orEmpty().ifEmpty { listOf(e) }
-        } else {
-            // `import a.b` binds `a`; `import a.b as c` binds `a.b`
-            val target = if (e.alias != null) path else path.substringBefore('.')
-            listOfNotNull(findModule(e, target)).ifEmpty { listOf(e) }
+        if (stmt.node.elementType == E.FROM_IMPORT_STATEMENT) {
+            return fromModule(stmt, e)?.let { moduleMember(it, path, e, visiting) }.orEmpty().ifEmpty { listOf(e) }
         }
+        // `import a.b` binds `a`; `import a.b as c` binds `a.b`
+        val target = when { e.alias != null -> path; else -> path.substringBefore('.') }
+        return listOfNotNull(findModule(e, target)).ifEmpty { listOf(e) }
     }
 
     // ---------------------------------------------------------------- scopes (LEGB)
@@ -200,18 +245,23 @@ object PyResolver {
     }
 
     private fun bindingsNamed(scope: PsiElement, name: String, place: PsiElement): List<PsiElement> {
-        val all = if (scope.node?.elementType == E.LAMBDA_EXPRESSION) PsiTreeUtil.findChildrenOfType(scope, PyNamedDecl::class.java).filter { it.parent?.node?.elementType == E.PARAMETER_LIST }
-        else PyScopes.bindings(scope)
-        val named = all.filter { (it as? PyNamedDecl)?.name == name }
+        val named = named(scope, name)
         if (named.isEmpty()) return emptyList()
         // nearest binding before the use, else the first one (assigned later in the same scope)
         val before = named.filter { it.textRange.startOffset <= place.textRange.startOffset }
         return listOf(before.lastOrNull() ?: named.first())
     }
 
-    private fun starImports(file: PsiFile, name: String, place: PsiElement): List<PsiElement> =
-        PyScopes.bindings(file).filter { it.node.elementType == E.STAR_IMPORT_ELEMENT }
-            .flatMap { star -> star.parent?.let { fromModule(it, place) }?.let { moduleMember(it, name, place) }.orEmpty() }
+    private fun named(scope: PsiElement, name: String): List<PsiElement> {
+        if (scope.node?.elementType != E.LAMBDA_EXPRESSION) return PyScopes.named(scope, name)
+        return PsiTreeUtil.findChildrenOfType(scope, PyNamedDecl::class.java).filter { it.parent?.node?.elementType == E.PARAMETER_LIST && it.name == name }
+    }
+
+    private fun starImports(file: PsiFile, name: String, place: PsiElement, visiting: Visiting = HashSet()): List<PsiElement> =
+        PyScopes.starImports(file).flatMap { star ->
+            val module = star.parent?.let { fromModule(it, place) }
+            module?.let { moduleMember(it, name, place, visiting) }.orEmpty()
+        }
 
     // ---------------------------------------------------------------- members
 
@@ -229,15 +279,22 @@ object PyResolver {
     /** Class body bindings, `self.name = …` in methods, then base classes (MRO approximated depth-first). */
     fun classMembers(cls: PyClass, name: String, seen: MutableSet<PyClass>): List<PsiElement> {
         if (!seen.add(cls)) return emptyList()
-        val own = PyScopes.bindings(cls).filter { (it as? PyNamedDecl)?.name == name }.flatMap { follow(it) }
+        val own = PyScopes.named(cls, name).flatMap { follow(it) }
         if (own.isNotEmpty()) return own
-        val instance = PsiTreeUtil.findChildrenOfType(cls.body, PyTarget::class.java)
-            .filter { it.name == name && (it.qualifier as? PyReferenceExpr)?.referencedName == "self" }
-        if (instance.isNotEmpty()) return listOf(instance.first())
+        selfAttributes(cls)[name]?.let { return listOf(it) }
         return cls.superClassExpressions.flatMap { base ->
             val ref = (base as? PyReferenceExpr) ?: base.children.firstOrNull { it is PyReferenceExpr } as? PyReferenceExpr
             ref?.let { resolve(it) }.orEmpty().filterIsInstance<PyClass>().flatMap { classMembers(it, name, seen) }
         }
+    }
+
+    /** First `self.name = …` of each name in the class body. */
+    private fun selfAttributes(cls: PyClass): Map<String, PyTarget> = LiteCache.cached(cls, SELF_ATTRIBUTES, PyLibraryOracle) {
+        val out = HashMap<String, PyTarget>()
+        PsiTreeUtil.findChildrenOfType(cls.body, PyTarget::class.java)
+            .filter { (it.qualifier as? PyReferenceExpr)?.referencedName == "self" }
+            .forEach { t -> t.name?.let { out.putIfAbsent(it, t) } }
+        out
     }
 
     // ---------------------------------------------------------------- types
@@ -301,7 +358,7 @@ object PyResolver {
         return when (a.node.elementType) {
             E.REFERENCE_EXPRESSION -> when (val r = resolve(a as PyReferenceExpr).firstOrNull()) {
                 is PyClass -> PyTy.Inst(r)
-                else -> if (a.referencedName == "Self") PsiTreeUtil.getParentOfType(ctx, PyClass::class.java)?.let { PyTy.Inst(it) } ?: PyTy.Unknown else PyTy.Unknown
+                else -> selfType(a, ctx)
             }
             E.STRING_LITERAL_EXPRESSION -> {
                 val name = a.text.trim('"', '\'')
@@ -309,7 +366,7 @@ object PyResolver {
             }
             E.SUBSCRIPTION_EXPRESSION -> {
                 val head = (a.firstChild as? PyReferenceExpr)?.referencedName
-                val arg = a.children.drop(1).firstOrNull { it is PyElement }?.let { if (it.node.elementType == E.TUPLE_EXPRESSION) it.children.firstOrNull { c -> c is PyElement } else it }
+                val arg = a.children.drop(1).firstOrNull { it is PyElement }?.let { firstTypeArgument(it) }
                 when (head) {
                     in TYPING_ONE -> annotationType(arg, ctx)
                     in TYPING_COLL -> PyTy.Coll(annotationType(arg, ctx))
@@ -320,5 +377,15 @@ object PyResolver {
             E.BINARY_EXPRESSION -> a.children.filter { it is PyElement && it.text != "None" }.map { annotationType(it, ctx) }.firstOrNull { it != PyTy.Unknown } ?: PyTy.Unknown
             else -> PyTy.Unknown
         }
+    }
+
+    private fun selfType(ref: PyReferenceExpr, ctx: PsiElement): PyTy {
+        if (ref.referencedName != "Self") return PyTy.Unknown
+        return PsiTreeUtil.getParentOfType(ctx, PyClass::class.java)?.let { PyTy.Inst(it) } ?: PyTy.Unknown
+    }
+
+    private fun firstTypeArgument(arg: PsiElement): PsiElement? = when (arg.node.elementType) {
+        E.TUPLE_EXPRESSION -> arg.children.firstOrNull { it is PyElement }
+        else -> arg
     }
 }

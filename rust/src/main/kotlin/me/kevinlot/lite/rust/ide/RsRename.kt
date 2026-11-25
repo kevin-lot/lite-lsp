@@ -5,6 +5,8 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.TokenSet
 import me.kevinlot.lite.rust.parser.RsLexer
 import me.kevinlot.lite.rust.psi.*
+import me.kevinlot.lite.rust.psi.RS_ALL_STRING_LITERALS
+import me.kevinlot.lite.rust.psi.RS_COMMENTS
 import me.kevinlot.lite.rust.psi.RsElementTypes.IDENTIFIER
 import me.kevinlot.lite.rust.psi.ext.RsNamedElement
 

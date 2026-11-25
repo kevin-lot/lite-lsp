@@ -64,22 +64,22 @@ object ModuleTree {
     fun declOf(file: RsFile): RsModDeclItem? = cached(file, DECL_OF_KEY) {
         val vf = file.originalFile.virtualFile ?: return@cached null
         if (crateInfo(file) != null) return@cached null
-        val (stem, base) = if (vf.name == "mod.rs") (vf.parent?.name to vf.parent?.parent) else (vf.nameWithoutExtension to vf.parent)
+        val (stem, base) = when {
+            vf.name == "mod.rs" -> vf.parent?.name to vf.parent?.parent
+            else -> vf.nameWithoutExtension to vf.parent
+        }
         if (stem == null || base == null) return@cached null
         val candidates = buildList {
             MOD_RS_NAMES.forEach { base.findChild(it)?.let(::add) }
             base.parent?.findChild("${base.name}.rs")?.let(::add)
-            base.parent?.findChild(base.name)?.findChild("mod.rs")?.let { /* same as base/mod.rs */ }
         }.filter { it != vf }
         val psiManager = PsiManager.getInstance(file.project)
-        for (c in candidates) {
-            val parent = psiManager.findFile(c) as? RsFile ?: continue
-            for (d in PsiTreeUtil.findChildrenOfType(parent, RsModDeclItem::class.java)) {
-                if (d.name == stem && resolveModDecl(d)?.originalFile?.virtualFile == vf) return@cached d
-            }
-        }
-        null
+        candidates.asSequence().mapNotNull { psiManager.findFile(it) as? RsFile }.flatMap { modDecls(it) }
+            .firstOrNull { it.name == stem && resolveModDecl(it)?.originalFile?.virtualFile == vf }
     }
+
+    private fun modDecls(file: RsFile): List<RsModDeclItem> =
+        cached(file, MOD_DECLS_KEY) { PsiTreeUtil.findChildrenOfType(file, RsModDeclItem::class.java).toList() }
 
     /** Directory holding the files of [mod]'s child modules. */
     fun modDir(mod: PsiElement): VirtualFile? = when (mod) {
@@ -117,13 +117,13 @@ object ModuleTree {
     }
 
     /** Crates nameable from [root] without `extern crate`: dependencies + std, core, alloc. */
-    fun externPrelude(root: RsFile): Map<String, RsFile> {
+    fun externPrelude(root: RsFile): Map<String, RsFile> = cached(root, EXTERN_PRELUDE_KEY) {
         val ws = CargoProjects.getInstance(root.project).workspace
         val deps = effectiveCrateInfo(root)?.dependencies.orEmpty()
         val std = ws.stdlibDir?.let { dir -> STD_CRATES.take(3).associateWith { "$dir/$it/src/lib.rs" } }.orEmpty()
         val vfm = com.intellij.openapi.vfs.VirtualFileManager.getInstance()
         val pm = PsiManager.getInstance(root.project)
-        return (std + deps).mapNotNull { (name, url) ->
+        (std + deps).mapNotNull { (name, url) ->
             vfm.findFileByUrl(url)?.let { pm.findFile(it) as? RsFile }?.let { name to it }
         }.toMap()
     }
@@ -139,9 +139,18 @@ object ModuleTree {
 
     private val MOD_DECL_KEY = Key.create<com.intellij.psi.util.CachedValue<RsFile?>>("lite.rs.modDecl")
     private val DECL_OF_KEY = Key.create<com.intellij.psi.util.CachedValue<RsModDeclItem?>>("lite.rs.declOf")
+    private val MOD_DECLS_KEY = Key.create<com.intellij.psi.util.CachedValue<List<RsModDeclItem>>>("lite.rs.modDecls")
+    private val EXTERN_PRELUDE_KEY = Key.create<com.intellij.psi.util.CachedValue<Map<String, RsFile>>>("lite.rs.externPrelude")
 
     internal fun <T> cached(e: PsiElement, key: Key<com.intellij.psi.util.CachedValue<T>>, compute: () -> T): T =
         me.kevinlot.lite.core.LiteCache.cached(e, key, RsLibraryOracle, compute)
+
+    /** Like [cached], but a value on library code is also recomputed after an edit: it may depend on project code. */
+    internal fun <T> cachedUntilEdit(e: PsiElement, key: Key<com.intellij.psi.util.CachedValue<T>>, compute: () -> T): T =
+        com.intellij.psi.util.CachedValuesManager.getCachedValue(e, key) {
+            val deps = arrayOf<Any>(com.intellij.psi.util.PsiModificationTracker.MODIFICATION_COUNT, *dependencies(e))
+            com.intellij.psi.util.CachedValueProvider.Result.create(compute(), *deps)
+        }
 
     fun dependencies(e: PsiElement): Array<Any> = me.kevinlot.lite.core.LiteCache.dependencies(e, RsLibraryOracle)
 
@@ -154,10 +163,8 @@ object ModuleTree {
         return isLibraryUrl(e.project, vf.url)
     }
 
-    fun isLibraryUrl(project: com.intellij.openapi.project.Project, url: String): Boolean {
-        val ws = CargoProjects.getInstance(project).workspace
-        return ws.stdlibDir?.let { url.startsWith("$it/") } == true || ws.packageDirs.any { url.startsWith("$it/") }
-    }
+    fun isLibraryUrl(project: com.intellij.openapi.project.Project, url: String): Boolean =
+        CargoProjects.getInstance(project).workspace.libraryPrefixes.any { url.startsWith(it) }
 }
 
 /** Std and Cargo dependencies are read-only for the session; the crate graph invalidates them. */

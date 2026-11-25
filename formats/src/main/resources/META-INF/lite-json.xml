@@ -1,7 +1,10 @@
-<!-- `$ref` in JSON files (OpenAPI, AsyncAPI, JSON Schema) and JSON targets of YAML `$ref`: needs the JSON plugin. -->
+<!-- `$ref` in JSON files (OpenAPI, AsyncAPI, JSON Schema), JSON targets of YAML `$ref`, `package.json` scripts: needs the JSON plugin. -->
 <idea-plugin>
     <extensions defaultExtensionNs="com.intellij">
+        <annotator language="JSON" implementationClass="me.kevinlot.lite.formats.PackageScriptNamesAnnotator"/>
+        <multiHostInjector implementation="me.kevinlot.lite.formats.PackageScriptInjector"/>
         <psi.referenceContributor language="JSON" implementation="me.kevinlot.lite.formats.JsonRefContributor"/>
+        <psi.referenceContributor language="JSON" implementation="me.kevinlot.lite.formats.PackageScriptContributor"/>
     </extensions>
     <extensions defaultExtensionNs="me.kevinlot.lite">
         <pointerTargets implementation="me.kevinlot.lite.formats.JsonPointerTargets"/>

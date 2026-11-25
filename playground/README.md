@@ -12,10 +12,21 @@ real repositories. Everything below is a **Ctrl+Click** target.
 | [backend/kotlin](backend/kotlin/src/main/kotlin/playground/Main.kt) | Kotlin | `shapes.largest()` (extension), `it.area()`, `copy(…)` of a data class, `joinToString` (stdlib from the Gradle cache) |
 | [backend/python](backend/python/README.md) | Python | see its README: `self.radius`, `from .geometry import Circle`, stdlib (with a venv) |
 | [web](web/README.md) | TypeScript, JavaScript, JSX | see its README; `npm install` once for the standard library and `@types/node` |
+| [web/src/app](web/src/app/shape-list.component.html) | Angular template | `title`, `remove(shape)` → the component; `shape.name` → `Shape`; `shape`, `i`, `count` → `@for` / `@let`; `area` → the pipe; [shape-badge](web/src/app/shape-badge.component.ts): the same in an inline `template:` |
 | [web/index.html](web/index.html) | HTML `<script>` / `<style>` | `refresh(…)` and `var(--brand)` inside the HTML (official JavaScript/CSS plugins disabled) |
 | [ui/qml](ui/qml/Main.qml) | QML | `Card { … }` → Card.qml, `onPicked` → `signal picked`, `first.count`, `Theme.spacing` (singleton, qmldir), `Layout.fillWidth` (Qt) |
 | [scripts](scripts/README.md) | Shell | see its README: functions across `source`d files, `local`, `getopts` |
 | [lua](lua/init.lua) | Lua | `require("app.util")` → lua/app/util.lua, `util.trim`, `rex:bark()` (setmetatable / `__index`), `self.name`, `VERSION` (global) |
+| [pipeline](pipeline/Jenkinsfile) | Groovy (Jenkins, Gradle) | `deployApp` → `call` in vars/deployApp.groovy, `Release` → src/playground/ci/Release.groovy, `release.tag()`, `version` → its first assignment, `target`, `it`, `load 'ci/notify.groovy'`; [build.gradle](pipeline/build.gradle) `apply from:` → gradle/versions.gradle, `sharedLibrary` |
+| [loadtest](loadtest/src/test/scala/playground/ShapesSimulation.scala) | Scala (Gatling) | `ShapeScenarios.browse` → scenarios/ShapeScenarios.scala, `users`, `rampUp`, `baseUrl` → config/Settings.scala (`import Settings._`); [ShapeScenarios.scala](loadtest/src/test/scala/playground/scenarios/ShapeScenarios.scala) `Settings.url(…)`, `listShapes`, `shape("#{id}")`, `$id` in the string, `session` |
+| [.github](.github/workflows/ci.yml) | GitHub Actions | `needs.build.outputs.version` → the job and its output, `steps.tag.outputs.value` → the `id:` and the `value=` of the script, `matrix.node`, `env.REGION`, `inputs.dry-run`, `needs: [build]`; `uses: ./.github/workflows/_deploy.yml` → the file, its `with: version` → the input; [_deploy.yml](.github/workflows/_deploy.yml) has a `cron:` |
+| [service](service/serverless.yml) | Serverless, CloudFormation | `${self:custom.tables.orders}` → each key, `${self:custom.limits.max}` → config/shared.yml, `${param:domain}` → both stages, `!Ref OrdersQueue`, `!GetAtt OrdersTable.Arn` → resources/dynamodb.yml, `${OrdersQueue.QueueName}` in `!Sub`, `CreateDashorderLambdaFunction` → the function |
+| [web/templates](web/templates/page.hbs) | Handlebars, Mustache | `{{#> layout}}`, `{{> header}}` → `partials/_header.hbs`, `{{> row}}` → the inline partial, `shape` → `as \|shape index\|`; [mail.mustache](web/templates/mail.mustache) `{{> signature}}` |
+| [specs/shapes.feature](specs/shapes.feature) | Gherkin | a word of a step → its pattern in [steps/shapes.rs](specs/steps/shapes.rs), `<sides>` → its `Examples` column |
+| [specs/Calc.flex](specs/Calc.flex) | JFlex | `{DIGIT}` → `DIGIT = …`, `<STRING>` and `yybegin(STRING)` → `%state STRING` |
+| [templates](templates/release.yml.j2) | Jinja2 | `<< runner >>` → its `set`, `deploy_with('prod')` → the macro, `envname`, `line`, `include` → `parts/_notify.yml.j2`; [page.html.j2](templates/page.html.j2) default delimiters, `field` → macros.j2 |
+| [policies](policies/shapes/access.rego) | Rego | `common.in_department` → common/helpers.rego, `data.common.has_role`, `is_editor` (two definitions), `level`, `limits.maximum` → limits.rego |
+| [diagrams](diagrams/shapes.d2) | D2, Mermaid | D2: `...@common/c4` → the file, `class: person`, `[sync; inferred]`, `platform.api`, `${brand}`; Mermaid: [largest-shape.mermaid](diagrams/largest-shape.mermaid) `API`, `DB` → their participant, [shape-states.mmd](diagrams/shape-states.mmd) `if_archived` → its `state` line |
 | [docs](docs/markdown-tour.md) | Markdown | the tour: links, anchors, references, code blocks in their language; the preview beside it |
 
 ## Configuration and data formats
@@ -23,8 +34,12 @@ real repositories. Everything below is a **Ctrl+Click** target.
 | File | Format | Try |
 |---|---|---|
 | [Makefile](Makefile), [build/common.mk](build/common.mk) | Makefile | `$(IMAGE)` → common.mk, `check` prerequisites → their rules, `.PHONY` names, source files in prerequisites |
+| [web/package.json](web/package.json) | npm scripts (JSON) | each script is shell; in `ci`, `yarn check` / `npm run build` / `npm test` → their script |
+| [mise.toml](mise.toml) | mise tasks (TOML) | the `run` of each task is shell: `$script` → the `for` variable; `{{arg(…)}}` is mise's |
 | [justfile](justfile), [build/common.just](build/common.just) | just | `check-web` dependencies → their recipes, `(check-rust "--quiet")`, `{{flags}}` → parameter, `{{tag}}` → variable, `alias c`, `import` |
 | [api](api/openapi.yaml) | OpenAPI 3.1, Swagger 2.0 and 1.2 | `$ref: '#/components/schemas/Circle'`, `schemas/common.yaml#/Error`, `schemas/point.json#/Point`, `./paths/shape.yaml`, discriminator `mapping`; [swagger.json](api/legacy/swagger.json) `#/definitions/…`; [shapes-1.2.json](api/legacy/shapes-1.2.json) `"type": "Tag"` → its model |
+| [api/requests](api/requests/get-shape.bru) | Bruno | `{{host}}`, `{{token}}` → environments/dev.bru, `{{page}}` → `vars:pre-request`, `{{requestId}}` → `bru.setVar` |
+| [CODEOWNERS](CODEOWNERS) | CODEOWNERS | `/backend/rust/`, `/web/src/main.ts`, `docs/` → the folders and file |
 | [docker/Dockerfile](docker/Dockerfile) | Dockerfile | `${RUST_VERSION}` → `ARG`, `--from=build` → `FROM … AS build`, `$APP_HOME` → `ENV` |
 | [infra/terraform](infra/terraform/main.tf) | Terraform | `var.region` → variables.tf, `local.prefix`, `module.network` (outputs.tf), `aws_s3_bucket.archives`, `./modules/network`, prod.tfvars keys |
 | [infra/terragrunt](infra/terragrunt/prod/app/terragrunt.hcl) | Terragrunt | `dependency.vpc` → its block, `config_path` / `source` → the folders |

@@ -7,6 +7,7 @@ import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.lang.refactoring.NamesValidator
 import com.intellij.lang.refactoring.RefactoringSupportProvider
 import com.intellij.lexer.Lexer
+import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.colors.TextAttributesKey.createTextAttributesKey
 import com.intellij.openapi.editor.markup.EffectType
@@ -19,11 +20,10 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.IElementType
 import com.intellij.psi.tree.TokenSet
+import java.awt.Font
 import me.kevinlot.lite.core.LiteBraceMatcher
 import me.kevinlot.lite.core.LiteFindUsagesProvider
 import me.kevinlot.lite.core.color
-import java.awt.Font
-import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import me.kevinlot.lite.markdown.MdElementTypes as E
 import me.kevinlot.lite.markdown.MdTokens as T
 
@@ -45,7 +45,7 @@ class MdSyntaxHighlighter : SyntaxHighlighterBase() {
     override fun getHighlightingLexer(): Lexer = MdLexer()
     override fun getTokenHighlights(t: IElementType): Array<TextAttributesKey> = pack(
         when (t) {
-            T.HEADER_MARKER -> MdColors.HEADER
+            T.HEADER_MARKER, T.SETEXT_MARKER -> MdColors.HEADER
             T.QUOTE_MARKER, T.LIST_MARKER, T.CHECKBOX, T.HR, T.EMPH, T.STRONG, T.STRIKE, T.PIPE -> MdColors.MARKER
             T.CODE_SPAN, T.CODE_TEXT -> MdColors.CODE
             T.FENCE_START, T.FENCE_END, T.FENCE_INFO -> MdColors.FENCE
@@ -67,16 +67,23 @@ class MdSyntaxHighlighterFactory : SyntaxHighlighterFactory() {
 class MdHighlightingAnnotator : Annotator {
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
         when (element.node.elementType) {
-            E.HEADER -> { holder.color(element, MdColors.HEADER); style(holder, element, TextAttributes(null, null, null, null, Font.BOLD)) }
-            E.STRONG -> style(holder, element, TextAttributes(null, null, null, null, Font.BOLD))
-            E.EMPHASIS -> style(holder, element, TextAttributes(null, null, null, null, Font.ITALIC))
-            E.STRIKE -> style(holder, element, TextAttributes(null, null, java.awt.Color.GRAY, EffectType.STRIKEOUT, Font.PLAIN))
-            E.LINK -> element.node.getChildren(TokenSet.create(T.TEXT)).forEach { holder.color(it.psi, MdColors.LINK_TEXT) }
+            E.HEADER -> { holder.color(element, MdColors.HEADER); style(holder, element, BOLD) }
+            E.STRONG -> style(holder, element, BOLD)
+            E.EMPHASIS -> style(holder, element, ITALIC)
+            E.STRIKE -> style(holder, element, STRUCK)
+            E.LINK -> element.node.getChildren(LINK_TEXTS).forEach { holder.color(it.psi, MdColors.LINK_TEXT) }
         }
     }
 
     private fun style(holder: AnnotationHolder, element: PsiElement, attributes: TextAttributes) =
         holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(element).enforcedTextAttributes(attributes).create()
+
+    private companion object {
+        val BOLD = TextAttributes(null, null, null, null, Font.BOLD)
+        val ITALIC = TextAttributes(null, null, null, null, Font.ITALIC)
+        val LINK_TEXTS = TokenSet.create(T.TEXT)
+        val STRUCK = TextAttributes(null, null, java.awt.Color.GRAY, EffectType.STRIKEOUT, Font.PLAIN)
+    }
 }
 
 class MdBraceMatcher : LiteBraceMatcher(Triple(T.LBRACKET, T.RBRACKET, false), Triple(T.LPAREN, T.RPAREN, false))
@@ -89,9 +96,9 @@ class MdCommenter : Commenter {
     override fun getCommentedBlockCommentSuffix(): String? = null
 }
 
-class MdFindUsagesProvider : LiteFindUsagesProvider(::MdLexer, TokenSet.create(T.TEXT, T.LINK_DEST, T.LINK_LABEL), T.COMMENTS, TokenSet.EMPTY) {
+class MdFindUsagesProvider : LiteFindUsagesProvider(::MdLexer, TokenSet.create(T.TEXT, T.LINK_DEST, T.LINK_LABEL, T.CODE_SPAN, T.HTML), T.COMMENTS, TokenSet.EMPTY) {
     override fun isDeclaration(element: PsiElement) = element is MdHeader || element is MdLinkDefinition
-    override fun kindOf(element: PsiElement) = if (element is MdHeader) "header" else "link definition"
+    override fun kindOf(element: PsiElement) = when (element) { is MdHeader -> "header"; else -> "link definition" }
 }
 
 class MdRefactoringSupportProvider : RefactoringSupportProvider() {

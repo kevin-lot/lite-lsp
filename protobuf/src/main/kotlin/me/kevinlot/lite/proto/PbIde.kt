@@ -7,6 +7,7 @@ import com.intellij.lang.refactoring.NamesValidator
 import com.intellij.lang.refactoring.RefactoringSupportProvider
 import com.intellij.lexer.FlexAdapter
 import com.intellij.lexer.Lexer
+import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.colors.TextAttributesKey.createTextAttributesKey
 import com.intellij.openapi.fileTypes.SyntaxHighlighter
@@ -23,7 +24,6 @@ import me.kevinlot.lite.core.LiteFindUsagesProvider
 import me.kevinlot.lite.core.color
 import me.kevinlot.lite.proto.lexer.ProtoKeywordTokenType
 import me.kevinlot.lite.proto.lexer._ProtoLexer
-import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import me.kevinlot.lite.proto.parser.PbTypes as E
 import me.kevinlot.lite.proto.upstream.ProtoTokenTypes as T
 
@@ -71,7 +71,10 @@ class PbHighlightingAnnotator : Annotator {
                 else -> PbColors.FIELD
             })
             element.node.elementType == E.TYPE_NAME || element.node.elementType == E.MESSAGE_TYPE_NAME ->
-                holder.color(element, if (element.text in PbResolver.SCALARS) PbColors.KEYWORD else PbColors.TYPE_REF)
+                holder.color(element, when (element.text) {
+                    in PbResolver.SCALARS -> PbColors.KEYWORD
+                    else -> PbColors.TYPE_REF
+                })
             element.node.elementType == E.OPTION_NAME && element.parent?.node?.elementType != E.OPTION_NAME -> holder.color(element, PbColors.OPTION)
         }
     }
@@ -103,5 +106,6 @@ class PbRefactoringSupportProvider : RefactoringSupportProvider() {
 
 class PbNamesValidator : NamesValidator {
     override fun isKeyword(name: String, project: Project?) = false // keywords are valid protobuf names
-    override fun isIdentifier(name: String, project: Project?) = Regex("[A-Za-z_][A-Za-z0-9_]*").matches(name)
+    override fun isIdentifier(name: String, project: Project?) = NAME.matches(name)
+    private companion object { val NAME = Regex("[A-Za-z_][A-Za-z0-9_]*") }
 }

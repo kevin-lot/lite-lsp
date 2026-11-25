@@ -15,9 +15,9 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
-import me.kevinlot.lite.kotlin.gradle.GradleProjects
 import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
+import me.kevinlot.lite.kotlin.gradle.GradleProjects
 
 /**
  * Everything derived from the classpath (JDK, Gradle jars), memoized for the project and dropped as a
@@ -44,7 +44,12 @@ class KtClasspath private constructor(private val project: Project) {
 
     /** Directories of package [pkg] inside the Gradle jars. */
     fun jarDirectories(pkg: String): List<VirtualFile> = packageDirs.getOrPut(pkg) {
-        jarRoots.mapNotNull { root -> if (pkg.isEmpty()) root else root.findFileByRelativePath(pkg.replace('.', '/')) }.filter { it.isDirectory }
+        jarRoots.mapNotNull { root -> packageDirectory(root, pkg) }.filter { it.isDirectory }
+    }
+
+    private fun packageDirectory(root: VirtualFile, pkg: String): VirtualFile? {
+        if (pkg.isEmpty()) return root
+        return root.findFileByRelativePath(pkg.replace('.', '/'))
     }
 
     /**

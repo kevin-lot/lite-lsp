@@ -11,7 +11,11 @@ import me.kevinlot.lite.rust.parser.RustParserDefinition.Companion.INNER_BLOCK_D
 import me.kevinlot.lite.rust.parser.RustParserDefinition.Companion.INNER_EOL_DOC_COMMENT
 import me.kevinlot.lite.rust.parser.RustParserDefinition.Companion.OUTER_BLOCK_DOC_COMMENT
 import me.kevinlot.lite.rust.parser.RustParserDefinition.Companion.OUTER_EOL_DOC_COMMENT
+import me.kevinlot.lite.rust.psi.*
 import me.kevinlot.lite.rust.psi.RsElementTypes.*
+
+// Token sets derived from intellij-rust (MIT, see THIRD_PARTY_LICENSE-intellij-rust.txt).
+
 
 open class RsTokenType(debugName: String) : IElementType(debugName, RsLanguage)
 class RsElementType(debugName: String) : IElementType(debugName, RsLanguage)

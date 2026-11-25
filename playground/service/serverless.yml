@@ -1,0 +1,38 @@
+# Sample Serverless service: variables and CloudFormation references are clickable.
+service: playground-orders
+params:
+  dev:
+    domain: dev.example.test
+  prod:
+    domain: example.test
+custom:
+  stage: ${opt:stage, 'dev'}
+  tables:
+    orders: orders-${self:custom.stage}
+  limits: ${file(./config/shared.yml):limits}
+provider:
+  name: aws
+  runtime: nodejs22.x
+  environment:
+    TABLE: ${self:custom.tables.orders}
+    MAX: ${self:custom.limits.max}
+    DOMAIN: ${param:domain}
+functions:
+  create-order:
+    handler: src/create.handler
+    environment:
+      QUEUE_URL: !Ref OrdersQueue
+      TABLE_ARN: !GetAtt OrdersTable.Arn
+    events:
+      - schedule: cron(0 3 * * ? *)
+resources:
+  - ${file(resources/dynamodb.yml)}
+  - Resources:
+      OrdersQueue:
+        Type: AWS::SQS::Queue
+      Alarm:
+        Type: AWS::CloudWatch::Alarm
+        DependsOn: [OrdersQueue]
+        Properties:
+          AlarmName: !Sub "${AWS::StackName}-${OrdersQueue.QueueName}"
+          Function: !GetAtt CreateDashorderLambdaFunction.Arn

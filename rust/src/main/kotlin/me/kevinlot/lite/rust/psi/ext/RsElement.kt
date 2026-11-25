@@ -9,6 +9,8 @@ import com.intellij.util.IncorrectOperationException
 import me.kevinlot.lite.rust.psi.RsElementTypes
 import me.kevinlot.lite.rust.psi.RsPsiFactory
 
+private val IDENTIFIERS = com.intellij.psi.tree.TokenSet.create(RsElementTypes.IDENTIFIER)
+
 interface RsElement : PsiElement
 
 abstract class RsElementImpl(node: ASTNode) : ASTWrapperPsiElement(node), RsElement
@@ -17,13 +19,11 @@ abstract class RsElementImpl(node: ASTNode) : ASTWrapperPsiElement(node), RsElem
 interface RsNamedElement : RsElement, PsiNameIdentifierOwner
 
 open class RsNamedElementImpl(node: ASTNode) : RsElementImpl(node), RsNamedElement {
-    override fun getNameIdentifier(): PsiElement? =
-        if (this is me.kevinlot.lite.rust.psi.RsMacro) {
-            // `macro_rules! name`: "macro_rules" is itself lexed as an identifier.
-            node.getChildren(com.intellij.psi.tree.TokenSet.create(RsElementTypes.IDENTIFIER)).lastOrNull()?.psi
-        } else {
-            node.findChildByType(RsElementTypes.IDENTIFIER)?.psi
-        }
+    override fun getNameIdentifier(): PsiElement? = when (this) {
+        // `macro_rules! name`: "macro_rules" is itself lexed as an identifier.
+        is me.kevinlot.lite.rust.psi.RsMacro -> node.getChildren(IDENTIFIERS).lastOrNull()?.psi
+        else -> node.findChildByType(RsElementTypes.IDENTIFIER)?.psi
+    }
 
     override fun getName(): String? = nameIdentifier?.text?.removePrefix("r#")
 

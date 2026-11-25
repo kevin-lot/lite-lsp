@@ -1,0 +1,10 @@
+---
+title: Shape life cycle
+---
+stateDiagram-v2
+  [*] --> DRAFT : POST /shapes
+  DRAFT --> PUBLISHED : publish
+  state if_archived <<choice>>
+  PUBLISHED --> if_archived : archive
+  if_archived --> ARCHIVED : no reader left
+  if_archived --> PUBLISHED : still read

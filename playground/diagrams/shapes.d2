@@ -1,0 +1,15 @@
+# Ctrl+Click: `common/c4` → the file, `person` / `sync` → their class, `platform.api` → each level, `${brand}` → the variable.
+...@common/c4
+direction: down
+vars: {
+  brand: "#8A0000"
+}
+
+player: "Player\n[Person]" {class: person}
+platform: "Shapes platform" {
+  api: "API\n[Container]" {class: system; width: 300}
+  db: Database {shape: cylinder}
+  api -> db: reads {class: [sync; inferred]}
+}
+player -> platform.api: "asks for the largest shape"
+platform.db.style.fill: ${brand}

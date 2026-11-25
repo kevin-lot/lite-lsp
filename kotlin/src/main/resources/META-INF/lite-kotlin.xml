@@ -13,7 +13,9 @@
         <lang.refactoringSupport language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.ide.KtRefactoringSupportProvider"/>
         <lang.namesValidator language="LiteKotlin" implementationClass="me.kevinlot.lite.kotlin.ide.KtNamesValidator"/>
 
+        <definitionsScopedSearch implementation="me.kevinlot.lite.kotlin.resolve.KtImplementationSearcher"/>
         <referencesSearch implementation="me.kevinlot.lite.kotlin.resolve.KtJavaPropertySearcher"/>
+        <renamePsiElementProcessor implementation="me.kevinlot.lite.kotlin.resolve.KtOverrideRenameProcessor"/>
 
         <fileBasedIndex implementation="me.kevinlot.lite.kotlin.resolve.KtPackageIndex"/>
         <fileBasedIndex implementation="me.kevinlot.lite.kotlin.resolve.KtTopLevelNameIndex"/>

@@ -1,0 +1,46 @@
+# Sample only: GitHub reads workflows from the repository root, not from playground/.
+name: ci
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        type: boolean
+env:
+  REGION: eu-west-1
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.value }}
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - id: tag
+        env:
+          NODE: ${{ matrix.node }}
+        run: |
+          suffix="node$NODE"
+          if [ "${{ inputs.dry-run }}" == 'true' ]; then
+            suffix="$suffix-dry"
+          fi
+          echo "value=1.2.3-$suffix" >> "$GITHUB_OUTPUT"
+      - if: steps.tag.outputs.value != '' && !inputs.dry-run
+        uses: ./.github/actions/say
+        with:
+          text: built in ${{ env.REGION }}
+  deploy:
+    needs: [build]
+    if: needs.build.result == 'success'
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      version: ${{ needs.build.outputs.version }}
+  notify:
+    needs:
+      - build
+      - deploy
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "$URL"
+        env:
+          URL: ${{ needs.deploy.outputs.url }}

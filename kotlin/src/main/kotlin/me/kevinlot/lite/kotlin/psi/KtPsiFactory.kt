@@ -14,7 +14,7 @@ class KtPsiFactory(private val project: Project) {
         PsiFileFactory.getInstance(project).createFileFromText("dummy.kt", KtFileType, text) as KtFile
 
     fun createIdentifier(name: String): PsiElement {
-        val escaped = if (KtNames.isKeyword(name)) "`$name`" else name
+        val escaped = when { KtNames.isKeyword(name) -> "`$name`"; else -> name }
         val fn = PsiTreeUtil.findChildOfType(createFile("fun $escaped() {}"), KtFunction::class.java)
         return fn?.nameIdentifier ?: throw IncorrectOperationException("Invalid identifier: $name")
     }
