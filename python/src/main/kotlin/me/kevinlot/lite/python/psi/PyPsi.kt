@@ -38,7 +38,7 @@ open class PyNamedDecl(node: ASTNode) : PyElement(node), PsiNameIdentifierOwner 
     /** Parameters and locals are only visible in their function/lambda/comprehension. */
     override fun getUseScope(): com.intellij.psi.search.SearchScope {
         val container = when {
-            this is PyClass -> null
+            this is PyClass || (this as? PyTarget)?.qualifier != null -> null
             node.elementType == E.NAMED_PARAMETER -> PsiTreeUtil.getParentOfType(this, PyFunction::class.java, true)
                 ?: PsiTreeUtil.findFirstParent(this) { it.node?.elementType == me.kevinlot.lite.python.upstream.PyElementTypes.LAMBDA_EXPRESSION }
             else -> PsiTreeUtil.getParentOfType(this, PyFunction::class.java, true)

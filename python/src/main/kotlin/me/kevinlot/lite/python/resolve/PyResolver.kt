@@ -107,6 +107,7 @@ object PyResolver {
     private val TYPE = Key.create<CachedValue<PyTy>>("lite.py.type")
     private val IMPORT_ROOTS = Key.create<CachedValue<List<VirtualFile>>>("lite.py.importRoots")
     private val SELF_ATTRIBUTES = Key.create<CachedValue<Map<String, PyTarget>>>("lite.py.selfAttributes")
+    private val COMPREHENSIONS = TokenSet.create(E.LIST_COMP_EXPRESSION, E.SET_COMP_EXPRESSION, E.DICT_COMP_EXPRESSION, E.GENERATOR_EXPRESSION)
     private val IMPORT_STATEMENTS = TokenSet.create(E.IMPORT_STATEMENT, E.FROM_IMPORT_STATEMENT)
     private val TYPING_ONE = setOf("Optional", "Final", "ClassVar", "Annotated", "Type", "type")
     private val TYPING_COLL = setOf(
@@ -233,6 +234,7 @@ object PyResolver {
                 cur is PyClass -> cur.takeIf { !insideFunction }
                 cur is PsiFile -> cur
                 cur.node?.elementType == E.LAMBDA_EXPRESSION -> cur
+                cur.node?.elementType in COMPREHENSIONS -> cur
                 else -> null
             }
             if (scope != null) {
@@ -261,7 +263,7 @@ object PyResolver {
 
     private fun starImports(file: PsiFile, name: String, place: PsiElement, visiting: Visiting = HashSet()): List<PsiElement> =
         PyScopes.starImports(file).flatMap { star ->
-            val module = star.parent?.let { fromModule(it, place) }
+            val module = star.parent?.let { fromModule(it, star) }
             module?.let { moduleMember(it, name, place, visiting) }.orEmpty()
         }
 
