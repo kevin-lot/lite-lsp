@@ -65,7 +65,9 @@ object TsTokens {
     val WHITESPACES = TokenSet.create(TokenType.WHITE_SPACE)
     val STRINGS = TokenSet.create(STRING, TEMPLATE_FULL, TEMPLATE_HEAD, TEMPLATE_MIDDLE, TEMPLATE_TAIL)
     val TEMPLATES = TokenSet.create(TEMPLATE_FULL, TEMPLATE_HEAD, TEMPLATE_MIDDLE, TEMPLATE_TAIL)
-    val OPERATORS = TokenSet.create(LT, GT, EQ, ARROW, QUEST, COLON, EXCL, TILDE, OR, AND, MUL, DIV, PLUS, MINUS, PLUSPLUS, MINUSMINUS, OPERATOR, QUEST_DOT, ELLIPSIS)
+    val OPERATORS = TokenSet.create(
+        LT, GT, EQ, ARROW, QUEST, COLON, EXCL, TILDE, OR, AND, MUL, DIV, PLUS, MINUS, PLUSPLUS, MINUSMINUS, OPERATOR, QUEST_DOT, ELLIPSIS,
+    )
 
     /** Names usable after `.` and as property keys (keywords included). */
     val NAME_LIKE: TokenSet = TokenSet.orSet(TokenSet.create(IDENTIFIER, SOFT_KEYWORD), KEYWORD_SET)

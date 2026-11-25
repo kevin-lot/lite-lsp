@@ -48,9 +48,16 @@ object Make : Format("Make", "Makefile", "mk") {
 
     override val rules = listOf(
         Rule(R.HASH, Cat.COMMENT),
-        Rule("""(?:-?include|sinclude|ifeq|ifneq|ifdef|ifndef|else|endif|define|endef|export|unexport|override|vpath|undefine|private)\b""", Cat.KEYWORD, lineStart = true),
+        Rule(
+            """(?:-?include|sinclude|ifeq|ifneq|ifdef|ifndef|else|endif|define|endef|export|unexport|override|vpath|undefine|private)\b""",
+            Cat.KEYWORD, lineStart = true,
+        ),
         Rule("""(?<=include[ \t])[^\s#][^\n#]*""", Cat.STRING),
-        Rule("""\.(?:PHONY|DEFAULT|SUFFIXES|PRECIOUS|INTERMEDIATE|SECONDARY|DELETE_ON_ERROR|SILENT|ONESHELL|NOTPARALLEL|EXPORT_ALL_VARIABLES|DEFAULT_GOAL|POSIX|IGNORE|LOW_RESOLUTION_TIME|SECONDEXPANSION)\b""", Cat.META),
+        Rule(
+            """\.(?:PHONY|DEFAULT|SUFFIXES|PRECIOUS|INTERMEDIATE|SECONDARY|DELETE_ON_ERROR|SILENT|ONESHELL|NOTPARALLEL|EXPORT_ALL_VARIABLES""" +
+                """|DEFAULT_GOAL|POSIX|IGNORE|LOW_RESOLUTION_TIME|SECONDEXPANSION)\b""",
+            Cat.META,
+        ),
         Rule("""(?<![^\n])$NAME(?=\s*(?:::=|:::=|:=|\?=|\+=|!=|=))""", Cat.DECL),
         Rule("""(?<![^\n])[^\s:=#.][^:=#\n]*?(?=:(?!=))""", Cat.DECL),
         Rule("""(?<=\b(?:define|ifdef|ifndef|undefine|export|unexport)[ \t])$NAME(?=\s*$)""", Cat.VARIABLE, flags = java.util.regex.Pattern.MULTILINE),

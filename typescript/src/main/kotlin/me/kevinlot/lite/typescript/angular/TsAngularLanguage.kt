@@ -143,7 +143,10 @@ class AngularLexer : LexerBase() {
         val keyword = keywordAt(start)
         when {
             text.startsWith("{{", start) -> token(AngularTokens.BRACES, start + 2, INTERPOLATION)
-            keyword != null -> token(AngularTokens.KEYWORD, start + keyword.length, when (keyword) { "@let" -> LET; "@for" -> LOOP; in DEFERRED -> DEFER; else -> BLOCK })
+            keyword != null -> token(
+                AngularTokens.KEYWORD, start + keyword.length,
+                when (keyword) { "@let" -> LET; "@for" -> LOOP; in DEFERRED -> DEFER; else -> BLOCK },
+            )
             else -> token(AngularTokens.CONTENT, (start + 1 until end).firstOrNull { text.startsWith("{{", it) || keywordAt(it) != null } ?: end, TEXT)
         }
     }
@@ -259,6 +262,7 @@ class AngularHighlighterFactory : SyntaxHighlighterFactory() {
 class AngularEditorHighlighterProvider : EditorHighlighterProvider {
     override fun getEditorHighlighter(project: Project?, fileType: FileType, virtualFile: VirtualFile?, colors: EditorColorsScheme): EditorHighlighter =
         LayeredLexerEditorHighlighter(AngularHighlighter(), colors).apply {
-            SyntaxHighlighterFactory.getSyntaxHighlighter(HTMLLanguage.INSTANCE, project, virtualFile)?.let { registerLayer(AngularTokens.CONTENT, LayerDescriptor(it, "")) }
+            SyntaxHighlighterFactory.getSyntaxHighlighter(HTMLLanguage.INSTANCE, project, virtualFile)
+                ?.let { registerLayer(AngularTokens.CONTENT, LayerDescriptor(it, "")) }
         }
 }

@@ -117,7 +117,9 @@ class PbImportName(node: ASTNode) : ASTWrapperPsiElement(node) {
 }
 
 class PbSymbolReference(element: PbSymbolPath) :
-    PsiPolyVariantReferenceBase<PbSymbolPath>(element, element.nameElement?.let { TextRange.from(it.startOffsetInParent, it.textLength) } ?: TextRange.EMPTY_RANGE) {
+    PsiPolyVariantReferenceBase<PbSymbolPath>(
+        element, element.nameElement?.let { TextRange.from(it.startOffsetInParent, it.textLength) } ?: TextRange.EMPTY_RANGE,
+    ) {
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> = PsiElementResolveResult.createResults(PbResolver.resolve(element))
     override fun handleElementRename(newElementName: String): PsiElement {
         (element.nameElement?.node as? LeafElement)?.replaceWithText(newElementName)
@@ -153,7 +155,9 @@ object PbResolver {
     private val FIELDS = setOf(Kind.FIELD)
     private val ENUM_VALUES = TokenSet.create(E.ENUM_VALUE)
     private val METHODS = TokenSet.create(E.SERVICE_METHOD, E.SERVICE_STREAM)
-    val SCALARS = setOf("double", "float", "int32", "int64", "uint32", "uint64", "sint32", "sint64", "fixed32", "fixed64", "sfixed32", "sfixed64", "bool", "string", "bytes")
+    val SCALARS = setOf(
+        "double", "float", "int32", "int64", "uint32", "uint64", "sint32", "sint64", "fixed32", "fixed64", "sfixed32", "sfixed64", "bool", "string", "bytes",
+    )
 
     private fun join(a: String, b: String): String {
         if (a.isEmpty()) return b

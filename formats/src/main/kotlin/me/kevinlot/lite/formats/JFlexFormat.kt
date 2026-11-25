@@ -59,7 +59,8 @@ object JFlex : Format("JFlex", "JFlex", "flex") {
                 .map { (range, name) -> Decl(range, "macro:$name") }.toList()
             val states = STATE_LINE.findAll(text).filter { it.range.first in declarations..rules }.flatMap { line ->
                 val names = line.groups[1] ?: return@flatMap emptySequence()
-                STATE_NAME.findAll(names.value).filter { live(names.range.first + it.range.first) }.map { Decl(TextRange(names.range.first + it.range.first, names.range.first + it.range.last + 1), "state:${it.value}") }
+                STATE_NAME.findAll(names.value).filter { live(names.range.first + it.range.first) }
+                    .map { Decl(TextRange(names.range.first + it.range.first, names.range.first + it.range.last + 1), "state:${it.value}") }
             }.toList()
             val stateNames = states.map { it.key.removePrefix("state:") }.toSet()
             val declared = (macros + states).map { it.range.startOffset }.toSet()

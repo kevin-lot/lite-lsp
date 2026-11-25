@@ -67,7 +67,11 @@ object Pointers {
 
     // ---------------------------------------------------------------- YAML
 
-    private val REF = Regex("""(?:^|[\s{,])['"]?(?:\${'$'}ref|operationRef)['"]?[ \t]*:[ \t]*(?:'([^'\n]*)'|"([^"\n]*)"|((?:[^\s'"#,{}\[\]]|\{[^}\s]*})[^\s,{}\[\]]*+(?:\{[^}\s]*}[^\s,{}\[\]]*+)*+))""", RegexOption.MULTILINE)
+    private val REF = Regex(
+        """(?:^|[\s{,])['"]?(?:\${'$'}ref|operationRef)['"]?[ \t]*:[ \t]*""" +
+            """(?:'([^'\n]*)'|"([^"\n]*)"|((?:[^\s'"#,{}\[\]]|\{[^}\s]*})[^\s,{}\[\]]*+(?:\{[^}\s]*}[^\s,{}\[\]]*+)*+))""",
+        RegexOption.MULTILINE,
+    )
     /** Any quoted value that is a pointer (`mapping: { dog: '#/components/schemas/Dog' }`). */
     private val POINTER_VALUE = Regex(""":[ \t]*(?:'((?:[\w./-]+\.(?:ya?ml|json))?#/[^'\n]*)'|"((?:[\w./-]+\.(?:ya?ml|json))?#/[^"\n]*)")""")
 

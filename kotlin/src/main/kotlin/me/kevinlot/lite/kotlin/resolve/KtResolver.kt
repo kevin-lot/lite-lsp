@@ -209,7 +209,8 @@ object KtResolver {
         is Namespace.Decl -> when (val d = ns.element) {
             is KtClass -> nested(d.body, name) + companionMembers(d, name, call)
             is KtObjectDeclaration -> declarationsIn(d.body, name, call)
-            is KtTypeAlias -> KtTypes.typeOf(d.typeReference).let { t -> (t as? KtTy.Cls)?.decl?.let { namespaceMember(Namespace.Decl(it), name, place, call) } }.orEmpty()
+            is KtTypeAlias -> KtTypes.typeOf(d.typeReference)
+                .let { t -> (t as? KtTy.Cls)?.decl?.let { namespaceMember(Namespace.Decl(it), name, place, call) } }.orEmpty()
             is PsiClass -> KtJava.staticMembers(d, name)
             else -> emptyList()
         }
@@ -378,7 +379,8 @@ object KtResolver {
             type == N.FOR && prev.node.elementType == N.BODY -> loopVariables(cur as KtElement, name)
             type == N.CATCH -> (cur as KtElement).child(N.VALUE_PARAMETER_LIST)?.children.orEmpty().filter { it is KtParameter && it.name == name }
             type == N.WHEN -> cur.children.filter { it is KtProperty && it.name == name }
-            type == N.SECONDARY_CONSTRUCTOR -> (cur as KtElement).child(N.VALUE_PARAMETER_LIST)?.children.orEmpty().filter { it is KtParameter && it.name == name }
+            type == N.SECONDARY_CONSTRUCTOR ->
+                (cur as KtElement).child(N.VALUE_PARAMETER_LIST)?.children.orEmpty().filter { it is KtParameter && it.name == name }
             cur is KtFunction -> cur.valueParameters.filter { it.name == name } +
                 cur.typeParameters.filter { it.name == name } +
                 (cur.receiverTypeReference?.let { typeMembers(KtTypes.typeOf(it), name, call, place) }.orEmpty())
@@ -417,7 +419,8 @@ object KtResolver {
         val param = loop.child(N.VALUE_PARAMETER) as? KtParameter
         if (param?.name == name) return listOf(param)
         return param?.let { PsiTreeUtil.findChildrenOfType(it, KtDestructuringEntry::class.java).filter { e -> e.name == name } }.orEmpty() +
-            loop.children.filter { it.node.elementType == N.DESTRUCTURING_DECLARATION }.flatMap { d -> d.children.filter { it is KtDestructuringEntry && it.name == name } }
+            loop.children.filter { it.node.elementType == N.DESTRUCTURING_DECLARATION }
+                .flatMap { d -> d.children.filter { it is KtDestructuringEntry && it.name == name } }
     }
 
     private fun classScope(cls: KtClass, prev: PsiElement, name: String, call: Boolean, place: PsiElement): List<PsiElement> {

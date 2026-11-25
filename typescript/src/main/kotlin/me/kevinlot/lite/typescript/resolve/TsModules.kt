@@ -32,7 +32,9 @@ object TsModules {
 
     private val SOURCE_EXTENSIONS = listOf(".ts", ".tsx", ".d.ts", ".mts", ".d.mts", ".cts", ".d.cts", ".js", ".jsx", ".mjs", ".cjs")
     /** ESM TypeScript writes `./a.js` for `./a.ts`. */
-    private val JS_TO_TS = mapOf(".js" to listOf(".ts", ".tsx", ".d.ts"), ".mjs" to listOf(".mts", ".d.mts"), ".cjs" to listOf(".cts", ".d.cts"), ".jsx" to listOf(".tsx"))
+    private val JS_TO_TS = mapOf(
+        ".js" to listOf(".ts", ".tsx", ".d.ts"), ".mjs" to listOf(".mts", ".d.mts"), ".cjs" to listOf(".cts", ".d.cts"), ".jsx" to listOf(".tsx"),
+    )
     private val CONDITIONS = listOf("types", "typings", "import", "module", "node", "require", "default")
 
     /** Files (or `declare module "x"` blocks) a specifier designates. */
@@ -120,7 +122,8 @@ object TsModules {
         val subpath = when { sub.isEmpty() -> "."; else -> "./$sub" }
         json.get("exports")?.let { exports -> exportTarget(exports, subpath)?.let { t -> resolvePath(pkg, t)?.let { return it } } }
         if (sub.isNotEmpty()) return resolvePath(pkg, sub)
-        for (key in listOf("types", "typings", "module", "main")) TsJsonFiles.string(json, key)?.let { t -> resolvePath(pkg, t.removePrefix("./").let { "./$it" })?.let { return it } }
+        for (key in listOf("types", "typings", "module", "main"))
+            TsJsonFiles.string(json, key)?.let { t -> resolvePath(pkg, t.removePrefix("./").let { "./$it" })?.let { return it } }
         return null
     }
 
@@ -134,7 +137,8 @@ object TsModules {
                 val star = key.indexOf('*')
                 if (star < 0) continue
                 val prefix = key.substring(0, star); val suffix = key.substring(star + 1)
-                if (sub.length >= prefix.length + suffix.length && sub.startsWith(prefix) && sub.endsWith(suffix)) return condition(value)?.replace("*", sub.substring(prefix.length, sub.length - suffix.length))
+                if (sub.length >= prefix.length + suffix.length && sub.startsWith(prefix) && sub.endsWith(suffix))
+                    return condition(value)?.replace("*", sub.substring(prefix.length, sub.length - suffix.length))
             }
             return null
         }
@@ -145,7 +149,9 @@ object TsModules {
     private fun condition(e: JsonElement): String? = when {
         e.isJsonPrimitive -> e.asString
         e.isJsonArray -> e.asJsonArray.firstNotNullOfOrNull { condition(it) }
-        e.isJsonObject -> e.asJsonObject.let { o -> CONDITIONS.firstNotNullOfOrNull { c -> o.get(c)?.let { condition(it) } } ?: o.entrySet().firstNotNullOfOrNull { condition(it.value) } }
+        e.isJsonObject -> e.asJsonObject.let { o ->
+            CONDITIONS.firstNotNullOfOrNull { c -> o.get(c)?.let { condition(it) } } ?: o.entrySet().firstNotNullOfOrNull { condition(it.value) }
+        }
         else -> null
     }
 

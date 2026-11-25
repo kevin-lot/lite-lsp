@@ -102,7 +102,8 @@ class ShVarRef(node: ASTNode) : ShElement(node) {
 
 /** First word of a command: a function of this script (or of a sourced one), else an external command. */
 class ShCommandName(node: ASTNode) : ShElement(node) {
-    val nameToken: PsiElement? get() = (firstChild as? ShElement)?.takeIf { it.node.getChildren(null).size == 1 }?.firstChild?.takeIf { it.node.elementType == T.WORD }
+    val nameToken: PsiElement? get() = (firstChild as? ShElement)?.takeIf { it.node.getChildren(null).size == 1 }?.firstChild
+        ?.takeIf { it.node.elementType == T.WORD }
     override fun getReference(): PsiReference? = nameToken?.let { ShFunctionReference(this) }
 }
 
@@ -176,7 +177,10 @@ class ShVarReference(element: ShVarRef) :
 }
 
 class ShFunctionReference(element: ShCommandName) :
-    PsiPolyVariantReferenceBase<ShCommandName>(element, element.nameToken?.let { TextRange.from(it.startOffsetInParent + element.firstChild.startOffsetInParent, it.textLength) } ?: TextRange.EMPTY_RANGE) {
+    PsiPolyVariantReferenceBase<ShCommandName>(
+        element,
+        element.nameToken?.let { TextRange.from(it.startOffsetInParent + element.firstChild.startOffsetInParent, it.textLength) } ?: TextRange.EMPTY_RANGE,
+    ) {
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
         PsiElementResolveResult.createResults(listOfNotNull(element.nameToken?.text?.let { ShResolver.function(it, element.containingFile) }))
     override fun handleElementRename(newElementName: String): PsiElement {

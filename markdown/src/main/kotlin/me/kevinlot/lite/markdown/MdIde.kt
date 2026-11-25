@@ -96,7 +96,9 @@ class MdCommenter : Commenter {
     override fun getCommentedBlockCommentSuffix(): String? = null
 }
 
-class MdFindUsagesProvider : LiteFindUsagesProvider(::MdLexer, TokenSet.create(T.TEXT, T.LINK_DEST, T.LINK_LABEL, T.CODE_SPAN, T.HTML), T.COMMENTS, TokenSet.EMPTY) {
+class MdFindUsagesProvider : LiteFindUsagesProvider(
+    ::MdLexer, TokenSet.create(T.TEXT, T.LINK_DEST, T.LINK_LABEL, T.CODE_SPAN, T.HTML), T.COMMENTS, TokenSet.EMPTY,
+) {
     override fun isDeclaration(element: PsiElement) = element is MdHeader || element is MdLinkDefinition
     override fun kindOf(element: PsiElement) = when (element) { is MdHeader -> "header"; else -> "link definition" }
 }

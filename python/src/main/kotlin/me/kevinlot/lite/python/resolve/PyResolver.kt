@@ -109,7 +109,9 @@ object PyResolver {
     private val SELF_ATTRIBUTES = Key.create<CachedValue<Map<String, PyTarget>>>("lite.py.selfAttributes")
     private val IMPORT_STATEMENTS = TokenSet.create(E.IMPORT_STATEMENT, E.FROM_IMPORT_STATEMENT)
     private val TYPING_ONE = setOf("Optional", "Final", "ClassVar", "Annotated", "Type", "type")
-    private val TYPING_COLL = setOf("list", "List", "set", "Set", "frozenset", "Sequence", "Iterable", "Iterator", "Collection", "tuple", "Tuple", "MutableSequence", "Generator", "deque")
+    private val TYPING_COLL = setOf(
+        "list", "List", "set", "Set", "frozenset", "Sequence", "Iterable", "Iterator", "Collection", "tuple", "Tuple", "MutableSequence", "Generator", "deque",
+    )
 
     fun resolve(ref: PyReferenceExpr): List<PsiElement> =
         GUARD.run(emptyList()) { LiteCache.cachedNonRecursive(ref, RESOLVE, PyLibraryOracle, emptyList()) { doResolve(ref).distinct() } }
@@ -374,7 +376,8 @@ object PyResolver {
                     else -> annotationType(a.firstChild, ctx)
                 }
             }
-            E.BINARY_EXPRESSION -> a.children.filter { it is PyElement && it.text != "None" }.map { annotationType(it, ctx) }.firstOrNull { it != PyTy.Unknown } ?: PyTy.Unknown
+            E.BINARY_EXPRESSION -> a.children.filter { it is PyElement && it.text != "None" }.map { annotationType(it, ctx) }
+                .firstOrNull { it != PyTy.Unknown } ?: PyTy.Unknown
             else -> PyTy.Unknown
         }
     }

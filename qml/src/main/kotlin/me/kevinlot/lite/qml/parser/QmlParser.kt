@@ -146,7 +146,9 @@ class QmlParser : TsParser(jsx = false) {
             atSoft("id") && la(1) == T.COLON -> { val m = mark(); soft(); advance(); expectIdent(); m.done(Q.ID) }
             isPropertyDeclaration() -> property()
             atSoft("signal") && la(1) == T.IDENTIFIER -> signal()
-            atKw("function") || (atSoft("async") && la(1) == T.kw("function")) -> { val m = mark(); if (atSoft("async")) soft(); functionRest(m, JS.FUNCTION_DECLARATION) }
+            atKw("function") || (atSoft("async") && la(1) == T.kw("function")) -> {
+                val m = mark(); if (atSoft("async")) soft(); functionRest(m, JS.FUNCTION_DECLARATION)
+            }
             atKw("enum") && la(1) == T.IDENTIFIER -> enum()
             atSoft("component") && la(1) == T.IDENTIFIER && la(2) == T.COLON -> {
                 val m = mark(); soft(); advance(); advance()

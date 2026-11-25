@@ -109,7 +109,8 @@ object QmlTypes {
     fun typeTargets(member: PsiElement): List<PsiElement> = when {
         member is QmlNamed && member.type == Q.PROPERTY ->
             (member.value as? QmlObject)?.let { listOf(it) } ?: member.typeRef?.let { QmlResolver.resolveType(it) }.orEmpty()
-        isTypeInfo(member, "Property") -> listOfNotNull((member as QmlObject).field("type")?.let { QmlTypeInfo.component(it.removeSuffix("*"), member.project) })
+        isTypeInfo(member, "Property") ->
+            listOfNotNull((member as QmlObject).field("type")?.let { QmlTypeInfo.component(it.removeSuffix("*"), member.project) })
         else -> emptyList()
     }
 }

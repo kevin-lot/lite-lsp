@@ -55,7 +55,8 @@ object GroovyFiles {
     private val CLASSES = Key.create<CachedValue<List<GroovyClass>>>("lite.groovy.classes")
 
     fun packageName(file: PsiFile): String =
-        file.children.firstOrNull { it.isA(E.PACKAGE) }?.children?.firstNotNullOfOrNull { it as? GroovyQualifiedName }?.text.orEmpty().filterNot(Char::isWhitespace)
+        file.children.firstOrNull { it.isA(E.PACKAGE) }?.children?.firstNotNullOfOrNull { it as? GroovyQualifiedName }?.text.orEmpty()
+            .filterNot(Char::isWhitespace)
 
     fun imports(file: PsiFile): List<GroovyImport> = file.children.filterIsInstance<GroovyImport>()
 

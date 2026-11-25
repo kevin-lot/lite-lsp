@@ -81,7 +81,8 @@ object Rego : Format("Rego", "Rego", "rego") {
 
             val ruleNames = statements.map { it.name.value }.toSet()
             val locals = statements.associateWith { locals(it, text, dead, ruleNames) }
-            val writes = locals.flatMap { (statement, names) -> names.map { (range, name) -> range to "local:$name@${statement.start}" } }.sortedBy { it.first.startOffset }
+            val writes = locals.flatMap { (statement, names) -> names.map { (range, name) -> range to "local:$name@${statement.start}" } }
+                .sortedBy { it.first.startOffset }
             val firstWrites = writes.distinctBy { it.second }.toSet()
             val taken = (writes + definitions).map { it.first.startOffset }.toSet()
 
@@ -97,7 +98,8 @@ object Rego : Format("Rego", "Rego", "rego") {
                     (firstDefinitions + firstWrites).map { (range, key) -> Decl(range, key) },
                 refs = packages.dropLast(1).map { (range, key) -> Ref(range, listOf(key)) } +
                     imports.flatMap { import -> import.groups[1]?.let { segments(it, "data:") }.orEmpty().map { (range, key) -> Ref(range, listOf(key)) } } +
-                    (definitions.filterNot { it in firstDefinitions } + writes.filterNot { it in firstWrites }).map { (range, key) -> Ref(range, listOf(key)) } +
+                    (definitions.filterNot { it in firstDefinitions } + writes.filterNot { it in firstWrites })
+                        .map { (range, key) -> Ref(range, listOf(key)) } +
                     uses,
             )
         }

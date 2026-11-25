@@ -100,7 +100,8 @@ class TsFunction(node: ASTNode) : TsNamedDecl(node) {
     val returnType: PsiElement? get() = typeNode
     /** Block body, or the expression of a concise arrow. */
     val body: PsiElement? get() = child(E.BLOCK) ?: when {
-        type == E.ARROW_FUNCTION -> node.getChildren(null).lastOrNull()?.psi?.takeIf { it is TsElement && it.node.elementType != E.TYPE_ANNOTATION && it.node.elementType != E.PARAMETER_LIST }
+        type == E.ARROW_FUNCTION -> node.getChildren(null).lastOrNull()?.psi
+            ?.takeIf { it is TsElement && it.node.elementType != E.TYPE_ANNOTATION && it.node.elementType != E.PARAMETER_LIST }
         else -> null
     }
     val isGetter: Boolean get() = hasModifier("get")

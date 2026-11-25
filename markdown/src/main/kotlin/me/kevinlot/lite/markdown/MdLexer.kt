@@ -31,7 +31,8 @@ class MdLexer : LexerBase() {
 
     override fun start(buffer: CharSequence, startOffset: Int, endOffset: Int, initialState: Int) {
         buf = buffer; end = endOffset; pos = startOffset
-        fenceChar = '\u0000'; fenceLen = 0; fenceInfoNext = false; fenceQuoted = false; fenceQuoteDone = false; destNext = false; inLinkParens = false; defLine = false; pendingParen = false
+        fenceChar = '\u0000'; fenceLen = 0; fenceInfoNext = false; fenceQuoted = false; fenceQuoteDone = false
+        destNext = false; inLinkParens = false; defLine = false; pendingParen = false
         advance()
     }
 

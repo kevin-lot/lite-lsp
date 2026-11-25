@@ -85,7 +85,9 @@ class PackageScriptContributor : PsiReferenceContributor() {
 
 class PackageScriptReference(literal: JsonStringLiteral, range: TextRange) : PsiPolyVariantReferenceBase<JsonStringLiteral>(literal, range) {
     override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> =
-        PsiElementResolveResult.createResults(listOfNotNull(PackageScripts.scripts(element.containingFile)?.findProperty(rangeInElement.substring(element.text))))
+        PsiElementResolveResult.createResults(
+            listOfNotNull(PackageScripts.scripts(element.containingFile)?.findProperty(rangeInElement.substring(element.text))),
+        )
 
     override fun handleElementRename(newElementName: String): PsiElement =
         ElementManipulators.handleContentChange(element, rangeInElement, newElementName) ?: element
@@ -97,6 +99,8 @@ class PackageScriptNamesAnnotator : Annotator {
         val literal = (element as? JsonStringLiteral)?.takeIf(PackageScripts::isScript) ?: return
         val key = Cat.FUNCTION.key ?: return
         val start = literal.textRange.startOffset
-        PackageScripts.names(literal).forEach { holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(it.shiftRight(start)).textAttributes(key).create() }
+        PackageScripts.names(literal).forEach {
+            holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(it.shiftRight(start)).textAttributes(key).create()
+        }
     }
 }

@@ -87,7 +87,8 @@ class PbBraceMatcher : LiteBraceMatcher(
 class PbCommenter : LiteCStyleCommenter()
 
 class PbFindUsagesProvider : LiteFindUsagesProvider(
-    { FlexAdapter(_ProtoLexer(null)) }, TokenSet.orSet(TokenSet.create(T.IDENTIFIER_LITERAL), KEYWORDS), PbParserDefinition.COMMENTS, TokenSet.create(T.STRING_LITERAL),
+    { FlexAdapter(_ProtoLexer(null)) }, TokenSet.orSet(TokenSet.create(T.IDENTIFIER_LITERAL), KEYWORDS),
+    PbParserDefinition.COMMENTS, TokenSet.create(T.STRING_LITERAL),
 ) {
     override fun isDeclaration(element: PsiElement) = element is PbDefinition
     override fun kindOf(element: PsiElement) = when (element.node.elementType) {

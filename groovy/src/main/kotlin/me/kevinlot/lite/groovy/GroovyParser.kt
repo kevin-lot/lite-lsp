@@ -218,7 +218,8 @@ class GroovyParser : PsiParser {
 
         /** `for (x in xs)` / `for (String x : xs)`: an `in` or a `:` before any `;` at the top of the parentheses. */
         private fun isForEach(): Boolean {
-            val first = generateSequence(0) { it + 1 }.take(GROUP_LOOKAHEAD).map { b.lookAhead(it) }.takeWhile { it != null && it != T.RPAREN && it != T.LPAREN }
+            val first = generateSequence(0) { it + 1 }.take(GROUP_LOOKAHEAD).map { b.lookAhead(it) }
+                .takeWhile { it != null && it != T.RPAREN && it != T.LPAREN }
                 .firstOrNull { it == T.SEMI || it == T.COLON || it == kw("in") }
             return first != null && first != T.SEMI
         }
@@ -347,7 +348,8 @@ class GroovyParser : PsiParser {
         }
 
         private val modifierKeywords = TokenSet.create(
-            *listOf("abstract", "def", "final", "native", "private", "protected", "public", "static", "strictfp", "transient", "volatile").map(::kw).toTypedArray(),
+            *listOf("abstract", "def", "final", "native", "private", "protected", "public", "static", "strictfp", "transient", "volatile")
+                .map(::kw).toTypedArray(),
         )
 
         private fun atModifier(): Boolean = when {
@@ -740,7 +742,10 @@ class GroovyParser : PsiParser {
                 afterGroup(0) == T.ARROW && !caseLabel -> lambda()
                 else -> { paren(); Chain.VALUE }
             }
-            T.LBRACKET -> { val m = b.mark(); b.advanceLexer(); eat(T.COLON); argumentsUntil(T.RBRACKET); expect(T.RBRACKET, "']'"); m.done(E.LIST); Chain.VALUE }
+            T.LBRACKET -> {
+                val m = b.mark(); b.advanceLexer(); eat(T.COLON); argumentsUntil(T.RBRACKET); expect(T.RBRACKET, "']'"); m.done(E.LIST)
+                Chain.VALUE
+            }
             T.LBRACE -> { closure(); Chain.VALUE }
             kw("new") -> { newExpr(); Chain.VALUE }
             kw("switch") -> { switchStatement(); Chain.VALUE }
@@ -886,7 +891,8 @@ class GroovyParser : PsiParser {
             val CLASS_HEADER_FOLLOWERS = TokenSet.create(T.LBRACE, T.LPAREN, T.LT, T.kw("extends"), T.kw("implements"))
             val CLOSURE_PARAM_STOPS = TokenSet.create(T.ARROW, T.LBRACE, T.RBRACE, T.SEMI, T.WHITE_SPACE)
             val COMMAND_ARG_STARTS = TokenSet.create(
-                T.BNOT, T.GSTRING_BEGIN, T.IDENT, T.NOT, T.NUMBER, T.STRING, T.kw("false"), T.kw("new"), T.kw("null"), T.kw("super"), T.kw("this"), T.kw("true"),
+                T.BNOT, T.GSTRING_BEGIN, T.IDENT, T.NOT, T.NUMBER, T.STRING,
+                T.kw("false"), T.kw("new"), T.kw("null"), T.kw("super"), T.kw("this"), T.kw("true"),
             )
             val ENUM_CONSTANT_FOLLOWERS = TokenSet.create(T.COMMA, T.LBRACE, T.LPAREN, T.RBRACE, T.SEMI)
             val GENERIC_TYPE_FOLLOWERS = TokenSet.create(T.COMMA, T.DOT, T.RBRACKET, T.RPAREN)

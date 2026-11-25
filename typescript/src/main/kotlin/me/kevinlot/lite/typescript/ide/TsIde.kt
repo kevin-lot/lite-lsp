@@ -152,5 +152,6 @@ class TsRefactoringSupportProvider : RefactoringSupportProvider() {
 }
 
 open class TsNamesValidator : LiteNamesValidator(T.KEYWORDS.keys) {
-    override fun isIdentifier(name: String, project: Project?) = super.isIdentifier(name, project) || (name.isNotEmpty() && name.all { it == '$' || it == '_' || it.isLetterOrDigit() } && !name[0].isDigit() && name !in T.KEYWORDS)
+    override fun isIdentifier(name: String, project: Project?) = super.isIdentifier(name, project) ||
+        (name.isNotEmpty() && name.all { it == '$' || it == '_' || it.isLetterOrDigit() } && !name[0].isDigit() && name !in T.KEYWORDS)
 }

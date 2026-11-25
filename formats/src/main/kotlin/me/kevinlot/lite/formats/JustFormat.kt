@@ -68,7 +68,8 @@ object Just : Format("Just", "Just", "just") {
             return lineEnd(last, buf).coerceAtMost(end)
         }
 
-        private fun inBody(lineStart: Int): Boolean = buf[lineStart] == ' ' || buf[lineStart] == '\t' || buf.subSequence(lineStart, lineEnd(lineStart, buf)).isBlank()
+        private fun inBody(lineStart: Int): Boolean =
+            buf[lineStart] == ' ' || buf[lineStart] == '\t' || buf.subSequence(lineStart, lineEnd(lineStart, buf)).isBlank()
 
         /** The line above (blank ones aside) is a recipe header: an indented line elsewhere continues an expression. */
         private fun underHeader(lineStart: Int): Boolean {
@@ -93,7 +94,9 @@ object Just : Format("Just", "Just", "just") {
             val start = word.textRange.startOffset
             val indent = start - (file.viewProvider.contents.lastIndexOf('\n', (start - 1).coerceAtLeast(0)) + 1)
             val lines = Scripts.lines(body, indent = indent)
-            val interpreter = shebang.matchAt(body, 0)?.value ?: return lines.map { TextRange(it.startOffset + (prefix.matchAt(body, it.startOffset)?.value?.length ?: 0), it.endOffset) }.filter { !it.isEmpty }
+            val interpreter = shebang.matchAt(body, 0)?.value
+                ?: return lines.map { TextRange(it.startOffset + (prefix.matchAt(body, it.startOffset)?.value?.length ?: 0), it.endOffset) }
+                    .filter { !it.isEmpty }
             if (!shells.matches(interpreter)) return emptyList()
             return lines.drop(1)
         }

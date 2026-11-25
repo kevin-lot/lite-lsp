@@ -91,7 +91,9 @@ class LuaParser : PsiParser {
                 T.kw("break") -> { val m = b.mark(); b.advanceLexer(); m.done(E.BREAK_STMT) }
                 T.kw("goto") -> { val m = b.mark(); b.advanceLexer(); nameRef(); m.done(E.GOTO_STMT) }
                 T.kw("do") -> { val m = b.mark(); b.advanceLexer(); block(); expect(T.kw("end"), "'end'"); m.done(E.DO_STMT) }
-                T.kw("while") -> { val m = b.mark(); b.advanceLexer(); expr(); expect(T.kw("do"), "'do'"); block(); expect(T.kw("end"), "'end'"); m.done(E.WHILE_STMT) }
+                T.kw("while") -> {
+                    val m = b.mark(); b.advanceLexer(); expr(); expect(T.kw("do"), "'do'"); block(); expect(T.kw("end"), "'end'"); m.done(E.WHILE_STMT)
+                }
                 T.kw("repeat") -> { val m = b.mark(); b.advanceLexer(); block(); expect(T.kw("until"), "'until'"); expr(); m.done(E.REPEAT_STMT) }
                 T.kw("if") -> ifStmt()
                 T.kw("for") -> forStmt()

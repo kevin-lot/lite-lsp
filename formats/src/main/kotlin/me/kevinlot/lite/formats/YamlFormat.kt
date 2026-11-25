@@ -15,10 +15,12 @@ object Yaml : Format("Yaml", "YAML", "yaml") {
     private const val BLOCK_INDICATOR = """[|>](?:[-+]\d?|\d[-+]?)?"""
     // a line that ends with the header of a block scalar: group 1 = its `- ` items, group 2 = its key
     private val BLOCK_HEADER: Pattern = Pattern.compile(
-        """[ \t]*+((?:-[ \t]++)*+)((?:"[^"\\\n]*+(?:\\.[^"\\\n]*+)*+"|'[^'\n]*+(?:''[^'\n]*+)*+'|[^\s#'"{\[\]},&*!|>%@`-][^:#\n]*?)[ \t]*+:[ \t]++)?(?:[&!]\S*+[ \t]++)*+$BLOCK_INDICATOR[ \t]*+(?:#[^\n]*+)?""",
+        """[ \t]*+((?:-[ \t]++)*+)((?:"[^"\\\n]*+(?:\\.[^"\\\n]*+)*+"|'[^'\n]*+(?:''[^'\n]*+)*+'|[^\s#'"{\[\]},&*!|>%@`-][^:#\n]*?)[ \t]*+:[ \t]++)?""" +
+            """(?:[&!]\S*+[ \t]++)*+$BLOCK_INDICATOR[ \t]*+(?:#[^\n]*+)?""",
     )
     // ends before `: `, ` #` and the flow indicators
-    private const val PLAIN = """(?:[^\s,\[\]{}#&*!|>'"%@`:?-]|[?-](?=[^\s,\[\]{}]))[^\s:#,\[\]{}]*+(?:(?:[ \t]++(?![\s#]|\z|:(?:\s|\z))|:(?=[^\s,\[\]{}])|#)[^\s:#,\[\]{}]*+)*+"""
+    private const val PLAIN = """(?:[^\s,\[\]{}#&*!|>'"%@`:?-]|[?-](?=[^\s,\[\]{}]))[^\s:#,\[\]{}]*+""" +
+        """(?:(?:[ \t]++(?![\s#]|\z|:(?:\s|\z))|:(?=[^\s,\[\]{}])|#)[^\s:#,\[\]{}]*+)*+"""
     private const val SCALAR_END = """(?=[ \t]*+(?:[\n,\]}]|\z|(?<=[ \t])#))"""
 
     /** [first] where a node may start: on a new line, or after an indicator, a tag or an anchor. */
@@ -125,7 +127,9 @@ object Yaml : Format("Yaml", "YAML", "yaml") {
         if ('&' !in text) return emptyList()
         val lexer = lexer()
         lexer.start(text)
-        return generateSequence { lexer.tokenType?.let { type -> ((type as? FmtToken)?.cat to TextRange(lexer.tokenStart + 1, lexer.tokenEnd)).also { lexer.advance() } } }
+        return generateSequence {
+            lexer.tokenType?.let { type -> ((type as? FmtToken)?.cat to TextRange(lexer.tokenStart + 1, lexer.tokenEnd)).also { lexer.advance() } }
+        }
             .filter { it.first == Cat.DECL || it.first == Cat.VARIABLE }.toList()
     }
 
@@ -144,8 +148,10 @@ object Yaml : Format("Yaml", "YAML", "yaml") {
                 else -> Serverless.links(text)
             }
             return Links(
-                decls = anchors.map { (_, r) -> Decl(r, "anchor:${r.subSequence(text)}") } + keys.map { (r, p) -> Decl(r, "key:$p") } + actions?.decls.orEmpty(),
-                refs = aliases.map { (_, r) -> Ref(r, listOf("anchor:${r.subSequence(text)}")) } + Pointers.yamlRefs(text) + actions?.refs.orEmpty() + service?.refs.orEmpty(),
+                decls = anchors.map { (_, r) -> Decl(r, "anchor:${r.subSequence(text)}") } + keys.map { (r, p) -> Decl(r, "key:$p") } +
+                    actions?.decls.orEmpty(),
+                refs = aliases.map { (_, r) -> Ref(r, listOf("anchor:${r.subSequence(text)}")) } + Pointers.yamlRefs(text) +
+                    actions?.refs.orEmpty() + service?.refs.orEmpty(),
                 paths = actions?.paths.orEmpty() + service?.paths.orEmpty(),
             )
         }

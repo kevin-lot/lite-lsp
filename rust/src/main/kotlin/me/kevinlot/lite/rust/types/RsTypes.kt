@@ -175,7 +175,9 @@ object RsTypes {
         is RsTupleType -> Ty.Tuple(ref.typeReferenceList.map { typeOf(it, subst) })
         is RsUnitType -> Ty.Tuple(emptyList())
         is RsArrayType -> Ty.Slice(typeOf(ref.typeReference, subst))
-        is RsTraitType -> Ty.Dyn(ref.polyboundList.mapNotNull { it.bound.traitRef?.path }.flatMap { NameResolver.resolvePath(it) }.filterIsInstance<RsTraitItem>())
+        is RsTraitType -> Ty.Dyn(
+            ref.polyboundList.mapNotNull { it.bound.traitRef?.path }.flatMap { NameResolver.resolvePath(it) }.filterIsInstance<RsTraitItem>(),
+        )
         else -> Ty.Unknown
     }
 
@@ -411,10 +413,12 @@ object RsTypes {
             is RsFunction -> {
                 val owner = callee.path.path?.let { q -> NameResolver.resolvePath(q).firstOrNull() }
                 val self = when (owner) {
-                    is RsStructItem, is RsEnumItem -> Ty.Adt(owner as RsNamedElement, callee.path.path?.typeArgumentList?.typeReferenceList.orEmpty().map { typeOf(it) })
+                    is RsStructItem, is RsEnumItem ->
+                        Ty.Adt(owner as RsNamedElement, callee.path.path?.typeArgumentList?.typeReferenceList.orEmpty().map { typeOf(it) })
                     else -> null
                 }
-                val implSubst = (target.parent?.parent as? RsImplItem)?.let { impl -> self?.let { unifyImpl(impl, it) } ?: Subst(self = typeOf(impl.typeReference)) }
+                val implSubst = (target.parent?.parent as? RsImplItem)
+                    ?.let { impl -> self?.let { unifyImpl(impl, it) } ?: Subst(self = typeOf(impl.typeReference)) }
                 typeOf(target.retType?.typeReference, implSubst ?: Subst(self = self))
             }
             is RsStructItem -> Ty.Adt(target, emptyList())

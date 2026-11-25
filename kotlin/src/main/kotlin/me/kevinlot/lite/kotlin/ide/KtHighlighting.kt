@@ -100,7 +100,8 @@ class KtHighlightingAnnotator : Annotator {
         when {
             // Soft and modifier keywords are identifiers for the lexer (`data`, `override`, `get`, `by`…).
             type in SOFT_KEYWORDS && element.parent?.node?.elementType != N.REFERENCE_EXPRESSION -> holder.color(element, KtColors.KEYWORD)
-            element is KtClass || element is KtObjectDeclaration || element is KtTypeAlias -> holder.color((element as KtNamedDeclaration).nameIdentifier, KtColors.CLASS)
+            element is KtClass || element is KtObjectDeclaration || element is KtTypeAlias ->
+                holder.color((element as KtNamedDeclaration).nameIdentifier, KtColors.CLASS)
             element is KtTypeParameter -> holder.color(element.nameIdentifier, KtColors.TYPE_PARAMETER)
             element is KtFunction -> holder.color(element.nameIdentifier, KtColors.FUNCTION_DECL)
             element is KtProperty && !element.isLocal && element.hasModifier(KtTokens.CONST_KEYWORD) -> holder.color(element.nameIdentifier, KtColors.CONSTANT)

@@ -18,7 +18,10 @@ import me.kevinlot.lite.qml.psi.QmlObject
  * root for `qs.*` (the folder of `shell.qml`, never above the project), and the project itself.
  */
 object QmlEnvironment {
-    private val SYSTEM_PATHS = listOf("/usr/lib64/qt6/qml", "/usr/lib/qt6/qml", "/usr/lib/x86_64-linux-gnu/qt6/qml", "/usr/lib/aarch64-linux-gnu/qt6/qml", "/usr/local/lib/qt6/qml", "/opt/homebrew/share/qt/qml")
+    private val SYSTEM_PATHS = listOf(
+        "/usr/lib64/qt6/qml", "/usr/lib/qt6/qml", "/usr/lib/x86_64-linux-gnu/qt6/qml", "/usr/lib/aarch64-linux-gnu/qt6/qml",
+        "/usr/local/lib/qt6/qml", "/opt/homebrew/share/qt/qml",
+    )
 
     val importPaths: List<VirtualFile> by lazy {
         val env = listOf("QML_IMPORT_PATH", "QML2_IMPORT_PATH").flatMap { System.getenv(it)?.split(':').orEmpty() }.filter { it.isNotBlank() }
@@ -76,7 +79,8 @@ object QmlDirs {
     fun read(dir: VirtualFile): QmlDir? {
         val file = dir.findChild("qmldir") ?: return null
         cache[file.path]?.let { (stamp, d) -> if (stamp == file.modificationStamp) return d }
-        val types = LinkedHashMap<String, String>(); val singletons = HashSet<String>(); val imports = mutableListOf<String>(); val typeInfo = mutableListOf<String>()
+        val types = LinkedHashMap<String, String>(); val singletons = HashSet<String>()
+        val imports = mutableListOf<String>(); val typeInfo = mutableListOf<String>()
         String(file.contentsToByteArray(), Charsets.UTF_8).lineSequence().map { it.trim() }.forEach { line ->
             val words = line.split(SPACES)
             when (words.firstOrNull()) {

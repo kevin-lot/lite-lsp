@@ -14,7 +14,9 @@ object GithubActions {
     private class Key(val range: TextRange, val path: List<String>)
     private class Step(val job: String, val prefix: List<String>, val first: Int, val last: Int, val id: String?)
 
-    private val CONTEXT = Regex("""(?<![.\w-])(needs|steps|inputs|env|matrix|secrets|jobs|github\.event\.inputs)\.([A-Za-z_][\w-]*)(?:\.outputs\.([A-Za-z_][\w-]*))?""")
+    private val CONTEXT = Regex(
+        """(?<![.\w-])(needs|steps|inputs|env|matrix|secrets|jobs|github\.event\.inputs)\.([A-Za-z_][\w-]*)(?:\.outputs\.([A-Za-z_][\w-]*))?""",
+    )
     private val EXPRESSION = Regex("""\$\{\{[\s\S]*?}}""")
     private val NAME = Regex("""[A-Za-z_][\w-]*""")
     private val OUTPUT = Regex("""(?m)\b([A-Za-z_][\w-]*)=.*>>\s*"?\$\{?GITHUB_OUTPUT""")
@@ -48,7 +50,8 @@ object GithubActions {
         private val steps = steps()
         private val stepStarts = steps.map { keys[it.first].range.startOffset }
         private val envByName = keys.map { it.path }.filter { it.size >= 2 && it[it.size - 2] == "env" }.groupBy { it.last() }
-        private val matrixIncludes = keys.map { it.path }.filter { it.size == 7 && it[0] == "jobs" && it[2] == "strategy" && it[3] == "matrix" && it[4] == "include" }
+        private val matrixIncludes = keys.map { it.path }
+            .filter { it.size == 7 && it[0] == "jobs" && it[2] == "strategy" && it[3] == "matrix" && it[4] == "include" }
             .groupBy { it[1] to it.last() }
 
         fun links(): Links {
@@ -78,11 +81,16 @@ object GithubActions {
         }
 
         private fun steps(): List<Step> = keys.indices
-            .mapNotNull { index -> keys[index].path.indexOf("steps").takeIf { it >= 0 && keys[index].path.size > it + 2 }?.let { index to keys[index].path.take(it + 2) } }
+            .mapNotNull { index ->
+                keys[index].path.indexOf("steps").takeIf { it >= 0 && keys[index].path.size > it + 2 }?.let { index to keys[index].path.take(it + 2) }
+            }
             .groupBy({ it.second }, { it.first })
             .map { (prefix, indices) ->
                 val id = indices.firstOrNull { keys[it].path.size == prefix.size + 1 && keys[it].path.last() == "id" }?.let(::value)?.second
-                Step(job = prefix.getOrNull(1).takeIf { prefix[0] == "jobs" }.orEmpty(), prefix = prefix, first = indices.first(), last = indices.last(), id = id)
+                Step(
+                    job = prefix.getOrNull(1).takeIf { prefix[0] == "jobs" }.orEmpty(),
+                    prefix = prefix, first = indices.first(), last = indices.last(), id = id,
+                )
             }
 
         // ---------------------------------------------------------------- declarations
@@ -119,7 +127,9 @@ object GithubActions {
             fun ref(group: MatchGroup, keys: List<String>) = Ref(TextRange.from(offset + group.range.first, group.value.length), keys)
             return when (kind) {
                 "env" -> listOf(ref(name, env(name.value, at)))
-                "inputs", "github.event.inputs" -> listOf(ref(name, listOf("on/workflow_call/inputs", "on/workflow_dispatch/inputs", "inputs").map { "key:/$it/${Pointers.escape(name.value)}" }))
+                "inputs", "github.event.inputs" -> listOf(
+                    ref(name, listOf("on/workflow_call/inputs", "on/workflow_dispatch/inputs", "inputs").map { "key:/$it/${Pointers.escape(name.value)}" }),
+                )
                 "jobs", "needs" -> listOfNotNull(
                     ref(name, listOf(pointer(listOf("jobs", name.value)))),
                     output?.let { ref(it, listOf(pointer(listOf("jobs", name.value, "outputs", it.value))) + called(name.value, "outputs", it.value)) },
@@ -155,7 +165,9 @@ object GithubActions {
         }
 
         /** `needs: a`, `needs: [a, b]` or a list of items under it. */
-        private fun needs(): List<Ref> = keys.indices.filter { keys[it].path.size == 3 && keys[it].path[0] == "jobs" && keys[it].path[2] == "needs" }.flatMap { index ->
+        private fun needs(): List<Ref> = keys.indices.filter {
+            keys[it].path.size == 3 && keys[it].path[0] == "jobs" && keys[it].path[2] == "needs"
+        }.flatMap { index ->
             val start = keys[index].range.endOffset
             val region = COMMENT.replace(text.subSequence(start, regionEnd(index))) { " ".repeat(it.value.length) }
             NAME.findAll(region).map { Ref(TextRange.from(start + it.range.first, it.value.length), listOf(pointer(listOf("jobs", it.value)))) }

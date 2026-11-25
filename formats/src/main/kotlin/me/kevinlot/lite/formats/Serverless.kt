@@ -62,7 +62,8 @@ object Serverless {
     private fun range(group: MatchGroup, shift: Int = 0) = TextRange(group.range.first + shift, group.range.last + 1 + shift)
 
     private fun named(text: CharSequence, regex: Regex, prefix: String): List<Ref> =
-        regex.findAll(text).flatMap { it.groups.drop(1).filterNotNull() }.filter { it.value !in PSEUDO }.map { Ref(range(it), listOf(prefix + it.value)) }.toList()
+        regex.findAll(text).flatMap { it.groups.drop(1).filterNotNull() }.filter { it.value !in PSEUDO }
+            .map { Ref(range(it), listOf(prefix + it.value)) }.toList()
 
     /** One reference per segment, to the key of that level; the index of a list (`functions.0`) names no key. */
     private fun segments(path: MatchGroup, prefix: String): List<Ref> {
@@ -80,15 +81,19 @@ object Serverless {
     private fun cloudFormation(text: CharSequence): List<Ref> =
         named(text, REF, "cfn:value:") + named(text, GET_ATT, "cfn:Resources:") + named(text, CONDITION, "cfn:Conditions:") +
             named(text, FIND_IN_MAP, "cfn:Mappings:") + substituted(text) +
-            DEPENDS.findAll(text).mapNotNull { it.groups[1] }.flatMap { list -> WORD.findAll(list.value).map { Ref(TextRange.from(list.range.first + it.range.first, it.value.length), listOf("cfn:Resources:${it.value}")) } }
+            DEPENDS.findAll(text).mapNotNull { it.groups[1] }.flatMap { list ->
+                WORD.findAll(list.value).map { Ref(TextRange.from(list.range.first + it.range.first, it.value.length), listOf("cfn:Resources:${it.value}")) }
+            }
 
     /** `${Name}` and `${Name.Attr}` in the text given to a `!Sub`: the rest of its line, and the lines indented under it. */
     private fun substituted(text: CharSequence): List<Ref> = SUB.findAll(text).flatMap { sub ->
         val indent = sub.groupValues[1].length
         val end = generateSequence(sub.range.last + 1) { lineEnd(it + 1, text) }.takeWhile { it < text.length }
-            .firstOrNull { eol -> text.subSequence(eol + 1, lineEnd(eol + 1, text)).let { it.isNotBlank() && it.takeWhile { c -> c == ' ' }.length <= indent } } ?: text.length
+            .firstOrNull { eol -> text.subSequence(eol + 1, lineEnd(eol + 1, text)).let { it.isNotBlank() && it.takeWhile { c -> c == ' ' }.length <= indent } }
+            ?: text.length
         val start = sub.groups[2]?.range?.first ?: return@flatMap emptySequence()
-        SUB_NAME.findAll(text.subSequence(start, end)).mapNotNull { it.groups[1] }.filter { it.value !in PSEUDO }.map { Ref(range(it, start), listOf("cfn:value:${it.value}")) }
+        SUB_NAME.findAll(text.subSequence(start, end)).mapNotNull { it.groups[1] }.filter { it.value !in PSEUDO }
+            .map { Ref(range(it, start), listOf("cfn:value:${it.value}")) }
     }.toList()
 
     // ---------------------------------------------------------------- resolution
@@ -163,11 +168,13 @@ object Serverless {
      */
     private fun declarations(file: PsiFile): Map<String, List<Decl>> = CachedValuesManager.getCachedValue(file, DECLARATIONS) {
         val decls = Fmt.links(file).decls
-        val written = decls.mapNotNull { decl -> DECLARED.matchEntire(decl.key)?.let { "${it.groupValues[1]}/${Pointers.unescape(it.groupValues[2])}" to decl } }
+        val written = decls
+            .mapNotNull { decl -> DECLARED.matchEntire(decl.key)?.let { "${it.groupValues[1]}/${Pointers.unescape(it.groupValues[2])}" to decl } }
         val generated = decls.flatMap { decl ->
             val match = GENERATED_FROM.matchEntire(decl.key) ?: return@flatMap emptyList()
             val id = Pointers.unescape(match.groupValues[2]).replace("-", "Dash").replace("_", "Underscore").replaceFirstChar(Char::uppercase)
-            GENERATED.filter { (_, section) -> match.groupValues[1].isEmpty() || match.groupValues[1] == section }.map { (suffix, _) -> "generated/$id$suffix" to decl }
+            GENERATED.filter { (_, section) -> match.groupValues[1].isEmpty() || match.groupValues[1] == section }
+                .map { (suffix, _) -> "generated/$id$suffix" to decl }
         }
         CachedValueProvider.Result.create((written + generated).groupBy({ it.first }, { it.second }), PsiModificationTracker.MODIFICATION_COUNT)
     }
@@ -208,7 +215,9 @@ object Serverless {
     private fun items(text: CharSequence, keyEnd: Int): List<MatchResult> {
         val start = lineEnd(keyEnd, text) + 1
         val lines = generateSequence(start) { lineEnd(it, text) + 1 }.takeWhile { it < text.length }
-            .takeWhile { text.subSequence(it, lineEnd(it, text)).let { line -> line.isBlank() || line.trimStart().startsWith("-") || line.trimStart().startsWith("#") } }
+            .takeWhile {
+                text.subSequence(it, lineEnd(it, text)).let { line -> line.isBlank() || line.trimStart().startsWith("-") || line.trimStart().startsWith("#") }
+            }
         return lines.mapNotNull { FILE_ITEM.matchAt(text, it) }.toList()
     }
 }

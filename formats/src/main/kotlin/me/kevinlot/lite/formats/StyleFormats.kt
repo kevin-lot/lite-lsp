@@ -65,7 +65,10 @@ open class StyleFormat(id: String, display: String, ext: String, private val scs
             if (!scss) return null
             val name = path.substringAfterLast('/')
             val dir = path.removeSuffix(name)
-            return listOf("$dir$name.scss", "${dir}_$name.scss", "$dir$name.sass", "${dir}_$name.sass", "${dir}_$name", "$dir$name/_index.scss", "$dir$name/_index.sass", "$dir$name.css")
+            return listOf(
+                "$dir$name.scss", "${dir}_$name.scss", "$dir$name.sass", "${dir}_$name.sass", "${dir}_$name",
+                "$dir$name/_index.scss", "$dir$name/_index.sass", "$dir$name.css",
+            )
                 .firstNotNullOfOrNull { super.resolvePath(file, it) }
         }
 

@@ -121,7 +121,10 @@ internal object MdDiagram {
         }
         // a link coming back to the first rank writes its label before that rank
         val lead = layers.first().flatMap { incoming[it].orEmpty() }.maxOfOrNull { labels.getValue(it).width + 8 }?.takeIf { diagram.horizontal } ?: 0.0
-        place(layers.map { layer -> layer.mapNotNull(boxes::get) }, slots, diagram.horizontal, lead, rankGap = 44 + min(labelGap, along(diagram.horizontal, 2 * MAX_LABEL_GAP, MAX_LABEL_GAP)))
+        place(
+            layers.map { layer -> layer.mapNotNull(boxes::get) }, slots, diagram.horizontal, lead,
+            rankGap = 44 + min(labelGap, along(diagram.horizontal, 2 * MAX_LABEL_GAP, MAX_LABEL_GAP)),
+        )
         val width = boxes.values.maxOf { it.x + along(diagram.horizontal, it.width, slots.getValue(it)) / 2 } + MARGIN
         val height = boxes.values.maxOf { it.y + along(diagram.horizontal, slots.getValue(it), it.height) / 2 } + MARGIN
         return Scene(width, height) { g ->
@@ -273,14 +276,16 @@ internal object MdDiagram {
         val heads = diagram.actors.map { Label(it.label, metrics) }
         val texts = diagram.steps.map { Label(text(it), metrics) }
         val messages = diagram.steps.zip(texts).mapNotNull { (step, label) -> (step as? Step.Message)?.let { it to label } }
-        fun widestBetween(left: Int) = messages.filter { (m, _) -> setOf(index[m.from], index[m.to]) == setOf(left, left + 1) }.maxOfOrNull { it.second.width } ?: 0.0
+        fun widestBetween(left: Int) =
+            messages.filter { (m, _) -> setOf(index[m.from], index[m.to]) == setOf(left, left + 1) }.maxOfOrNull { it.second.width } ?: 0.0
         val centers = heads.indices.drop(1).runningFold(MARGIN + heads.first().width / 2 + 14) { x, i ->
             x + maxOf(130.0, (heads[i - 1].width + heads[i].width) / 2 + 48, widestBetween(i - 1) + 36)
         }
         val headHeight = heads.maxOf { it.height } + 16
         val tops = texts.runningFold(MARGIN + headHeight + 14) { y, label -> y + label.height + 26 }
         val selfWidth = messages.filter { (m, _) -> m.from == m.to }.maxOfOrNull { (m, label) -> centers[index.getValue(m.from)] + 40 + label.width } ?: 0.0
-        val noteWidth = diagram.steps.zip(texts).filter { it.first is Step.Note }.maxOfOrNull { (step, label) -> noteCenter(step as Step.Note, index, centers) + label.width / 2 + 10 } ?: 0.0
+        val noteWidth = diagram.steps.zip(texts).filter { it.first is Step.Note }
+            .maxOfOrNull { (step, label) -> noteCenter(step as Step.Note, index, centers) + label.width / 2 + 10 } ?: 0.0
         val width = maxOf(centers.last() + heads.last().width / 2 + 14, selfWidth, noteWidth) + MARGIN
         val bottom = tops.last() + 6
         return Scene(width, bottom + MARGIN) { g ->
@@ -310,7 +315,9 @@ internal object MdDiagram {
     private fun noteCenter(note: Step.Note, index: Map<String, Int>, centers: List<Double>): Double =
         note.over.mapNotNull { index[it] }.map { centers[it] }.ifEmpty { listOf(centers.first()) }.average()
 
-    private fun paintStep(g: Graphics2D, style: DiagramStyle, step: Step, label: Label, top: Double, index: Map<String, Int>, centers: List<Double>, width: Double) {
+    private fun paintStep(
+        g: Graphics2D, style: DiagramStyle, step: Step, label: Label, top: Double, index: Map<String, Int>, centers: List<Double>, width: Double,
+    ) {
         val textY = top + label.height / 2
         val lineY = top + label.height + 6
         when (step) {

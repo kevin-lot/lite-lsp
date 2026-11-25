@@ -50,7 +50,9 @@ object AngularSyntax {
     private val BINDING = Regex("""([\[(][^\s=<>"'`]+[\])])\s*=\s*(?:"([^"]*)"|'([^']*)')""")
     private val FOR_ITEM = Regex("""^(\s*)([A-Za-z_$][\w$]*)(\s+of\s+)(?=\S)""")
     // `(click)="delete.emit()"`, `{{ class }}`: a member may be named like a keyword, which TypeScript only reads after `this.`
-    private val KEYWORD_MEMBER = Regex("""^\s*(?:break|case|catch|class|continue|default|delete|do|export|import|return|switch|throw|try|var|while|with)\s*(?:[.(]|$)""")
+    private val KEYWORD_MEMBER = Regex(
+        """^\s*(?:break|case|catch|class|continue|default|delete|do|export|import|return|switch|throw|try|var|while|with)\s*(?:[.(]|$)""",
+    )
     private val WHEN = Regex("""^\s*(?:(?:hydrate|prefetch)\s+)?when\s+(?=\S)""")
     private val TRACK = Regex("""^\s*track\s+(?=\S)""")
     private val VARIABLES = Regex("""^\s*let\s+\S""")
@@ -63,7 +65,9 @@ object AngularSyntax {
         return when (kind) {
             AngularTokens.DECLARATION -> listOfNotNull(declaration(text, all))
             AngularTokens.EXPRESSION -> listOfNotNull(expression(text, all))
-            AngularTokens.TRIGGERS -> parts(text, all).mapNotNull { part -> WHEN.find(part.substring(text))?.let { expression(text, TextRange(part.startOffset + it.value.length, part.endOffset)) } }
+            AngularTokens.TRIGGERS -> parts(text, all).mapNotNull { part ->
+                WHEN.find(part.substring(text))?.let { expression(text, TextRange(part.startOffset + it.value.length, part.endOffset)) }
+            }
             in WITH_HEADER -> header(text, all, kind == AngularTokens.LOOP)
             else -> emptyList()
         }
@@ -116,7 +120,8 @@ object AngularSyntax {
         val name = range(part.startOffset, item.groups[2])
         val items = expression(text, TextRange(part.startOffset + item.value.length, part.endOffset)) ?: return null
         val last = items.last()
-        return listOf(AngularPlace(name, "for (const ", " of ")) + items.dropLast(1) + AngularPlace(last.range, last.prefix, last.suffix.replace(");\n", ")) {}\n"))
+        return listOf(AngularPlace(name, "for (const ", " of ")) + items.dropLast(1) +
+            AngularPlace(last.range, last.prefix, last.suffix.replace(");\n", ")) {}\n"))
     }
 
     /** `name = expression` of a `@let`. */
@@ -230,7 +235,8 @@ object AngularTemplates {
 
     /** What holds the template [host] is part of: the Angular file, or the string of an inline `template:`. */
     private fun templateOf(host: PsiElement): PsiElement? =
-        (host as? TsStringLiteral)?.takeIf(::isInline) ?: host.containingFile?.originalFile?.viewProvider?.takeIf { it.baseLanguage == AngularLanguage }?.getPsi(AngularLanguage)
+        (host as? TsStringLiteral)?.takeIf(::isInline)
+            ?: host.containingFile?.originalFile?.viewProvider?.takeIf { it.baseLanguage == AngularLanguage }?.getPsi(AngularLanguage)
 
     /** [literal] is the `template` of a `@Component({ … })`. */
     fun isInline(literal: TsStringLiteral): Boolean {
@@ -238,7 +244,10 @@ object AngularTemplates {
         return PsiTreeUtil.findFirstParent(literal) { it.node?.elementType == E.DECORATOR }?.text?.startsWith("@Component") == true
     }
 
-    /** The component class of [template]: the one its decorator is on, or the one whose `templateUrl` names the file, in a TypeScript file of the same folder. */
+    /**
+     * The component class of [template]: the one its decorator is on, or the one whose `templateUrl` names the file,
+     * in a TypeScript file of the same folder.
+     */
     private fun component(template: PsiElement): TsClass? = CachedValuesManager.getCachedValue(template, COMPONENT) {
         val found = (template as? PsiFile)?.let(::findComponent) ?: PsiTreeUtil.getParentOfType(template, TsClass::class.java)
         CachedValueProvider.Result.create(found, PsiModificationTracker.MODIFICATION_COUNT)
@@ -258,10 +267,14 @@ object AngularTemplates {
         val at = offset(place)
         val declared = variables(template)[name].orEmpty()
         val variable = declared.lastOrNull { offset(it) <= at } ?: declared.firstOrNull()
-        return variable?.let(::listOf) ?: component(template)?.let { c -> TsTypes.members(TsTy.Inst(c), name).map { it.first } }.orEmpty().ifEmpty { pipes(name, template) }
+        return variable?.let(::listOf)
+            ?: component(template)?.let { c -> TsTypes.members(TsTy.Inst(c), name).map { it.first } }.orEmpty().ifEmpty { pipes(name, template) }
     }
 
-    /** `@for` items, `@let`, `as` aliases (declarations of the fragments) and the attributes naming one (`#ref`, `let-x`), by name, in the order of the template. */
+    /**
+     * `@for` items, `@let`, `as` aliases (declarations of the fragments) and the attributes naming one (`#ref`, `let-x`),
+     * by name, in the order of the template.
+     */
     private fun variables(template: PsiElement): Map<String, List<PsiElement>> = CachedValuesManager.getCachedValue(template, VARIABLES) {
         val manager = InjectedLanguageManager.getInstance(template.project)
         val found = ArrayList<Pair<String, PsiElement>>()
@@ -282,7 +295,9 @@ object AngularTemplates {
         if (!name.first().isLetter()) return emptyList()
         val declaration = Regex("""@Pipe\s*\(\s*\{[^}]*\bname\s*:\s*['"]${Regex.escape(name)}['"]""")
         val found = ArrayList<PsiElement>()
-        PsiSearchHelper.getInstance(template.project).processCandidateFilesForText(GlobalSearchScope.projectScope(template.project), UsageSearchContext.ANY, true, name) { file ->
+        PsiSearchHelper.getInstance(template.project).processCandidateFilesForText(
+            GlobalSearchScope.projectScope(template.project), UsageSearchContext.ANY, true, name,
+        ) { file ->
             val source = template.manager.findFile(file) as? TsFile ?: return@processCandidateFilesForText true
             val at = declaration.find(source.text)?.range?.first ?: return@processCandidateFilesForText true
             PsiTreeUtil.findChildrenOfType(source, TsClass::class.java).firstOrNull { it.textRange.endOffset > at }?.let(found::add)
@@ -310,7 +325,8 @@ class AngularInjector : MultiHostInjector {
         if (context.containingFile?.viewProvider?.baseLanguage != AngularLanguage) return
         val fragments = when (context) {
             is AngularFragment -> AngularSyntax.fragments(context.kind, context.text)
-            is XmlAttributeValue -> AngularSyntax.attribute((context.parent as? XmlAttribute)?.name.orEmpty(), context.text, ElementManipulators.getValueTextRange(host))
+            is XmlAttributeValue ->
+                AngularSyntax.attribute((context.parent as? XmlAttribute)?.name.orEmpty(), context.text, ElementManipulators.getValueTextRange(host))
             else -> emptyList()
         }
         fragments.forEach { places ->
@@ -330,7 +346,9 @@ class AngularInlineInjector : MultiHostInjector {
         val taken = fragments.map { TextRange(it.first().range.startOffset, it.last().range.endOffset) }.sortedBy { it.startOffset }
         val markup = (listOf(content.startOffset) + taken.map { it.endOffset }).zip(taken.map { it.startOffset } + content.endOffset)
         // the character before a fragment is given as a suffix: a place ending where the fragment starts would be found there in its stead
-        val places = markup.map { (from, to) -> when (to) { content.endOffset -> TextRange(from, to) to null; else -> TextRange(from, to - 1) to literal.text.substring(to - 1, to) } }
+        val places = markup.map { (from, to) ->
+            when (to) { content.endOffset -> TextRange(from, to) to null; else -> TextRange(from, to - 1) to literal.text.substring(to - 1, to) }
+        }
             .filter { (range, _) -> range.startOffset < range.endOffset }
         // HTML first: a smart pointer into a fragment is restored in the last injected file spanning it, and HTML spans the whole string
         Language.findLanguageByID("HTML")?.takeIf { places.isNotEmpty() }?.let { html ->

@@ -48,7 +48,9 @@ object TsTypes {
     private val MERGED = Key.create<CachedValue<List<TsClass>>>("lite.ts.merged")
     private const val MAX_SELF_EXPANSIONS = 3
     private val EXPANDING = ThreadLocal.withInitial { HashMap<PsiElement, Int>() }
-    private val PRIMITIVES = mapOf("string" to "String", "number" to "Number", "boolean" to "Boolean", "bigint" to "BigInt", "symbol" to "Symbol", "object" to "Object")
+    private val PRIMITIVES = mapOf(
+        "string" to "String", "number" to "Number", "boolean" to "Boolean", "bigint" to "BigInt", "symbol" to "Symbol", "object" to "Object",
+    )
     private val ITERABLES = setOf(
         "Array", "ReadonlyArray", "Set", "ReadonlySet", "Iterable", "IterableIterator", "Iterator", "AsyncIterable", "AsyncIterableIterator",
         "Generator", "AsyncGenerator", "ArrayLike", "NodeListOf", "HTMLCollectionOf", "ArrayIterator", "SetIterator",
@@ -139,7 +141,8 @@ object TsTypes {
     private fun indexedAccess(node: PsiElement, env: Env): TsTy {
         val (objNode, indexNode) = types(node).let { (it.getOrNull(0) ?: return TsTy.Unknown) to (it.getOrNull(1) ?: return TsTy.Unknown) }
         val obj = tyOf(objNode, env)
-        val key = indexNode.takeIf { it.node.elementType == E.LITERAL_TYPE && it.firstChild?.node?.elementType == T.STRING }?.text?.let { TsNamedDecl.unquote(it) }
+        val key = indexNode.takeIf { it.node.elementType == E.LITERAL_TYPE && it.firstChild?.node?.elementType == T.STRING }?.text
+            ?.let { TsNamedDecl.unquote(it) }
         return key?.let { member(obj, it) } ?: elementOf(obj)
     }
 
@@ -613,8 +616,10 @@ object TsTypes {
             d is TsClass -> ownMembers(d, name, static = true).map { it to ty as TsTy } +
                 expanding(d, emptyList()) { supertypes(TsTy.Inst(d)).filterIsInstance<TsTy.Inst>().flatMap { staticMembers(TsTy.Static(it.decl), name) } } +
                 namespacesNamed(d).flatMap { ns -> TsModules.exports(ns, name).map { it to TsTy.Static(ns) } }
-            d.node.elementType == E.ENUM_DECLARATION -> d.children.filter { it.node.elementType == E.ENUM_MEMBER && (it as TsNamedDecl).name == name }.map { it to ty }
-            d.node.elementType == E.NAMESPACE_DECLARATION -> (listOf(d) + namespacesNamed(d)).distinct().flatMap { ns -> TsModules.exports(ns, name).map { it to TsTy.Static(ns) } }
+            d.node.elementType == E.ENUM_DECLARATION ->
+                d.children.filter { it.node.elementType == E.ENUM_MEMBER && (it as TsNamedDecl).name == name }.map { it to ty }
+            d.node.elementType == E.NAMESPACE_DECLARATION ->
+                (listOf(d) + namespacesNamed(d)).distinct().flatMap { ns -> TsModules.exports(ns, name).map { it to TsTy.Static(ns) } }
             else -> TsModules.exports(d, name).map { it to ty }
         }
     }
@@ -636,7 +641,8 @@ object TsTypes {
     }
 
     private fun envOf(t: TsTy): Env = when (t) {
-        is TsTy.Inst -> ((t.decl as? TsClass)?.typeParameters.orEmpty().withIndex().associate { (i, p) -> p as PsiElement to (t.args.getOrNull(i) ?: TsTy.Unknown) }
+        is TsTy.Inst -> ((t.decl as? TsClass)?.typeParameters.orEmpty().withIndex()
+            .associate { (i, p) -> p as PsiElement to (t.args.getOrNull(i) ?: TsTy.Unknown) }
             .filterValues { it != TsTy.Unknown }) + (t.decl to t)
         is TsTy.Obj -> t.env
         is TsTy.Fn -> t.env

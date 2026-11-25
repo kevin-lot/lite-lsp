@@ -32,7 +32,8 @@ object NameResolver {
     }
 
     private val PATH_KEY = com.intellij.openapi.util.Key.create<com.intellij.psi.util.CachedValue<List<PsiElement>>>("lite.rs.path")
-    private val SCOPE_KEY = com.intellij.openapi.util.Key.create<com.intellij.psi.util.CachedValue<java.util.concurrent.ConcurrentHashMap<String, List<PsiElement>>>>("lite.rs.scope")
+    private val SCOPE_KEY = com.intellij.openapi.util.Key
+        .create<com.intellij.psi.util.CachedValue<java.util.concurrent.ConcurrentHashMap<String, List<PsiElement>>>>("lite.rs.scope")
 
     fun resolveMethod(call: RsMethodCall): List<PsiElement> = guarded { RsTypes.resolveMethod(call) }
 

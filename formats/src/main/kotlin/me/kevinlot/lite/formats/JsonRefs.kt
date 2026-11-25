@@ -61,7 +61,9 @@ class JsonRefContributor : PsiReferenceContributor() {
     }
 
     private companion object {
-        val SWAGGER1_PRIMITIVES = setOf("integer", "number", "string", "boolean", "array", "object", "void", "File", "file", "date", "date-time", "int", "long", "float", "double", "byte")
+        val SWAGGER1_PRIMITIVES = setOf(
+            "integer", "number", "string", "boolean", "array", "object", "void", "File", "file", "date", "date-time", "int", "long", "float", "double", "byte",
+        )
         fun isSwagger1(file: PsiFile) = (file as? JsonFile)?.topLevelValue.let { it is JsonObject && it.findProperty("swaggerVersion") != null }
     }
 }

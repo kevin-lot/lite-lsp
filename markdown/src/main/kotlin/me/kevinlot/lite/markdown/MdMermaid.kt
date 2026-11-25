@@ -100,7 +100,8 @@ internal object MdMermaid {
     private fun group(statement: String, at: Int, builder: GraphBuilder): Pair<List<String>, Int>? {
         val first = flowNode(statement, at, builder) ?: return null
         val nodes = generateSequence(first) { (_, end) ->
-            val amp = (end until statement.length).firstOrNull { !statement[it].isWhitespace() }?.takeIf { statement[it] == '&' } ?: return@generateSequence null
+            val amp = (end until statement.length).firstOrNull { !statement[it].isWhitespace() }?.takeIf { statement[it] == '&' }
+                ?: return@generateSequence null
             flowNode(statement, amp + 1, builder)
         }.toList()
         return nodes.map { it.first } to nodes.last().second

@@ -227,8 +227,20 @@ class RegoCommenter : FmtCommenter(Rego)
 class RegoBraceMatcher : FmtBraceMatcher(Rego)
 class RegoFindUsagesProvider : FmtFindUsagesProvider(Rego)
 
-val ALL_FILE_TYPES: List<FmtFileType> by lazy { listOf(TomlFileType, YamlFileType, KdlFileType, IniFileType, EnvFileType, Json5FileType, CsvFileType, SqlFileType, HoconFileType, DockerfileFileType, CssFileType, ScssFileType, SassFileType, IgnoreFileType, MakeFileType, JustFileType, HclFileType, FishFileType, BrunoFileType, CodeownersFileType, D2FileType, GherkinFileType, HandlebarsFileType, JFlexFileType, JinjaFileType, MermaidFileType, MustacheFileType, PropertiesFileType, RegoFileType) }
-val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy { listOf(TomlLanguage, YamlLanguage, KdlLanguage, IniLanguage, EnvLanguage, Json5Language, CsvLanguage, SqlLanguage, HoconLanguage, DockerfileLanguage, CssLanguage, ScssLanguage, SassLanguage, IgnoreLanguage, MakeLanguage, JustLanguage, HclLanguage, FishLanguage, BrunoLanguage, CodeownersLanguage, D2Language, GherkinLanguage, HandlebarsLanguage, JFlexLanguage, JinjaLanguage, MermaidLanguage, MustacheLanguage, PropertiesLanguage, RegoLanguage).associateBy { it.id.removePrefix("Lite") } }
+val ALL_FILE_TYPES: List<FmtFileType> by lazy {
+    listOf(
+        TomlFileType, YamlFileType, KdlFileType, IniFileType, EnvFileType, Json5FileType, CsvFileType, SqlFileType, HoconFileType, DockerfileFileType,
+        CssFileType, ScssFileType, SassFileType, IgnoreFileType, MakeFileType, JustFileType, HclFileType, FishFileType, BrunoFileType, CodeownersFileType,
+        D2FileType, GherkinFileType, HandlebarsFileType, JFlexFileType, JinjaFileType, MermaidFileType, MustacheFileType, PropertiesFileType, RegoFileType,
+    )
+}
+val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy {
+    listOf(
+        TomlLanguage, YamlLanguage, KdlLanguage, IniLanguage, EnvLanguage, Json5Language, CsvLanguage, SqlLanguage, HoconLanguage, DockerfileLanguage,
+        CssLanguage, ScssLanguage, SassLanguage, IgnoreLanguage, MakeLanguage, JustLanguage, HclLanguage, FishLanguage, BrunoLanguage, CodeownersLanguage,
+        D2Language, GherkinLanguage, HandlebarsLanguage, JFlexLanguage, JinjaLanguage, MermaidLanguage, MustacheLanguage, PropertiesLanguage, RegoLanguage,
+    ).associateBy { it.id.removePrefix("Lite") }
+}
 
 /** The file type of each format (by format), for lookups by type. */
 val FMT_FILE_TYPES: Map<Format, FmtFileType> by lazy { ALL_FILE_TYPES.associateBy { it.format } }

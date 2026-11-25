@@ -41,7 +41,8 @@ object Mermaid : Format("Mermaid", "Mermaid", "mermaid") {
     private val FRONT_MATTER = Regex("""\A\s*---[ \t]*\n[\s\S]*?\n---[ \t]*(?:\n|\z)""")
     /** Lines that hold free text after their keyword, or a name followed by text. */
     private val FREE_TEXT = Regex(
-        """(?m)^[ \t]*(?:(?:accDescr|accTitle|alt|and|autonumber|box|break|critical|direction|else|linkStyle|loop|opt|option|par|rect|section|title)\b[^\n]*""" +
+        """(?m)^[ \t]*(?:(?:accDescr|accTitle|alt|and|autonumber|box|break|critical|direction|else|linkStyle|loop|opt|option|par|rect""" +
+            """|section|title)\b[^\n]*""" +
             """|(?:actor|participant)[ \t]+\S+[ \t]+as\b([^\n]*)|(?:click|style|subgraph)[ \t]+\S+([^\n]*))""",
     )
     private val LABEL = Regex(""""[^"\n]*"|\|[^|\n]*\||\[[^\]\n]*]|\([^)\n]*\)|\{[^{}\n]*}|~[^~\n]*~|<<[^>\n]*>>""")
@@ -68,7 +69,8 @@ object Mermaid : Format("Mermaid", "Mermaid", "mermaid") {
             val type = COMMENT.replace(body, "").lineSequence().firstNotNullOfOrNull { FIRST_WORD.find(it)?.value } ?: return Links()
             if (type !in LINKED) return Links()
 
-            val classes = CLASS_DEF.findAll(body).mapNotNull { it.groups[1] }.flatMap { names -> WORD.findAll(names.value).map { range(start + names.range.first, it) to it.value } }
+            val classes = CLASS_DEF.findAll(body).mapNotNull { it.groups[1] }
+                .flatMap { names -> WORD.findAll(names.value).map { range(start + names.range.first, it) to it.value } }
             val styled = type in STYLED
             val classUses = CLASS_SUFFIX.findAll(body).mapNotNull { it.groups[1] }.map { range(start, it) to it.value } +
                 CLASS_LIST.findAll(body).filter { styled }.mapNotNull { it.groups[1] }.map { range(start, it) to it.value }
@@ -81,7 +83,8 @@ object Mermaid : Format("Mermaid", "Mermaid", "mermaid") {
                 .map { range(start, it.groups[0] ?: return@map null) to it.value }.filterNotNull().toList()
             val firsts = names.distinctBy { it.second }.toSet()
             return Links(
-                decls = firsts.map { (range, name) -> Decl(range, "node:$name") } + classes.distinctBy { it.second }.map { (range, name) -> Decl(range, "class:$name") },
+                decls = firsts.map { (range, name) -> Decl(range, "node:$name") } +
+                    classes.distinctBy { it.second }.map { (range, name) -> Decl(range, "class:$name") },
                 refs = names.filterNot { it in firsts }.map { (range, name) -> Ref(range, listOf("node:$name")) } +
                     classUses.map { (range, name) -> Ref(range, listOf("class:$name")) },
             )

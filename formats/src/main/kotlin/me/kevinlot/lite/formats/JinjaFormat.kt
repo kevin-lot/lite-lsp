@@ -303,7 +303,8 @@ object JinjaLinker : Linker() {
         val ordered = writes.sortedBy { it.range.startOffset }
         val firsts = ordered.distinctBy { it.key }.toSet()
         val declared = firsts.map { it.key }.toSet()
-        val taken = ((ordered + inherited).map { it.range.startOffset } + macros.map { it.first.startOffset } + imports.map { it.name.first.startOffset }).toSet()
+        val taken = ((ordered + inherited).map { it.range.startOffset } + macros.map { it.first.startOffset } +
+            imports.map { it.name.first.startOffset }).toSet()
 
         val uses = tags.flatMap { tag ->
             NAME.findAll(tag.code).filter { it.value !in RESERVED && tag.tag.body.first + it.range.first !in taken }.map { name ->

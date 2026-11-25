@@ -44,7 +44,9 @@ object Gherkin : Format("Gherkin", "Gherkin", "feature") {
     private const val DOC_STRING = "\"\"\"[\\s\\S]*?(?:\"\"\"|\\z)|```[\\s\\S]*?(?:```|\\z)"
 
     private val DEAD_TEXT = Regex("""(?m)^[ \t]*(?:#[^\n]*|$DOC_STRING)""")
-    private val EXAMPLES = Regex("""(?m)^[ \t]*(?:${TABLES.joinToString("|")})[ \t]*:[^\n]*\n(?:[ \t]*(?:#[^\n]*)?\n)*+([ \t]*\|[^\n]*)(?:\n([ \t]*\|[^\n]*))?""")
+    private val EXAMPLES = Regex(
+        """(?m)^[ \t]*(?:${TABLES.joinToString("|")})[ \t]*:[^\n]*\n(?:[ \t]*(?:#[^\n]*)?\n)*+([ \t]*\|[^\n]*)(?:\n([ \t]*\|[^\n]*))?""",
+    )
     private val PLACEHOLDER = Regex("""<([^<>\n]+)>""")
     private val SCENARIO = Regex("""(?m)^[ \t]*(?:${SCENARIOS.sortedByDescending { it.length }.joinToString("|")})[ \t]*:""")
     private val STEP = Regex("""(?m)^[ \t]*(?:(?:$STEPS)(?<=')|(?:$STEPS)[ \t]+|\*[ \t]+)([^\n]*?)[ \t]*$""")
@@ -170,7 +172,8 @@ object StepDefinitions {
         val offset = literal.range.first + 1
         val regular = literal.value.startsWith("/") || introducer.startsWith("regex") || introducer.contains(".re") ||
             content.startsWith("^") || content.endsWith("$")
-        if (regular) return runCatching { Regex(content) }.getOrNull()?.let { pattern -> StepDefinition(file, offset, written.length) { pattern.containsMatchIn(it) } }
+        if (regular) return runCatching { Regex(content) }.getOrNull()
+            ?.let { pattern -> StepDefinition(file, offset, written.length) { pattern.containsMatchIn(it) } }
         return runCatching { expression(content) }.getOrNull()?.let { pattern -> StepDefinition(file, offset, written.length) { pattern.matches(it) } }
     }
 

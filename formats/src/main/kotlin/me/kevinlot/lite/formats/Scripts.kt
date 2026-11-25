@@ -68,7 +68,8 @@ object Scripts {
         val text = word.text
         val offset = word.textRange.startOffset
         val links = Fmt.links(file)
-        val substituted = rules.substitutions.flatMap { (regex, replacement) -> regex.findAll(text).map { Cut(TextRange(it.range.first, it.range.last + 1), replacement) } }
+        val substituted = rules.substitutions
+            .flatMap { (regex, replacement) -> regex.findAll(text).map { Cut(TextRange(it.range.first, it.range.last + 1), replacement) } }
         val named = links.refsIn(word.textRange).filter { Fmt.resolve(word, it).isNotEmpty() }.map { it.range } +
             links.pathsIn(word.textRange).filter { file.format.linker?.resolvePath(file, it.path) != null }.map { it.range }
         val all = (substituted + named.map { Cut(it.shiftLeft(offset), PLACEHOLDER) }).sortedWith(compareBy({ it.range.startOffset }, { -it.range.length }))

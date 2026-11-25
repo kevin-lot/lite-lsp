@@ -61,7 +61,11 @@ object Hcl : Format("Hcl", "HCL", "tf") {
         Rule("""(?:#|//)[^\n]*""", Cat.COMMENT),
         Rule(R.BLOCK, Cat.COMMENT),
         Rule("""<<-?(\w+)[\s\S]*?\n\s*\1(?=\s*$)""", Cat.STRING, flags = java.util.regex.Pattern.MULTILINE),
-        Rule("""(?:resource|data|variable|output|module|provider|locals|terraform|backend|required_providers|dynamic|moved|import|check|removed|include|dependency|dependencies|generate|remote_state|inputs)\b""", Cat.KEYWORD, lineStart = true),
+        Rule(
+            """(?:resource|data|variable|output|module|provider|locals|terraform|backend|required_providers|dynamic|moved|import|check|removed""" +
+                """|include|dependency|dependencies|generate|remote_state|inputs)\b""",
+            Cat.KEYWORD, lineStart = true,
+        ),
         // whatever opens a block: `lifecycle {`, `provisioner "local-exec" {`
         Rule("""[A-Za-z_][\w-]*+(?=(?:[ \t]+"[^"\n]*")*[ \t]*\{)""", Cat.KEYWORD, lineStart = true),
         Rule("""\b(?:true|false|null)\b""", Cat.CONSTANT),
@@ -129,7 +133,8 @@ object Hcl : Format("Hcl", "HCL", "tf") {
                     refs += Ref(TextRange.from(start, names[index].length), kinds.map { "$it:$path" })
                 }
             }
-            val passedProviders = PROVIDERS.findAll(text).flatMap { map -> PROVIDER_VALUE.findAll(text, map.range.first).takeWhile { it.range.last <= map.range.last } }
+            val passedProviders = PROVIDERS.findAll(text)
+                .flatMap { map -> PROVIDER_VALUE.findAll(text, map.range.first).takeWhile { it.range.last <= map.range.last } }
             (PROVIDER_USE.findAll(text) + passedProviders).forEach { m ->
                 val g = m.groups[2] ?: return@forEach
                 refs += Ref(TextRange(g.range.first, g.range.last + 1), listOf("provider:${m.groupValues[1]}.${g.value}"))

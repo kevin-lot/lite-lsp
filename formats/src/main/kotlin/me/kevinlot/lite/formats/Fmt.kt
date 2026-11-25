@@ -36,7 +36,8 @@ enum class Cat(val key: TextAttributesKey?) {
     COMMENT(C.LINE_COMMENT), STRING(C.STRING), NUMBER(C.NUMBER), KEYWORD(C.KEYWORD), CONSTANT(C.CONSTANT),
     KEY(C.INSTANCE_FIELD), SECTION(C.CLASS_NAME), VARIABLE(C.LOCAL_VARIABLE), TYPE(C.CLASS_REFERENCE), FUNCTION(C.FUNCTION_CALL),
     DECL(C.FUNCTION_DECLARATION), TAG(C.MARKUP_TAG), ATTRIBUTE(C.MARKUP_ATTRIBUTE), META(C.METADATA), OPERATOR(C.OPERATION_SIGN),
-    WORD(null), PUNCT(null), TEXT(null), LBRACE(C.BRACES), RBRACE(C.BRACES), LBRACKET(C.BRACKETS), RBRACKET(C.BRACKETS), LPAREN(C.PARENTHESES), RPAREN(C.PARENTHESES),
+    WORD(null), PUNCT(null), TEXT(null), LBRACE(C.BRACES), RBRACE(C.BRACES), LBRACKET(C.BRACKETS), RBRACKET(C.BRACKETS),
+    LPAREN(C.PARENTHESES), RPAREN(C.PARENTHESES),
     COL0(C.KEYWORD), COL1(C.STRING), COL2(C.NUMBER), COL3(C.INSTANCE_FIELD), COL4(C.FUNCTION_CALL), COL5(C.METADATA),
 }
 
@@ -132,7 +133,9 @@ object Fmt {
     fun links(file: PsiFile?): Links {
         val f = file as? FmtFile ?: return NO_LINKS
         val linker = f.format.linker ?: return NO_LINKS
-        return CachedValuesManager.getCachedValue(f, LINKS) { CachedValueProvider.Result.create(linker.links(f.text, f.name), PsiModificationTracker.MODIFICATION_COUNT) }
+        return CachedValuesManager.getCachedValue(f, LINKS) {
+            CachedValueProvider.Result.create(linker.links(f.text, f.name), PsiModificationTracker.MODIFICATION_COUNT)
+        }
     }
 
     /** A file of the scope read with [format]'s linker (an included `defaults.conf` is HOCON, whatever its type). */
@@ -140,7 +143,9 @@ object Fmt {
         if ((f as? FmtFile)?.format == format) return links(f)
         val linker = format.linker ?: return NO_LINKS
         val key = LINKS_AS.computeIfAbsent(format) { Key.create("lite.fmt.links.${it.id}") }
-        return CachedValuesManager.getCachedValue(f, key) { CachedValueProvider.Result.create(linker.links(f.text, f.name), PsiModificationTracker.MODIFICATION_COUNT) }
+        return CachedValuesManager.getCachedValue(f, key) {
+            CachedValueProvider.Result.create(linker.links(f.text, f.name), PsiModificationTracker.MODIFICATION_COUNT)
+        }
     }
 
     /** The [Linker.scope] of [file], without duplicates. Cached: every resolve asks for it, and it may list the project. */
@@ -148,7 +153,9 @@ object Fmt {
         val f = file as? FmtFile ?: return emptyList()
         val linker = f.format.linker ?: return emptyList()
         return CachedValuesManager.getCachedValue(f, SCOPE) {
-            CachedValueProvider.Result.create(linker.scope(f).distinct(), PsiModificationTracker.MODIFICATION_COUNT, VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS)
+            CachedValueProvider.Result.create(
+                linker.scope(f).distinct(), PsiModificationTracker.MODIFICATION_COUNT, VirtualFileManager.VFS_STRUCTURE_MODIFICATIONS,
+            )
         }
     }
 

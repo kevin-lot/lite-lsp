@@ -498,7 +498,10 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
 
     /** `public static async *`, `get`/`set`: only when a member name follows (else they are the name). */
     private fun memberModifiers() {
-        while (atSoft(MEMBER_MODIFIERS) && la(1).let { it in T.NAME_LIKE || it == T.STRING || it == T.NUMBER || it == T.PRIVATE_NAME || it == T.LBRACKET || it == T.MUL }) {
+        while (
+            atSoft(MEMBER_MODIFIERS) &&
+            la(1).let { it in T.NAME_LIKE || it == T.STRING || it == T.NUMBER || it == T.PRIVATE_NAME || it == T.LBRACKET || it == T.MUL }
+        ) {
             soft()
         }
         eat(T.MUL)
@@ -1084,7 +1087,9 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
                     // `>>`, `>=`, `>>>=`: glued back from single `>` tokens
                     var end = b.currentOffset + 1
                     advance()
-                    while ((at(T.GT) || at(T.EQ) || at(T.OPERATOR) && b.tokenText == "==") && b.currentOffset == end) { end = b.currentOffset + b.tokenText!!.length; advance() }
+                    while ((at(T.GT) || at(T.EQ) || at(T.OPERATOR) && b.tokenText == "==") && b.currentOffset == end) {
+                        end = b.currentOffset + b.tokenText!!.length; advance()
+                    }
                     unary()
                 }
                 t == T.OPERATOR && !isAssignmentOperator(b.tokenText) || t in BINARY || (t == T.kw("in") && !noIn) -> { advance(); unary() }
@@ -1499,7 +1504,9 @@ open class TsParser(private val jsx: Boolean) : PsiParser {
         val DECLARE_KEYWORDS = setOf(T.kw("var"), T.kw("let"), T.kw("const"), T.kw("function"), T.kw("class"), T.kw("enum"))
         val DECLARE_SOFT = setOf("interface", "type", "namespace", "module", "global", "abstract", "async")
         val PARAMETER_MODIFIERS = setOf("public", "private", "protected", "readonly", "override")
-        val MEMBER_MODIFIERS = setOf("public", "private", "protected", "static", "readonly", "abstract", "override", "declare", "accessor", "async", "get", "set")
+        val MEMBER_MODIFIERS = setOf(
+            "public", "private", "protected", "static", "readonly", "abstract", "override", "declare", "accessor", "async", "get", "set",
+        )
         val OBJECT_MODIFIERS = setOf("get", "set", "async")
         val TYPE_OPERATORS = setOf("keyof", "unique", "readonly")
         const val MAX_DEPTH = 500

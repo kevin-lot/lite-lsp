@@ -117,7 +117,8 @@ class LuaFindUsagesProvider : LiteFindUsagesProvider(::LuaLexer, TokenSet.create
 
 class LuaRefactoringSupportProvider : RefactoringSupportProvider() {
     override fun isInplaceRenameAvailable(element: PsiElement, context: PsiElement?) = element is LuaNameDecl && element.useScope is LocalSearchScope
-    override fun isMemberInplaceRenameAvailable(element: PsiElement, context: PsiElement?) = element is LuaNameDecl || element is LuaNameRef || element is LuaIndexExpr || element is LuaTableField
+    override fun isMemberInplaceRenameAvailable(element: PsiElement, context: PsiElement?) =
+        element is LuaNameDecl || element is LuaNameRef || element is LuaIndexExpr || element is LuaTableField
 }
 
 class LuaNamesValidator : LiteNamesValidator(T.KEYWORDS.keys)

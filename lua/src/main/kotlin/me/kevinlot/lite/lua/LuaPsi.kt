@@ -42,7 +42,8 @@ class LuaLiteral(node: ASTNode) : LuaElement(node) {
         val t = text
         if (node.firstChildNode?.elementType != T.STRING) return null
         return when {
-            t.startsWith("[") -> t.substringAfter('[').dropWhile { it == '=' }.removePrefix("[").let { s -> s.substring(0, s.lastIndexOf(']').let { i -> s.lastIndexOf(']', i - 1) }.coerceAtLeast(0)) }.removePrefix("\n")
+            t.startsWith("[") -> t.substringAfter('[').dropWhile { it == '=' }.removePrefix("[")
+                .let { s -> s.substring(0, s.lastIndexOf(']').let { i -> s.lastIndexOf(']', i - 1) }.coerceAtLeast(0)) }.removePrefix("\n")
             t.length >= 2 && t.last() == t.first() -> t.substring(1, t.length - 1)
             else -> t.drop(1)
         }
@@ -101,7 +102,8 @@ class LuaNameRef(node: ASTNode) : LuaElement(node), PsiNameIdentifierOwner {
     override fun setName(name: String): PsiElement { renameLeaf(firstChild, name); return this }
     override fun getReference(): PsiReference = LuaNameReference(this)
     override fun getReferences(): Array<PsiReference> = arrayOf(reference)
-    val isDefinitionSite: Boolean get() = parent?.node?.elementType == E.TARGETS || (parent?.node?.elementType == E.FUNC_NAME && parent.firstChild == this && parent.children.size == 1)
+    val isDefinitionSite: Boolean get() = parent?.node?.elementType == E.TARGETS ||
+        (parent?.node?.elementType == E.FUNC_NAME && parent.firstChild == this && parent.children.size == 1)
     val isGlobalDefinition: Boolean get() = isDefinitionSite && LuaResolve.local(this, name) == null
     override fun getUseScope(): SearchScope = GlobalSearchScope.projectScope(project)
 }
@@ -127,7 +129,8 @@ class LuaIndexExpr(node: ASTNode) : LuaElement(node), LuaFieldAccess {
     val field: PsiElement? get() = node.getChildren(null).lastOrNull { it.elementType == T.IDENT }?.psi?.takeIf { it != firstChild }
     val isMethod: Boolean get() = node.findChildByType(T.COLON) != null
     override val fieldName: String? get() = this.field?.text
-    override val isDefinitionSite: Boolean get() = parent?.node?.elementType == E.TARGETS || (parent?.node?.elementType == E.FUNC_NAME && parent.lastChild == this)
+    override val isDefinitionSite: Boolean get() = parent?.node?.elementType == E.TARGETS ||
+        (parent?.node?.elementType == E.FUNC_NAME && parent.lastChild == this)
     override fun getName(): String? = fieldName
     override fun getNameIdentifier(): PsiElement? = field?.takeIf { isDefinitionSite }
     override fun getTextOffset(): Int = nameIdentifier?.textOffset ?: super.getTextOffset()

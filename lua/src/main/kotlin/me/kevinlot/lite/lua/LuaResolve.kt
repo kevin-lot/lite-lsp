@@ -104,10 +104,11 @@ object LuaResolve {
     private val PROJECT_GLOBALS = Key.create<CachedValue<Map<String, PsiNameIdentifierOwner>>>("lite.lua.projectGlobals")
 
     /** First definition of every global of the project, its files taken in path order. */
-    private fun projectGlobals(project: Project): Map<String, PsiNameIdentifierOwner> = CachedValuesManager.getManager(project).getCachedValue(project, PROJECT_GLOBALS, {
-        val first = projectFiles(project).flatMap { globals(it).entries }.distinctBy { it.key }.associate { it.key to it.value.first() }
-        CachedValueProvider.Result.create(first, PsiModificationTracker.MODIFICATION_COUNT)
-    }, false)
+    private fun projectGlobals(project: Project): Map<String, PsiNameIdentifierOwner> =
+        CachedValuesManager.getManager(project).getCachedValue(project, PROJECT_GLOBALS, {
+            val first = projectFiles(project).flatMap { globals(it).entries }.distinctBy { it.key }.associate { it.key to it.value.first() }
+            CachedValueProvider.Result.create(first, PsiModificationTracker.MODIFICATION_COUNT)
+        }, false)
 
     /** First definition of global [name]: this file, the files it requires (transitively), then the project. */
     fun global(from: PsiFile, name: String): PsiNameIdentifierOwner? {
@@ -292,10 +293,11 @@ object LuaResolve {
 
     private val PROJECT_CLASSES = Key.create<CachedValue<Map<String, LuaDocDeclaration>>>("lite.lua.projectClasses")
 
-    private fun projectClasses(project: Project): Map<String, LuaDocDeclaration> = CachedValuesManager.getManager(project).getCachedValue(project, PROJECT_CLASSES, {
-        val first = projectFiles(project).flatMap { classes(it).entries }.distinctBy { it.key }.associate { it.key to it.value }
-        CachedValueProvider.Result.create(first, PsiModificationTracker.MODIFICATION_COUNT)
-    }, false)
+    private fun projectClasses(project: Project): Map<String, LuaDocDeclaration> =
+        CachedValuesManager.getManager(project).getCachedValue(project, PROJECT_CLASSES, {
+            val first = projectFiles(project).flatMap { classes(it).entries }.distinctBy { it.key }.associate { it.key to it.value }
+            CachedValueProvider.Result.create(first, PsiModificationTracker.MODIFICATION_COUNT)
+        }, false)
 
     /** The `---@class` [name]: of this file, else the first of the project. */
     fun classOf(from: PsiFile, name: String): LuaDocDeclaration? = classes(from.originalFile)[name] ?: projectClasses(from.project)[name]
@@ -389,7 +391,8 @@ object LuaRequire {
     fun target(from: PsiFile, module: String, dotted: Boolean): PsiFile? {
         val manager = PsiManager.getInstance(from.project)
         val candidates = candidates(module, dotted)
-        for (r in roots(from)) for (c in candidates) r.findFileByRelativePath(c)?.takeIf { !it.isDirectory }?.let { f -> manager.findFile(f)?.let { return it } }
+        for (r in roots(from)) for (c in candidates)
+            r.findFileByRelativePath(c)?.takeIf { !it.isDirectory }?.let { f -> manager.findFile(f)?.let { return it } }
         return null
     }
 

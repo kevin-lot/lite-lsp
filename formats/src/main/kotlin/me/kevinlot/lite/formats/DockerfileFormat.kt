@@ -20,7 +20,10 @@ object Dockerfile : Format("Dockerfile", "Dockerfile", "dockerfile") {
     private val VARIABLE = Regex("""\$\{?([A-Za-z_]\w*)""")
     override val rules = listOf(
         Rule(R.HASH, Cat.COMMENT, lineStart = true),
-        Rule("""(?i)(?:FROM|RUN|CMD|LABEL|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|USER|WORKDIR|ARG|ONBUILD|STOPSIGNAL|HEALTHCHECK|SHELL|MAINTAINER)\b""", Cat.KEYWORD, lineStart = true),
+        Rule(
+            """(?i)(?:FROM|RUN|CMD|LABEL|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|USER|WORKDIR|ARG|ONBUILD|STOPSIGNAL|HEALTHCHECK|SHELL|MAINTAINER)\b""",
+            Cat.KEYWORD, lineStart = true,
+        ),
         Rule("""(?i)\bAS\b""", Cat.KEYWORD),
         Rule("""--[\w-]+(?:=[^\s\\]*)?""", Cat.ATTRIBUTE),
         Rule("""\$\{[^}\n]*}|\$[A-Za-z_]\w*""", Cat.VARIABLE),

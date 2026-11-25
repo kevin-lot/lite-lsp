@@ -66,7 +66,10 @@ object ShTokens {
     val STRINGS = TokenSet.create(STRING_SINGLE, STRING_TEXT, HEREDOC_TEXT)
     /** Parts of a word: adjacent ones (no blank between) form one shell word. */
     val WORD_PARTS = TokenSet.orSet(
-        TokenSet.create(WORD, ASSIGN_NAME, VAR, PARAM_START, SUBST_START, ARITH_START, BACKTICK_START, STRING_SINGLE, DQUOTE_START, NUMBER, LBRACE, RBRACE, TEST_START, TEST_END),
+        TokenSet.create(
+            WORD, ASSIGN_NAME, VAR, PARAM_START, SUBST_START, ARITH_START, BACKTICK_START, STRING_SINGLE, DQUOTE_START, NUMBER, LBRACE, RBRACE,
+            TEST_START, TEST_END,
+        ),
         KEYWORD_SET,
     )
 }

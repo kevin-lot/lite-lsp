@@ -60,5 +60,6 @@ abstract class RsPatBindingMixin(node: ASTNode) : RsNamedElementImpl(node) {
 
 /** `mod foo;` — Ctrl+Click on the name opens `foo.rs` / `foo/mod.rs`. */
 abstract class RsModDeclItemMixin(node: ASTNode) : RsNamedElementImpl(node) {
-    override fun getReference(): PsiReference? = nameIdentifier?.let { me.kevinlot.lite.rust.resolve.RsModDeclReference(this as me.kevinlot.lite.rust.psi.RsModDeclItem) }
+    override fun getReference(): PsiReference? =
+        nameIdentifier?.let { me.kevinlot.lite.rust.resolve.RsModDeclReference(this as me.kevinlot.lite.rust.psi.RsModDeclItem) }
 }

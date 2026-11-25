@@ -203,7 +203,8 @@ class TsEnvironments(private val project: Project) {
                 // a library file sees the libraries (and sources) of the projects that use it
                 val users = vf?.let { f -> envs.all().filter { e -> e.roots().any { f.path.startsWith("$it/") } } }.orEmpty()
                 val scope = when {
-                    users.isNotEmpty() -> TsLookupScope(project, GlobalSearchScope.allScope(project), users.flatMap { it.roots() }.distinct(), users.map { it.root })
+                    users.isNotEmpty() ->
+                        TsLookupScope(project, GlobalSearchScope.allScope(project), users.flatMap { it.roots() }.distinct(), users.map { it.root })
                     else -> TsLookupScope(project, LAYOUT.scopeOf(file, SCOPE, TsLibraryOracle), envs.envFor(vf)?.roots().orEmpty(), null)
                 }
                 CachedValueProvider.Result.create<GlobalSearchScope>(

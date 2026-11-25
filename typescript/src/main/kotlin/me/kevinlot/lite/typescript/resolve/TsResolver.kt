@@ -75,7 +75,9 @@ object TsScopes {
         E.CALL_SIGNATURE, E.CONSTRUCT_SIGNATURE, E.MAPPED_TYPE,
     )
     private val STOP = com.intellij.psi.tree.TokenSet.orSet(E.FUNCTIONS, E.CLASSES)
-    private val TYPE_DECLS = setOf(E.CLASS_DECLARATION, E.CLASS_EXPRESSION, E.INTERFACE_DECLARATION, E.TYPE_ALIAS, E.ENUM_DECLARATION, E.TYPE_PARAMETER, E.NAMESPACE_DECLARATION)
+    private val TYPE_DECLS = setOf(
+        E.CLASS_DECLARATION, E.CLASS_EXPRESSION, E.INTERFACE_DECLARATION, E.TYPE_ALIAS, E.ENUM_DECLARATION, E.TYPE_PARAMETER, E.NAMESPACE_DECLARATION,
+    )
     private val TYPE_ONLY = setOf(E.INTERFACE_DECLARATION, E.TYPE_ALIAS, E.TYPE_PARAMETER)
 
     fun isScope(e: PsiElement): Boolean {
@@ -92,7 +94,8 @@ object TsScopes {
                 out += declaredBy(c)
                 hoistedVars(c, out)
             }
-            t == E.SWITCH_STATEMENT -> scope.children.filter { it.node.elementType == E.CASE_CLAUSE }.forEach { cc -> cc.children.forEach { out += declaredBy(it) } }
+            t == E.SWITCH_STATEMENT -> scope.children.filter { it.node.elementType == E.CASE_CLAUSE }
+                .forEach { cc -> cc.children.forEach { out += declaredBy(it) } }
             t == E.FOR_STATEMENT -> scope.children.forEach { out += declaredBy(it) }
             t == E.CATCH_CLAUSE -> (scope as TsElement).child(E.PARAMETER)?.let { bindings(it, out) }
             t == E.CONDITIONAL_TYPE -> inferred(scope, out)
@@ -123,7 +126,10 @@ object TsScopes {
 
     /** Names in a parameter or a destructuring pattern. */
     fun bindings(e: PsiElement, out: MutableList<PsiElement>) {
-        if (e is TsNamedDecl && e.nameIdentifier != null && e.node.elementType != E.PROPERTY_ASSIGNMENT) { out += e; if (e.node.elementType == E.BINDING) return }
+        if (e is TsNamedDecl && e.nameIdentifier != null && e.node.elementType != E.PROPERTY_ASSIGNMENT) {
+            out += e
+            if (e.node.elementType == E.BINDING) return
+        }
         for (c in e.children) when (c.node.elementType) {
             E.OBJECT_PATTERN, E.ARRAY_PATTERN, E.PATTERN_PROPERTY -> bindings(c, out)
             E.BINDING -> out += c
@@ -200,7 +206,8 @@ object TsGlobals {
         val project = place.project
         val scope = TsEnvironments.scopeOf(place)
         val manager = com.intellij.psi.PsiManager.getInstance(project)
-        return FileBasedIndex.getInstance().getContainingFiles(TsGlobalIndex.KEY, name, scope).mapNotNull { manager.findFile(it) }.flatMap { f -> globalDecls(f)[name].orEmpty() }
+        return FileBasedIndex.getInstance().getContainingFiles(TsGlobalIndex.KEY, name, scope).mapNotNull { manager.findFile(it) }
+            .flatMap { f -> globalDecls(f)[name].orEmpty() }
             .filter { TsScopes.matches(it, space) }
     }
 
@@ -223,7 +230,8 @@ object TsGlobals {
 
     fun ambientModules(from: PsiFile, spec: String): List<PsiElement> {
         val manager = com.intellij.psi.PsiManager.getInstance(from.project)
-        return FileBasedIndex.getInstance().getContainingFiles(TsGlobalIndex.KEY, "module:$spec", TsEnvironments.scopeOf(from)).mapNotNull { manager.findFile(it) }
+        return FileBasedIndex.getInstance().getContainingFiles(TsGlobalIndex.KEY, "module:$spec", TsEnvironments.scopeOf(from))
+            .mapNotNull { manager.findFile(it) }
             .flatMap { f -> f.children.filter { it.node.elementType == E.AMBIENT_MODULE && (it as TsNamedDecl).name == spec } }
     }
 
@@ -326,7 +334,8 @@ object TsResolver {
                 val pattern = d.parent?.takeIf { it.node.elementType == E.OBJECT_PATTERN }
                 val variable = pattern?.parent as? TsElement
                 when {
-                    variable?.type == E.VARIABLE && required(variable) != null -> TsTypes.members(TsTypes.patternTy(pattern), (d as TsNamedDecl).name ?: "").map { TsTypes.declarationOf(it.first) }
+                    variable?.type == E.VARIABLE && required(variable) != null ->
+                        TsTypes.members(TsTypes.patternTy(pattern), (d as TsNamedDecl).name ?: "").map { TsTypes.declarationOf(it.first) }
                     else -> emptyList()
                 }
             }

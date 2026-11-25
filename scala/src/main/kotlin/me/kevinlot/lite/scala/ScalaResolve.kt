@@ -199,7 +199,8 @@ object ScalaResolve {
         val owner = body.parent
         if (owner is ScalaClass) return members(owner, name)
         return named(ScalaScopes.declarations(body), name).ifEmpty {
-            owner?.children.orEmpty().filterIsInstance<ScalaType>().mapNotNull(::classOfType).firstNotNullOfOrNull { members(it, name).ifEmpty { null } }.orEmpty()
+            owner?.children.orEmpty().filterIsInstance<ScalaType>().mapNotNull(::classOfType)
+                .firstNotNullOfOrNull { members(it, name).ifEmpty { null } }.orEmpty()
         }
     }
 

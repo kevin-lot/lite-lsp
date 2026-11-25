@@ -385,7 +385,10 @@ class ShParser : PsiParser {
         val STOP_BACKTICK = TokenSet.create(T.BACKTICK_END)
         val STOP_CASE_ITEM = TokenSet.orSet(TokenSet.create(T.CASE_END), kws("esac"))
         /** Never the start of a command: they close an enclosing construct. */
-        val CLOSERS = TokenSet.orSet(TokenSet.create(T.RPAR, T.SUBST_END, T.BACKTICK_END, T.CASE_END, T.ARITH_END, T.TEST_END, T.PARAM_END, T.DQUOTE_END), kws("then", "elif", "else", "fi", "do", "done", "esac"))
+        val CLOSERS = TokenSet.orSet(
+            TokenSet.create(T.RPAR, T.SUBST_END, T.BACKTICK_END, T.CASE_END, T.ARITH_END, T.TEST_END, T.PARAM_END, T.DQUOTE_END),
+            kws("then", "elif", "else", "fi", "do", "done", "esac"),
+        )
         val EXPANSIONS = TokenSet.create(T.VAR, T.PARAM_START, T.SUBST_START, T.BACKTICK_START, T.ARITH_START, T.DQUOTE_START)
         val DECLARE_BUILTINS = setOf("local", "declare", "typeset", "export", "readonly", "integer", "float")
         val ASSIGN_BUILTINS = DECLARE_BUILTINS + "let"
