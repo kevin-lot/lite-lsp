@@ -28,14 +28,6 @@ import me.kevinlot.lite.rust.psi.RS_KEYWORDS
 import me.kevinlot.lite.rust.psi.RsElementTypes.*
 import me.kevinlot.lite.rust.psi.tokenSetOf
 
-// Derived from intellij-rust (MIT, see THIRD_PARTY_LICENSE-intellij-rust.txt).
-/*
- * Use of this source code is governed by the MIT license that can be
- * found in the LICENSE file.
- */
-
-
-
 @Suppress("UNUSED_PARAMETER")
 object RustParserUtil : GeneratedParserUtilBase() {
     enum class PathParsingMode {

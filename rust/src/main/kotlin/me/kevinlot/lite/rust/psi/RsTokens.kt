@@ -14,9 +14,6 @@ import me.kevinlot.lite.rust.parser.RustParserDefinition.Companion.OUTER_EOL_DOC
 import me.kevinlot.lite.rust.psi.*
 import me.kevinlot.lite.rust.psi.RsElementTypes.*
 
-// Token sets derived from intellij-rust (MIT, see THIRD_PARTY_LICENSE-intellij-rust.txt).
-
-
 open class RsTokenType(debugName: String) : IElementType(debugName, RsLanguage)
 class RsElementType(debugName: String) : IElementType(debugName, RsLanguage)
 
