@@ -266,10 +266,13 @@ object PbResolver {
         }
         val absolute = top.prevSibling?.let { generateSequence(it) { s -> s.prevSibling }.firstOrNull { s -> s.text.isNotBlank() } }?.text == "."
         val target = segments.joinToString(".")
+        // protoc skips a scope whose symbol cannot be the one looked for: a field before a dot, a field where a type is expected
+        val first = when { segments.size > 1 -> AGGREGATES; else -> kinds }
         val candidate = when {
             absolute -> target
             // innermost scope first; the first scope knowing the first component decides
-            else -> enclosingScopes(scopeOf(path)).firstOrNull { table.containsKey(join(it, segments.first())) }?.let { join(it, target) }
+            else -> enclosingScopes(scopeOf(path)).firstOrNull { s -> table[join(s, segments.first())]?.any { it.kind in first } == true }
+                ?.let { join(it, target) }
         }
         candidate?.let { table[it] }.orEmpty().filter { it.kind in kinds }.map { it.element }.distinct()
     }

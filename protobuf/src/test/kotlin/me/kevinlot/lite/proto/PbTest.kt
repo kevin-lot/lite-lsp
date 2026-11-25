@@ -1,5 +1,6 @@
 package me.kevinlot.lite.proto
 
+import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.psi.PsiErrorElement
@@ -37,6 +38,72 @@ class PbTest : BasePlatformTestCase() {
     }
 
     private fun one(code: String) = check("a.proto" to code)
+
+    private fun annotated(code: String): String {
+        myFixture.configureByText("a.proto", code)
+        return myFixture.doHighlighting().filter { it.forcedTextAttributesKey?.externalName?.startsWith("PB_") == true }.sortedBy { it.startOffset }
+            .joinToString(" ") { "${it.text}:${it.forcedTextAttributesKey.externalName.removePrefix("PB_")}" }
+    }
+
+    private fun definitions(code: String): List<PbDefinition> =
+        PsiTreeUtil.findChildrenOfType(myFixture.configureByText("a.proto", code), PbDefinition::class.java).toList()
+
+    private fun lexed(code: String): String {
+        val highlighter = PbSyntaxHighlighter()
+        val lexer = highlighter.highlightingLexer.also { it.start(code) }
+        val tokens = generateSequence { lexer.tokenType?.let { type -> (lexer.tokenText to highlighter.getTokenHighlights(type)).also { lexer.advance() } } }
+        return tokens.mapNotNull { (text, keys) -> keys.firstOrNull()?.let { "$text:${it.externalName.removePrefix("PB_")}" } }.joinToString(" ")
+    }
+
+    private fun referenceAt(code: String): PsiPolyVariantReference {
+        val file = myFixture.configureByText("a.proto", code.replace("<ref>", ""))
+        return generateSequence(file.findElementAt(code.indexOf("<ref>"))) { it.parent }.takeWhile { it !is PsiFile }
+            .firstNotNullOf { it.reference } as PsiPolyVariantReference
+    }
+
+    private val sample = """
+        syntax = "proto2";
+        package shapes;
+        message Shape {
+          optional group Corner = 1 { optional int32 x = 2; }
+          oneof form { string name = 3; }
+          map<string, int32> tags = 4;
+          enum Kind { KIND_A = 0; }
+        }
+        service Shapes { rpc Get(Shape) returns (Shape); }
+    """.trimIndent()
+
+    fun `test parses an edition file`() {
+        val file = myFixture.configureByText("a.proto", """
+            edition = "2023";
+            package shapes;
+            option features.field_presence = IMPLICIT;
+            message Shape {
+              string name = 1 [features.field_presence = EXPLICIT];
+              repeated int32 sides = 2 [features.repeated_field_encoding = EXPANDED];
+            }
+        """.trimIndent())
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement::class.java)?.let { "${it.errorDescription} at ${it.textOffset}" })
+    }
+
+    fun `test parses proto3`() {
+        val file = myFixture.configureByText("a.proto", """
+            syntax = "proto3";
+            package shapes.v1;
+            import "google/protobuf/timestamp.proto";
+            message Shape {
+              optional string name = 1;
+              repeated double sides = 2 [packed = true];
+              google.protobuf.Timestamp drawn_at = 3;
+              reserved 4, 9 to 11;
+              reserved "old_name";
+            }
+            service Shapes {
+              rpc Watch(stream Shape) returns (stream Shape);
+            }
+        """.trimIndent())
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement::class.java)?.let { "${it.errorDescription} at ${it.textOffset}" })
+    }
 
     fun `test parses proto2 proto3 and editions`() {
         val file = myFixture.configureByText("a.proto", """
@@ -112,6 +179,106 @@ class PbTest : BasePlatformTestCase() {
         assertEquals("Timestamp", (PbResolver.resolve(path).single() as PbDefinition).name)
     }
 
+    fun `test absolute name without a package`() = one("message <def>Id {}\nmessage Outer {\n  message Id {}\n  .<ref>Id id = 1;\n}")
+    fun `test cyclic imports end`() = check(
+        "a.proto" to "import \"b.proto\";\nmessage <def>A {}",
+        "b.proto" to "import \"a.proto\";\nmessage B { <ref>A a = 1; }",
+    )
+    fun `test enclosing scope two levels up`() = one("message A {\n  message <def>B {\n    message C { <ref>B b = 1; }\n  }\n}")
+    fun `test extension declared in a message`() = check(
+        "opts.proto" to "package acme;\nimport \"google/protobuf/descriptor.proto\";\n" +
+            "message Opts { extend google.protobuf.FieldOptions { optional bool <def>secret = 50000; } }",
+        "m.proto" to "package acme;\nimport \"opts.proto\";\nmessage M { optional string pwd = 1 [(acme.Opts.<ref>secret) = true]; }",
+    )
+    fun `test field named like a package does not hide it`() = check(
+        "common.proto" to "package acme.common;\nmessage <def>Id {}",
+        "api.proto" to "package acme.api;\nimport \"common.proto\";\nmessage M {\n  string common = 1;\n  common.<ref>Id id = 2;\n}",
+    )
+    fun `test field named like a type does not hide it`() = one("message <def>Status {}\nmessage M {\n  string Status = 1;\n  <ref>Status other = 2;\n}")
+    fun `test first scope knowing the first component decides`() {
+        val reference = referenceAt("message Outer { message Inner {} }\nmessage M {\n  message Outer {}\n  Outer.<ref>Inner inner = 1;\n}")
+        assertEmpty(reference.multiResolve(false).toList())
+    }
+    fun `test group is a type`() = one(
+        "syntax = \"proto2\";\nmessage M {\n  optional group <def>Result = 1 { optional string url = 2; }\n  repeated <ref>Result more = 3;\n}",
+    )
+    fun `test import public is followed`() = check(
+        "types.proto" to "message <def>Id {}",
+        "all.proto" to "import public \"types.proto\";",
+        "api.proto" to "import \"all.proto\";\nmessage M { <ref>Id id = 1; }",
+    )
+    fun `test import reference covers the path and is not renamed`() {
+        val reference = referenceAt("import \"<ref>missing/types.proto\";")
+        assertEquals("missing/types.proto", reference.rangeInElement.substring(reference.element.text))
+        assertEmpty(reference.multiResolve(false).toList())
+        assertSame(reference.element, reference.handleElementRename("other.proto"))
+        assertEquals("import \"missing/types.proto\";", myFixture.file.text)
+    }
+    fun `test keyword named message`() = one("message <def>message {}\nservice S { rpc Get(<ref>message) returns (message); }")
+    fun `test message option`() = one(
+        "import \"google/protobuf/descriptor.proto\";\nextend google.protobuf.MessageOptions { optional bool <def>audited = 50001; }\n" +
+            "message M { option (<ref>audited) = true; }",
+    )
+    fun `test oneof field type`() = one("message <def>Id {}\nmessage M { oneof key { <ref>Id id = 1; string name = 2; } }")
+    fun `test rpc streamed response type`() = one("message Req {}\nmessage <def>Res {}\nservice S { rpc Get(stream Req) returns (stream <ref>Res); }")
+    fun `test type of a nested extension`() = one(
+        "message Base { extensions 100 to max; }\nmessage <def>Id {}\nmessage M { extend Base { optional <ref>Id id = 100; } }",
+    )
+    fun `test well-known import`() {
+        val target = referenceAt("import \"<ref>google/protobuf/duration.proto\";").multiResolve(false).single().element as PbFile
+        assertEquals("duration.proto", target.name)
+        assertEquals(listOf("Duration"), PbResolver.ownSymbols(target).filter { it.kind == Kind.TYPE }.map { it.fullName.substringAfterLast('.') })
+    }
+
+    // ---------------------------------------------------------------- highlighting and names
+
+    fun `test comment line`() {
+        myFixture.configureByText("a.proto", "message <caret>M {}\n")
+        myFixture.performEditorAction(IdeActions.ACTION_COMMENT_LINE)
+        myFixture.checkResult("//message M {}\n")
+    }
+
+    fun `test declarations and type names are colored by kind`() = assertEquals(
+        "Corner:TYPE_DECL int32:KEYWORD x:FIELD form:FIELD string:KEYWORD name:FIELD string:KEYWORD int32:KEYWORD tags:FIELD Kind:TYPE_DECL " +
+            "KIND_A:ENUM_VALUE Shapes:TYPE_DECL Get:METHOD Shape:TYPE_REF Shape:TYPE_REF",
+        annotated(sample).removePrefix("Shape:TYPE_DECL "),
+    )
+
+    fun `test full names follow protoc`() = assertEquals(
+        listOf(
+            "shapes.Shape", "shapes.Shape.Corner", "shapes.Shape.Corner.x", "shapes.Shape.form", "shapes.Shape.name", "shapes.Shape.tags",
+            "shapes.Shape.Kind", "shapes.Shape.KIND_A", "shapes.Shapes", "shapes.Shapes.Get",
+        ),
+        definitions(sample).map { it.fullName },
+    )
+
+    fun `test names may be keywords but not paths`() {
+        val validator = PbNamesValidator()
+        listOf("message", "Shape_2", "_private").forEach { assertTrue(it, validator.isIdentifier(it, project)) }
+        listOf("", "2d", "shapes.Shape", "a-b").forEach { assertFalse(it, validator.isIdentifier(it, project)) }
+        assertFalse(validator.isKeyword("message", project))
+    }
+
+    fun `test option names are colored`() = assertEquals(
+        "java_package:OPTION M:TYPE_DECL (acme.audited):OPTION string:KEYWORD name:FIELD deprecated:OPTION",
+        annotated("option java_package = \"acme\";\nmessage M {\n  option (acme.audited) = true;\n  string name = 1 [deprecated = true];\n}"),
+    )
+
+    fun `test tokens are colored`() = assertEquals(
+        "syntax:KEYWORD \"proto3\":STRING // shapes:LINE_COMMENT /* all of them */:BLOCK_COMMENT message:KEYWORD 1:NUMBER 2.5:NUMBER",
+        lexed("syntax = \"proto3\"; // shapes\n/* all of them */\nmessage M { Id id = 1 [weight = 2.5]; }"),
+    )
+
+    fun `test usage view names each kind`() {
+        val provider = PbFindUsagesProvider()
+        assertEquals(
+            listOf("message", "group", "field", "oneof", "field", "field", "enum", "enum value", "service", "rpc"),
+            definitions(sample).map { provider.getType(it) },
+        )
+        assertEquals("Shape", provider.getDescriptiveName(definitions(sample).first()))
+        assertFalse(provider.canFindUsagesFor(myFixture.file))
+    }
+
     // ---------------------------------------------------------------- editing
 
     fun `test rename message across files`() {
@@ -129,6 +296,43 @@ class PbTest : BasePlatformTestCase() {
         val id = PsiTreeUtil.findChildOfType(types, PbDefinition::class.java)!!
         assertEquals(3, ReferencesSearch.search(id, GlobalSearchScope.projectScope(project)).findAll().size)
         assertEquals(1, ReferencesSearch.search(id, GlobalSearchScope.filesScope(project, listOf(myFixture.findFileInTempDir("a.proto")))).findAll().size)
+    }
+
+    fun `test find usages of a nested message`() {
+        val file = myFixture.configureByText(
+            "a.proto",
+            "message Outer {\n  message Inner {}\n  Inner own = 1;\n}\nmessage M {\n  Outer.Inner inner = 1;\n  map<string, Outer.Inner> named = 2;\n}\n",
+        )
+        val inner = PsiTreeUtil.findChildrenOfType(file, PbDefinition::class.java).single { it.name == "Inner" }
+        assertEquals(3, ReferencesSearch.search(inner, GlobalSearchScope.projectScope(project)).findAll().size)
+    }
+
+    fun `test find usages of an extension include its option names`() {
+        val opts = myFixture.addFileToProject(
+            "opts.proto",
+            "package acme;\nimport \"google/protobuf/descriptor.proto\";\nextend google.protobuf.FieldOptions { optional bool secret = 50000; }\n",
+        )
+        myFixture.addFileToProject(
+            "m.proto", "package acme;\nimport \"opts.proto\";\nmessage M {\n  string pwd = 1 [(acme.secret) = true];\n  string pin = 2 [(secret) = true];\n}\n",
+        )
+        val secret = PsiTreeUtil.findChildrenOfType(opts, PbDefinition::class.java).single()
+        assertEquals(2, ReferencesSearch.search(secret, GlobalSearchScope.projectScope(project)).findAll().size)
+    }
+
+    fun `test rename extension follows option names`() {
+        val use = myFixture.addFileToProject("m.proto", "package acme;\nimport \"opts.proto\";\nmessage M { string pwd = 1 [(acme.secret) = true]; }\n")
+        myFixture.configureByText(
+            "opts.proto",
+            "package acme;\nimport \"google/protobuf/descriptor.proto\";\nextend google.protobuf.FieldOptions { optional bool sec<caret>ret = 50000; }\n",
+        )
+        myFixture.renameElementAtCaret("hidden")
+        assertEquals("package acme;\nimport \"opts.proto\";\nmessage M { string pwd = 1 [(acme.hidden) = true]; }\n", use.text)
+    }
+
+    fun `test rename nested message from a qualified use`() {
+        myFixture.configureByText("a.proto", "message Outer {\n  message Inner {}\n  Inner own = 1;\n}\nmessage M { Outer.In<caret>ner inner = 1; }\n")
+        myFixture.renameElementAtCaret("Part")
+        myFixture.checkResult("message Outer {\n  message Part {}\n  Part own = 1;\n}\nmessage M { Outer.Part inner = 1; }\n")
     }
 
     // ---------------------------------------------------------------- real files (read-only, optional)
