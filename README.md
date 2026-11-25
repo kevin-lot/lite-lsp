@@ -668,7 +668,19 @@ flat package (`me.kevinlot.lite.<module>`).
 ./gradlew runIde                     # sandbox IDE
 ```
 
-`gradle.properties` → `localIdePath` points at the local IDE (nothing downloaded); Gradle runs on its JBR 25.
+The plugin compiles against a local IDE (nothing downloaded) and Gradle runs on its JBR 25. Two environment variables
+say where it is, per machine; a git-ignored `mise.local.toml` holds them (then `mise exec -- ./gradlew …`):
+
+```toml
+[env]
+JAVA_HOME = "<IDE>/jbr"                       # macOS: "<IDE>.app/Contents/jbr/Contents/Home"
+ORG_GRADLE_PROJECT_localIdePath = "<IDE>"     # macOS: "<IDE>.app"
+```
+
+Offline (`--offline`), when the Gradle cache lacks what the IDE build asks for:
+`ORG_GRADLE_PROJECT_testFrameworkVersion = "<cached version>"` pins the platform test framework, and
+`ORG_GRADLE_PROJECT_instrumentCode = "false"` skips the bytecode instrumentation (not-null assertions of the imported
+Java code).
 
 Optional real-world inputs (read-only; run with `--rerun --no-configuration-cache`, `LITE_SHOW=1` lists the misses):
 

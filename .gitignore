@@ -2,6 +2,7 @@ build/
 .gradle/
 .kotlin/
 .intellijPlatform/
+mise.local.toml
 
 # playground/build holds sources (build/common.mk), not build outputs
 !/playground/build/

@@ -14,13 +14,16 @@ repositories {
 dependencies {
     intellijPlatform {
         local(providers.gradleProperty("localIdePath"))
-        testFramework(TestFrameworkType.Platform)
+        providers.gradleProperty("testFrameworkVersion").orNull?.let { testFramework(TestFrameworkType.Platform, it) }
+            ?: testFramework(TestFrameworkType.Platform)
     }
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.opentest4j:opentest4j:1.3.0")
 }
 
 kotlin { jvmToolchain(25) }
+
+intellijPlatform { instrumentCode = providers.gradleProperty("instrumentCode").map(String::toBoolean).orElse(true) }
 
 tasks.test {
     // LITE_JFR=<file.jfr>: profile the test JVM with Java Flight Recorder.

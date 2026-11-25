@@ -40,6 +40,7 @@ kotlin { jvmToolchain(25) }
 
 intellijPlatform {
     buildSearchableOptions = false
+    instrumentCode = providers.gradleProperty("instrumentCode").map(String::toBoolean).orElse(true)
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "262"

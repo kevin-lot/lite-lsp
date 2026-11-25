@@ -37,10 +37,10 @@ environment variables are not task inputs and the run would otherwise be up to d
 
 ## New machine
 
-`gradle.properties` holds machine paths: `localIdePath` (the IntelliJ IDEA Ultimate install the plugin compiles and
-runs against, since nothing is downloaded), `org.gradle.java.home` and `org.gradle.java.installations.paths` (that
-IDE's `jbr/`, Java 25). The system Java is a JRE without javac. To use other paths, override these keys in
-`~/.gradle/gradle.properties`, which takes precedence, instead of editing the committed file.
+No machine path is committed. Two environment variables say where the local IntelliJ IDEA Ultimate is (the plugin
+compiles and runs against it, nothing is downloaded): `JAVA_HOME` (that IDE's JBR, Java 25: it runs Gradle and is the
+toolchain) and `ORG_GRADLE_PROJECT_localIdePath`. They live in a git-ignored `mise.local.toml`, so run Gradle as
+`mise exec -- ./gradlew …`. Offline pins (`testFrameworkVersion`, `instrumentCode`) are in README.md, "Develop".
 
 The first build creates `.intellijPlatform/` (~4 GB, gitignored).
 
