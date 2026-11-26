@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiFile
@@ -6,6 +6,26 @@ import com.intellij.psi.PsiFileSystemItem
 import com.intellij.psi.PsiManager
 import com.intellij.psi.tree.IElementType
 import java.util.regex.Pattern
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.Fmt
+import me.kevinlot.lite.formats.FmtFile
+import me.kevinlot.lite.formats.FmtLexer
+import me.kevinlot.lite.formats.FmtToken
+import me.kevinlot.lite.formats.FmtWord
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.Pointers
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.ScriptRules
+import me.kevinlot.lite.formats.Scripts
+import me.kevinlot.lite.formats.findItem
+import me.kevinlot.lite.formats.infra.GithubActions
+import me.kevinlot.lite.formats.infra.Serverless
+import me.kevinlot.lite.formats.infra.lineEnd
 
 /** YAML: `*alias` → `&anchor` (in the same document). */
 object Yaml : Format("Yaml", "YAML", "yaml") {
@@ -147,12 +167,13 @@ object Yaml : Format("Yaml", "YAML", "yaml") {
                 actions != null -> null
                 else -> Serverless.links(text)
             }
+            val pubspec = Pubspec.links(text, fileName)
             return Links(
                 decls = anchors.map { (_, r) -> Decl(r, "anchor:${r.subSequence(text)}") } + keys.map { (r, p) -> Decl(r, "key:$p") } +
                     actions?.decls.orEmpty(),
                 refs = aliases.map { (_, r) -> Ref(r, listOf("anchor:${r.subSequence(text)}")) } + Pointers.yamlRefs(text) +
                     actions?.refs.orEmpty() + service?.refs.orEmpty(),
-                paths = actions?.paths.orEmpty() + service?.paths.orEmpty(),
+                paths = actions?.paths.orEmpty() + service?.paths.orEmpty() + pubspec?.paths.orEmpty(),
             )
         }
 

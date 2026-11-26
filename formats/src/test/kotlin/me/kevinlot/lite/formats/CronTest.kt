@@ -7,6 +7,9 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.util.elementType
+import me.kevinlot.lite.formats.infra.CronFileType
+import me.kevinlot.lite.formats.infra.CronPlaces
+import me.kevinlot.lite.formats.infra.CronTokens
 
 class CronTest : FmtTestCase() {
     private fun parse(text: String): PsiFile = PsiFileFactory.getInstance(project).createFileFromText("x.cron", CronFileType, text)

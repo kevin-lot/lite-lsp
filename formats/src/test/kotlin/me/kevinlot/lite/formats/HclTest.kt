@@ -1,5 +1,7 @@
 package me.kevinlot.lite.formats
 
+import me.kevinlot.lite.formats.infra.Hcl
+
 class HclTest : FmtTestCase() {
 
     private fun iteratorUses(text: String): List<String> {

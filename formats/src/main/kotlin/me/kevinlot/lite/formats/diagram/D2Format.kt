@@ -1,8 +1,19 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.diagram
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileSystemItem
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.Fmt
+import me.kevinlot.lite.formats.FmtToken
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.PathLink
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
 
 /**
  * D2 diagrams: a shape → where it is first named, each level of `a.b.c` on its own; `class: x` → the class of that

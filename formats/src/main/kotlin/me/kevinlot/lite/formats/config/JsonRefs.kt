@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
 
 import com.intellij.json.psi.JsonArray
 import com.intellij.json.psi.JsonFile
@@ -19,6 +19,8 @@ import com.intellij.psi.PsiReferenceProvider
 import com.intellij.psi.PsiReferenceRegistrar
 import com.intellij.psi.ResolveResult
 import com.intellij.util.ProcessingContext
+import me.kevinlot.lite.formats.PointerTargets
+import me.kevinlot.lite.formats.Pointers
 
 /*
  * `$ref` in JSON files (the JSON plugin's PSI; loaded with it, see lite-json.xml): OpenAPI v1/v2/v3, AsyncAPI,

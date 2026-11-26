@@ -1,10 +1,29 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.build
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileSystemItem
 import com.intellij.psi.tree.IElementType
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.Fmt
+import me.kevinlot.lite.formats.FmtFile
+import me.kevinlot.lite.formats.FmtLexer
+import me.kevinlot.lite.formats.FmtToken
+import me.kevinlot.lite.formats.FmtWord
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.PathLink
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.ScriptRules
+import me.kevinlot.lite.formats.Scripts
+import me.kevinlot.lite.formats.group
+import me.kevinlot.lite.formats.infra.lineEnd
+import me.kevinlot.lite.formats.range
 
 /**
  * just (justfile): `{{name}}` and `$name` in recipe bodies, expressions of assignments, parameter defaults and

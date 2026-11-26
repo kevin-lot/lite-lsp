@@ -1,6 +1,16 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.spec
 
 import com.intellij.openapi.util.TextRange
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.Offsets
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.ranges
 
 /**
  * JFlex lexer specifications: `{MACRO}` (also inside a character class) → `MACRO = …`; a state in `<A, B>`, `yybegin(A)` or any Java code → its

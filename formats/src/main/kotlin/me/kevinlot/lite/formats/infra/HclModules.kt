@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.infra
 
 import com.google.gson.JsonParser
 import com.intellij.openapi.fileEditor.FileDocumentManager

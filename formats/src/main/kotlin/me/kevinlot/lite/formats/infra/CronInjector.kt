@@ -1,9 +1,14 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.infra
 
 import com.intellij.lang.injection.MultiHostInjector
 import com.intellij.lang.injection.MultiHostRegistrar
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.FmtFile
+import me.kevinlot.lite.formats.FmtToken
+import me.kevinlot.lite.formats.FmtWord
+import me.kevinlot.lite.formats.config.Yaml
 
 /** Where YAML and HCL hold a cron expression: the value becomes [CronLanguage]. */
 class CronInjector : MultiHostInjector {

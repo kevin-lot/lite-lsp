@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.spec
 
 import com.intellij.openapi.fileEditor.impl.LoadTextUtil
 import com.intellij.openapi.project.Project
@@ -12,6 +12,17 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.UsageSearchContext
 import java.util.concurrent.ConcurrentHashMap
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.Fmt
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.Offsets
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.range
 
 /**
  * Rego, the policy language of Open Policy Agent: a name → the variable of its rule (`x := …`, `some x`, `every x`,

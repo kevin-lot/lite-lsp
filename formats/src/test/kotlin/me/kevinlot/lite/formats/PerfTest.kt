@@ -3,6 +3,7 @@ package me.kevinlot.lite.formats
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.util.PsiTreeUtil
 import java.io.File
+import me.kevinlot.lite.formats.infra.CronPlaces
 
 /** LITE_FMT_PERF=<file:file>: for each file, the time to highlight it (lexing, injections, annotators) and to resolve its references. */
 class PerfTest : FmtTestCase() {

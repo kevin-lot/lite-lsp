@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.data
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
@@ -26,6 +26,9 @@ import java.beans.PropertyChangeListener
 import javax.swing.JComponent
 import javax.swing.JTable
 import javax.swing.table.DefaultTableModel
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.CsvFileType
+import me.kevinlot.lite.formats.FmtToken
 
 /* CSV / TSV preview: the file as a table beside the editor, read with the lexer that colors it (same delimiter, same quotes). */
 

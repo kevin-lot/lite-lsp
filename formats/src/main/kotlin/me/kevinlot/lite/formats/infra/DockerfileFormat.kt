@@ -1,7 +1,22 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.infra
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.tree.IElementType
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.FmtFile
+import me.kevinlot.lite.formats.FmtLexer
+import me.kevinlot.lite.formats.FmtToken
+import me.kevinlot.lite.formats.FmtWord
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.ScriptRules
+import me.kevinlot.lite.formats.Scripts
+import me.kevinlot.lite.formats.ranges
 
 /** Dockerfile: `$VAR` → `ARG`/`ENV`; `COPY --from=build` / `FROM build` → `FROM … AS build`. */
 object Dockerfile : Format("Dockerfile", "Dockerfile", "dockerfile") {

@@ -1,7 +1,17 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
 
 import com.intellij.openapi.util.TextRange
 import java.util.regex.Pattern
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.FmtFile
+import me.kevinlot.lite.formats.FmtToken
+import me.kevinlot.lite.formats.FmtWord
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.ScriptRules
+import me.kevinlot.lite.formats.Scripts
 
 object Toml : Format("Toml", "TOML", "toml") {
     override val lineComment = "#"
@@ -22,10 +32,7 @@ object Toml : Format("Toml", "TOML", "toml") {
         Rule(R.NUMBER, Cat.NUMBER),
     )
 
-    /** Names nothing; its strings must still be elements for a `run` script to be read as shell. */
-    override val linker = object : Linker() {
-        override fun links(text: CharSequence, fileName: String) = Links()
-    }
+    override val linker: Linker = TomlLinks
 
     /** The `run` of a mise task (`[tasks.x]`, or a table of a `tasks` file): a string, or the strings of an array. */
     override val scripts = object : ScriptRules() {

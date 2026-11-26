@@ -1,6 +1,9 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.infra
 
 import com.intellij.psi.tree.IElementType
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.FmtLexer
+import me.kevinlot.lite.formats.Format
 
 private val HEREDOC = Regex("""<<-?([A-Za-z_]\w*)[ \t]*\n""")
 

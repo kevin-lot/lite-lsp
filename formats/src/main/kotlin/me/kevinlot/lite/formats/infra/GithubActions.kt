@@ -1,8 +1,16 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.infra
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.Fmt
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.PathLink
+import me.kevinlot.lite.formats.Pointers
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.config.Yaml
 
 /*
  * GitHub Actions workflows and composite actions, on top of the YAML keys (every key is already a target, by its

@@ -1,4 +1,9 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
+
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Rule
 
 object Json5 : Format("Json5", "JSON5", "json5") {
     override val lineComment = "//"

@@ -1,6 +1,16 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
 
 import java.util.regex.Pattern
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.Offsets
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.ranges
 
 /** `.env`: `${VAR}` / `$VAR` → `VAR=` (in the same file). */
 object Env : Format("Env", "Dotenv", "env") {

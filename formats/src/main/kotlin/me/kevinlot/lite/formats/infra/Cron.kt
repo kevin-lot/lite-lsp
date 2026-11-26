@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.infra
 
 import com.intellij.extapi.psi.ASTWrapperPsiElement
 import com.intellij.extapi.psi.PsiFileBase
@@ -29,6 +29,7 @@ import com.intellij.psi.tree.IFileElementType
 import com.intellij.psi.tree.TokenSet
 import javax.swing.Icon
 import me.kevinlot.lite.core.color
+import me.kevinlot.lite.formats.Cat
 
 /*
  * Cron expressions, a language of their own: a lexer and a parser, so that a malformed expression is a syntax error

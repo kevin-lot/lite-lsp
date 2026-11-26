@@ -1,5 +1,7 @@
 package me.kevinlot.lite.formats
 
+import me.kevinlot.lite.formats.template.Handlebars
+
 class HandlebarsTest : FmtTestCase() {
 
     private fun referenceOffsets(name: String, text: String): List<Int> = Fmt.links(myFixture.configureByText(name, text)).refs.map { it.range.startOffset }

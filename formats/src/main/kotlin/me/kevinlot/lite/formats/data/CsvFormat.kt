@@ -1,7 +1,12 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.data
 
 import com.intellij.psi.TokenType
 import com.intellij.psi.tree.IElementType
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.FmtLexer
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.infra.lineEnd
 
 /** CSV / TSV: each column in its own color; the delimiter is guessed from the first line. */
 object Csv : Format("Csv", "CSV", "csv") {

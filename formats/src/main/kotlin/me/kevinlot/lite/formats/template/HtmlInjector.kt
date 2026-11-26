@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.template
 
 import com.intellij.lang.Language
 import com.intellij.lang.injection.MultiHostInjector

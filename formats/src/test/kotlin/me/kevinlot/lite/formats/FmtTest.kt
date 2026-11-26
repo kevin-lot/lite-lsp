@@ -9,6 +9,10 @@ import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import java.io.File
+import me.kevinlot.lite.formats.template.Handlebars
+import me.kevinlot.lite.formats.template.HtmlInjector
+import me.kevinlot.lite.formats.template.Jinja
+import me.kevinlot.lite.formats.template.JinjaLexer
 
 class FmtTest : FmtTestCase() {
 

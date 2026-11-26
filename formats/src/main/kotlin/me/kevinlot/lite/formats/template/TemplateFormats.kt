@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.template
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiFile
@@ -9,6 +9,16 @@ import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.tree.IElementType
 import java.util.regex.Pattern
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.FmtLexer
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.Offsets
+import me.kevinlot.lite.formats.PathLink
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
 
 /**
  * Handlebars and Mustache: `{{> name}}` → the inline partial of the file, else the partial file of the project;

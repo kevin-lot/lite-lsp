@@ -5,6 +5,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
+import me.kevinlot.lite.formats.config.Yaml
 
 /*
  * JSON references (`$ref`) as OpenAPI (v1/Swagger 1.2, v2/Swagger 2.0, v3.x), AsyncAPI and JSON Schema use them:

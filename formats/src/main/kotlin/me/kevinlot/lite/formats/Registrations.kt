@@ -1,5 +1,36 @@
 package me.kevinlot.lite.formats
 
+import me.kevinlot.lite.formats.build.Fish
+import me.kevinlot.lite.formats.build.Just
+import me.kevinlot.lite.formats.build.Make
+import me.kevinlot.lite.formats.config.Codeowners
+import me.kevinlot.lite.formats.config.Env
+import me.kevinlot.lite.formats.config.Hocon
+import me.kevinlot.lite.formats.config.Ignore
+import me.kevinlot.lite.formats.config.Ini
+import me.kevinlot.lite.formats.config.Arb
+import me.kevinlot.lite.formats.config.Json5
+import me.kevinlot.lite.formats.config.Kdl
+import me.kevinlot.lite.formats.config.Properties
+import me.kevinlot.lite.formats.config.Toml
+import me.kevinlot.lite.formats.config.Yaml
+import me.kevinlot.lite.formats.data.Csv
+import me.kevinlot.lite.formats.data.Sql
+import me.kevinlot.lite.formats.diagram.D2
+import me.kevinlot.lite.formats.diagram.Mermaid
+import me.kevinlot.lite.formats.infra.Dockerfile
+import me.kevinlot.lite.formats.infra.Hcl
+import me.kevinlot.lite.formats.spec.Bruno
+import me.kevinlot.lite.formats.spec.Gherkin
+import me.kevinlot.lite.formats.spec.JFlex
+import me.kevinlot.lite.formats.spec.Rego
+import me.kevinlot.lite.formats.template.Css
+import me.kevinlot.lite.formats.template.Handlebars
+import me.kevinlot.lite.formats.template.Jinja
+import me.kevinlot.lite.formats.template.Mustache
+import me.kevinlot.lite.formats.template.Sass
+import me.kevinlot.lite.formats.template.Scss
+
 /* One line per extension point and format (the platform instantiates them by class name). */
 
 object TomlLanguage : FmtLanguage("Toml", "TOML")
@@ -8,6 +39,7 @@ class TomlParserDefinition : FmtParserDefinition(Toml)
 class TomlHighlighterFactory : FmtHighlighterFactory(Toml)
 class TomlCommenter : FmtCommenter(Toml)
 class TomlBraceMatcher : FmtBraceMatcher(Toml)
+class TomlFindUsagesProvider : FmtFindUsagesProvider(Toml)
 
 object YamlLanguage : FmtLanguage("Yaml", "YAML")
 object YamlFileType : FmtFileType(Yaml)
@@ -38,6 +70,13 @@ class EnvHighlighterFactory : FmtHighlighterFactory(Env)
 class EnvCommenter : FmtCommenter(Env)
 class EnvBraceMatcher : FmtBraceMatcher(Env)
 class EnvFindUsagesProvider : FmtFindUsagesProvider(Env)
+
+object ArbLanguage : FmtLanguage("Arb", "ARB")
+object ArbFileType : FmtFileType(Arb)
+class ArbParserDefinition : FmtParserDefinition(Arb)
+class ArbHighlighterFactory : FmtHighlighterFactory(Arb)
+class ArbBraceMatcher : FmtBraceMatcher(Arb)
+class ArbFindUsagesProvider : FmtFindUsagesProvider(Arb)
 
 object Json5Language : FmtLanguage("Json5", "JSON5")
 object Json5FileType : FmtFileType(Json5)
@@ -232,6 +271,7 @@ val ALL_FILE_TYPES: List<FmtFileType> by lazy {
         TomlFileType, YamlFileType, KdlFileType, IniFileType, EnvFileType, Json5FileType, CsvFileType, SqlFileType, HoconFileType, DockerfileFileType,
         CssFileType, ScssFileType, SassFileType, IgnoreFileType, MakeFileType, JustFileType, HclFileType, FishFileType, BrunoFileType, CodeownersFileType,
         D2FileType, GherkinFileType, HandlebarsFileType, JFlexFileType, JinjaFileType, MermaidFileType, MustacheFileType, PropertiesFileType, RegoFileType,
+        ArbFileType,
     )
 }
 val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy {
@@ -239,6 +279,7 @@ val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy {
         TomlLanguage, YamlLanguage, KdlLanguage, IniLanguage, EnvLanguage, Json5Language, CsvLanguage, SqlLanguage, HoconLanguage, DockerfileLanguage,
         CssLanguage, ScssLanguage, SassLanguage, IgnoreLanguage, MakeLanguage, JustLanguage, HclLanguage, FishLanguage, BrunoLanguage, CodeownersLanguage,
         D2Language, GherkinLanguage, HandlebarsLanguage, JFlexLanguage, JinjaLanguage, MermaidLanguage, MustacheLanguage, PropertiesLanguage, RegoLanguage,
+        ArbLanguage,
     ).associateBy { it.id.removePrefix("Lite") }
 }
 

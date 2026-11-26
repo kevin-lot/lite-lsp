@@ -1,5 +1,7 @@
 package me.kevinlot.lite.formats
 
+import me.kevinlot.lite.formats.config.Ini
+
 class PropertiesTest : FmtTestCase() {
     private fun kinds(text: String) = tokens("a.properties", text).map { "${it.first}:${it.second}" }
 

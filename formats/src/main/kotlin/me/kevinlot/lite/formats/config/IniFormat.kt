@@ -1,4 +1,9 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
+
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Rule
 
 /** INI and its relatives: `.editorconfig`, `.gitconfig`, systemd units, `.desktop`. */
 object Ini : Format("Ini", "INI", "ini") {

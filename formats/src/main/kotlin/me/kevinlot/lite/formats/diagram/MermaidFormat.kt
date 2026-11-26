@@ -1,6 +1,15 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.diagram
 
 import com.intellij.openapi.util.TextRange
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.range
 
 /**
  * Mermaid diagrams: in flowcharts, sequence, state, class and entity-relationship diagrams, an identifier → where it

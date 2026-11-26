@@ -1,9 +1,10 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.build
 
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeRegistry
 import com.intellij.openapi.util.io.ByteSequence
 import com.intellij.openapi.vfs.VirtualFile
+import me.kevinlot.lite.formats.FishFileType
 
 private const val PREFIX_LENGTH = 64
 

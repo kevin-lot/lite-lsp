@@ -1,5 +1,7 @@
 package me.kevinlot.lite.formats
 
+import me.kevinlot.lite.formats.config.Yaml
+
 class YamlTest : FmtTestCase() {
 
     private fun yaml(text: String) = tokens("a.yml", text)

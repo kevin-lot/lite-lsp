@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.infra
 
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
@@ -12,6 +12,16 @@ import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.Fmt
+import me.kevinlot.lite.formats.FmtWord
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.PathLink
+import me.kevinlot.lite.formats.Pointers
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.findItem
+import me.kevinlot.lite.formats.range
 
 /*
  * Serverless Framework and CloudFormation, on top of the YAML keys (every key is a target, by its JSON pointer).

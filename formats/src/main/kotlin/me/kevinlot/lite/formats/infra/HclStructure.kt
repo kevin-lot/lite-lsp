@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.infra
 
 private const val NAME = """[A-Za-z_][\w-]*"""
 

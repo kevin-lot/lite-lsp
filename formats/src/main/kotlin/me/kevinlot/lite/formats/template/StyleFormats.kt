@@ -1,10 +1,21 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.template
 
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileSystemItem
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.FMT_FILE_TYPES
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.PathLink
+import me.kevinlot.lite.formats.R
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.ranges
 
 /**
  * CSS: `var(--x)` → `--x:`; `@import`/`url()` → the file. SCSS adds `$x`, `@mixin`/`@include`, `@function`, `@use`;

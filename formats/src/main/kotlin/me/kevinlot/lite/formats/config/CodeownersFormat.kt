@@ -1,9 +1,15 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileSystemItem
 import com.intellij.psi.PsiManager
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.PathLink
+import me.kevinlot.lite.formats.Rule
 
 /**
  * `CODEOWNERS`: a literal pattern (no `*`, `?`, `[`) leads to the file or folder it names, from the root of the

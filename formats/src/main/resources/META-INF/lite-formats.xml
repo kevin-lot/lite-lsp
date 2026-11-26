@@ -12,6 +12,7 @@
         <lang.commenter language="LiteToml" implementationClass="me.kevinlot.lite.formats.TomlCommenter"/>
         <annotator language="LiteToml" implementationClass="me.kevinlot.lite.formats.ScriptNamesAnnotator"/>
         <lang.braceMatcher language="LiteToml" implementationClass="me.kevinlot.lite.formats.TomlBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteToml" implementationClass="me.kevinlot.lite.formats.TomlFindUsagesProvider"/>
         <fileType name="YAML (Lite)" implementationClass="me.kevinlot.lite.formats.YamlFileType" fieldName="INSTANCE" language="LiteYaml"
                   extensions="yaml;yml"/>
         <lang.parserDefinition language="LiteYaml" implementationClass="me.kevinlot.lite.formats.YamlParserDefinition"/>
@@ -39,6 +40,12 @@
         <lang.commenter language="LiteEnv" implementationClass="me.kevinlot.lite.formats.EnvCommenter"/>
         <lang.braceMatcher language="LiteEnv" implementationClass="me.kevinlot.lite.formats.EnvBraceMatcher"/>
         <lang.findUsagesProvider language="LiteEnv" implementationClass="me.kevinlot.lite.formats.EnvFindUsagesProvider"/>
+        <fileType name="ARB (Lite)" implementationClass="me.kevinlot.lite.formats.ArbFileType" fieldName="INSTANCE" language="LiteArb" extensions="arb"/>
+        <lang.parserDefinition language="LiteArb" implementationClass="me.kevinlot.lite.formats.ArbParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteArb" implementationClass="me.kevinlot.lite.formats.ArbHighlighterFactory"/>
+        <lang.braceMatcher language="LiteArb" implementationClass="me.kevinlot.lite.formats.ArbBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteArb" implementationClass="me.kevinlot.lite.formats.ArbFindUsagesProvider"/>
+        <renamePsiElementProcessor implementation="me.kevinlot.lite.formats.config.ArbRenameProcessor"/>
         <fileType name="JSON5 (Lite)" implementationClass="me.kevinlot.lite.formats.Json5FileType" fieldName="INSTANCE" language="LiteJson5"
                   extensions="json5"/>
         <lang.parserDefinition language="LiteJson5" implementationClass="me.kevinlot.lite.formats.Json5ParserDefinition"/>
@@ -50,7 +57,7 @@
         <lang.parserDefinition language="LiteCsv" implementationClass="me.kevinlot.lite.formats.CsvParserDefinition"/>
         <lang.syntaxHighlighterFactory language="LiteCsv" implementationClass="me.kevinlot.lite.formats.CsvHighlighterFactory"/>
         <lang.commenter language="LiteCsv" implementationClass="me.kevinlot.lite.formats.CsvCommenter"/>
-        <fileEditorProvider implementation="me.kevinlot.lite.formats.CsvSplitEditorProvider"/>
+        <fileEditorProvider implementation="me.kevinlot.lite.formats.data.CsvSplitEditorProvider"/>
         <lang.braceMatcher language="LiteCsv" implementationClass="me.kevinlot.lite.formats.CsvBraceMatcher"/>
         <fileType name="SQL (Lite)" implementationClass="me.kevinlot.lite.formats.SqlFileType" fieldName="INSTANCE" language="LiteSql"
                   extensions="sql"/>
@@ -112,7 +119,7 @@
         <lang.findUsagesProvider language="LiteMake" implementationClass="me.kevinlot.lite.formats.MakeFindUsagesProvider"/>
         <fileType name="fish (Lite)" implementationClass="me.kevinlot.lite.formats.FishFileType" fieldName="INSTANCE" language="LiteFish"
                   extensions="fish"/>
-        <fileTypeDetector implementation="me.kevinlot.lite.formats.FishShebangDetector"/>
+        <fileTypeDetector implementation="me.kevinlot.lite.formats.build.FishShebangDetector"/>
         <lang.parserDefinition language="LiteFish" implementationClass="me.kevinlot.lite.formats.FishParserDefinition"/>
         <lang.syntaxHighlighterFactory language="LiteFish" implementationClass="me.kevinlot.lite.formats.FishHighlighterFactory"/>
         <lang.commenter language="LiteFish" implementationClass="me.kevinlot.lite.formats.FishCommenter"/>
@@ -132,11 +139,11 @@
         <lang.commenter language="LiteCodeowners" implementationClass="me.kevinlot.lite.formats.CodeownersCommenter"/>
         <lang.braceMatcher language="LiteCodeowners" implementationClass="me.kevinlot.lite.formats.CodeownersBraceMatcher"/>
         <lang.findUsagesProvider language="LiteCodeowners" implementationClass="me.kevinlot.lite.formats.CodeownersFindUsagesProvider"/>
-        <fileType name="Cron (Lite)" implementationClass="me.kevinlot.lite.formats.CronFileType" fieldName="INSTANCE" language="LiteCron"/>
-        <lang.parserDefinition language="LiteCron" implementationClass="me.kevinlot.lite.formats.CronParserDefinition"/>
-        <lang.syntaxHighlighterFactory language="LiteCron" implementationClass="me.kevinlot.lite.formats.CronHighlighterFactory"/>
-        <annotator language="LiteCron" implementationClass="me.kevinlot.lite.formats.CronAnnotator"/>
-        <multiHostInjector implementation="me.kevinlot.lite.formats.CronInjector"/>
+        <fileType name="Cron (Lite)" implementationClass="me.kevinlot.lite.formats.infra.CronFileType" fieldName="INSTANCE" language="LiteCron"/>
+        <lang.parserDefinition language="LiteCron" implementationClass="me.kevinlot.lite.formats.infra.CronParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteCron" implementationClass="me.kevinlot.lite.formats.infra.CronHighlighterFactory"/>
+        <annotator language="LiteCron" implementationClass="me.kevinlot.lite.formats.infra.CronAnnotator"/>
+        <multiHostInjector implementation="me.kevinlot.lite.formats.infra.CronInjector"/>
         <multiHostInjector implementation="me.kevinlot.lite.formats.ScriptInjector"/>
         <fileType name="D2 (Lite)" implementationClass="me.kevinlot.lite.formats.D2FileType" fieldName="INSTANCE" language="LiteD2"
                   extensions="d2"/>
@@ -169,7 +176,7 @@
         <fileType name="Jinja2 (Lite)" implementationClass="me.kevinlot.lite.formats.JinjaFileType" fieldName="INSTANCE" language="LiteJinja"
                   extensions="j2;jinja;jinja2"/>
         <lang.parserDefinition language="LiteJinja" implementationClass="me.kevinlot.lite.formats.JinjaParserDefinition"/>
-        <lang.syntaxHighlighterFactory language="LiteJinja" implementationClass="me.kevinlot.lite.formats.JinjaHighlighterFactory"/>
+        <lang.syntaxHighlighterFactory language="LiteJinja" implementationClass="me.kevinlot.lite.formats.template.JinjaHighlighterFactory"/>
         <lang.commenter language="LiteJinja" implementationClass="me.kevinlot.lite.formats.JinjaCommenter"/>
         <lang.braceMatcher language="LiteJinja" implementationClass="me.kevinlot.lite.formats.JinjaBraceMatcher"/>
         <lang.findUsagesProvider language="LiteJinja" implementationClass="me.kevinlot.lite.formats.JinjaFindUsagesProvider"/>

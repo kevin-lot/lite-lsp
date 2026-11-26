@@ -1,6 +1,12 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
 
 import com.intellij.openapi.util.TextRange
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.PathLink
+import me.kevinlot.lite.formats.Rule
 
 /**
  * `.gitignore` and relatives (`.dockerignore`, `.npmignore`, `.gitattributes`…): a literal pattern (no `*`, `?`, `[`)

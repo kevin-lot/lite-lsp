@@ -1,4 +1,4 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
 
 import com.intellij.json.psi.JsonFile
 import com.intellij.json.psi.JsonObject
@@ -24,6 +24,10 @@ import com.intellij.psi.PsiReferenceProvider
 import com.intellij.psi.PsiReferenceRegistrar
 import com.intellij.psi.ResolveResult
 import com.intellij.util.ProcessingContext
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Scripts
+import me.kevinlot.lite.formats.group
+import me.kevinlot.lite.formats.range
 
 /*
  * The `scripts` of a `package.json` (the JSON plugin's PSI; loaded with it, see lite-json.xml): each one is read as

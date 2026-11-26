@@ -6,6 +6,7 @@ import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
+import me.kevinlot.lite.formats.config.PackageScriptReference
 
 class PackageScriptsTest : FmtTestCase() {
     private fun pkg(vararg scripts: Pair<String, String>) =

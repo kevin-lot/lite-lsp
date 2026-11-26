@@ -1,8 +1,20 @@
-package me.kevinlot.lite.formats
+package me.kevinlot.lite.formats.config
 
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiFile
 import com.intellij.psi.tree.IElementType
+import me.kevinlot.lite.formats.Cat
+import me.kevinlot.lite.formats.Decl
+import me.kevinlot.lite.formats.FmtFile
+import me.kevinlot.lite.formats.FmtLexer
+import me.kevinlot.lite.formats.Format
+import me.kevinlot.lite.formats.Linker
+import me.kevinlot.lite.formats.Links
+import me.kevinlot.lite.formats.Offsets
+import me.kevinlot.lite.formats.Ref
+import me.kevinlot.lite.formats.Rule
+import me.kevinlot.lite.formats.infra.lineEnd
+import me.kevinlot.lite.formats.ranges
 
 /** `.properties`, as `java.util.Properties` reads it: `${key}` → `key=` in the file or in a `.properties` file beside it. */
 object Properties : Format("Properties", "Properties", "properties") {
