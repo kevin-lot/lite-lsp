@@ -47,8 +47,9 @@ class QmlSyntaxHighlighterFactory : SyntaxHighlighterFactory() {
 /** Structural coloring, no resolve. */
 class QmlHighlightingAnnotator : Annotator {
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
+        // The keywords are JavaScript tokens: annotators of this language are not called on them.
+        if (element is QmlElement) element.node.getChildren(SOFT_KEYWORDS).forEach { holder.color(it.psi, QmlColors.KEYWORD) }
         when {
-            element.node.elementType == T.SOFT_KEYWORD && element.parent is QmlElement -> holder.color(element, QmlColors.KEYWORD)
             element is QmlTypeRef -> holder.color(element, QmlColors.TYPE)
             element is QmlNamed -> holder.color(element.nameIdentifier, when (element.type) {
                 Q.ID -> QmlColors.ID
@@ -69,6 +70,8 @@ class QmlHighlightingAnnotator : Annotator {
             element.node.elementType == Q.MODULE_URI -> holder.color(element, QmlColors.MODULE)
         }
     }
+
+    private companion object { val SOFT_KEYWORDS = TokenSet.create(T.SOFT_KEYWORD) }
 }
 
 class QmlBraceMatcher : LiteBraceMatcher(Triple(T.LBRACE, T.RBRACE, true), Triple(T.LBRACKET, T.RBRACKET, false), Triple(T.LPAR, T.RPAR, false))

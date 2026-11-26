@@ -22,6 +22,7 @@ import me.kevinlot.lite.core.LiteFindUsagesProvider
 import me.kevinlot.lite.core.LiteNamesValidator
 import me.kevinlot.lite.core.color
 import me.kevinlot.lite.typescript.TsFile
+import me.kevinlot.lite.typescript.TsLanguage
 import me.kevinlot.lite.typescript.lexer.TsLexer
 import me.kevinlot.lite.typescript.lexer.TsTokens as T
 import me.kevinlot.lite.typescript.parser.TsElementTypes as E
@@ -91,7 +92,8 @@ class TsHighlightingAnnotator : Annotator {
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
         val t = element.node.elementType
         when {
-            t == T.SOFT_KEYWORD -> holder.color(element, TsColors.KEYWORD)
+            // A host language (QML) reusing these tokens colors its own keywords.
+            t == T.SOFT_KEYWORD -> if (element.parent?.language?.isKindOf(TsLanguage) != false) holder.color(element, TsColors.KEYWORD)
             t == E.CLASS_DECLARATION || t == E.CLASS_EXPRESSION || t == E.ENUM_DECLARATION || t == E.TYPE_ALIAS || t == E.NAMESPACE_DECLARATION ->
                 holder.color((element as TsNamedDecl).nameIdentifier, TsColors.CLASS)
             t == E.INTERFACE_DECLARATION -> holder.color((element as TsNamedDecl).nameIdentifier, TsColors.INTERFACE)

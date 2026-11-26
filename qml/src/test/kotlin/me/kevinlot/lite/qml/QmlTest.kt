@@ -43,11 +43,10 @@ class QmlTest : BasePlatformTestCase() {
 
     private fun one(code: String) = check("Main.qml" to code)
 
-    /** QML soft keywords are tokens of the JavaScript language: its annotator colors them first. */
     private fun annotated(code: String): String {
         myFixture.configureByText("Main.qml", code)
         val colored = myFixture.doHighlighting().filter { it.forcedTextAttributesKey?.externalName?.let { key -> key.startsWith("QML_") || key == "TS_KEYWORD" } == true }
-        return colored.sortedBy { it.startOffset }.joinToString(" ") { "${it.text}:${it.forcedTextAttributesKey.externalName.substringAfter('_')}" }
+        return colored.sortedBy { it.startOffset }.joinToString(" ") { "${it.text}:${it.forcedTextAttributesKey.externalName.removePrefix("QML_")}" }
     }
 
     private fun declarations(code: String): List<QmlNamed> =
@@ -263,6 +262,9 @@ class QmlTest : BasePlatformTestCase() {
             "Mode:TYPE Off:PROPERTY On:PROPERTY component:KEYWORD Card:TYPE Item:TYPE onMoved:HANDLER Layout:TYPE fillWidth:PROPERTY width:PROPERTY",
         annotated(document),
     )
+
+    fun `test a soft keyword of an expression keeps the JavaScript color`() =
+        assertEquals("Item:TYPE onMoved:HANDLER of:TS_KEYWORD", annotated("Item {\n  onMoved: { for (const a of []) {} }\n}"))
 
     fun `test qmldir lists types, singletons, imports and type descriptions`() {
         val text = """
