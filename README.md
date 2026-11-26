@@ -28,6 +28,7 @@ formatting, run/debug and build tool windows: none, by design.
 | | [QML](#qml) | with types | yes | QML (Marketplace) |
 | | [Groovy](#groovy) (Gradle scripts, Jenkinsfile) | lexical, declared types | yes | Groovy |
 | | [Scala](#scala) (Gatling simulations, sbt) | lexical, written types | yes | Scala |
+| | [Dart](#dart) (Flutter), `pubspec.yaml` | with types | yes | Dart |
 | | [Lua](#lua) | with tables | yes | EmmyLua, Luanalysis (third-party) |
 | | [Shell: sh, bash, zsh](#shell) | yes | yes | Shell Script |
 | | [fish](#fish) | yes | yes | — |
@@ -53,9 +54,10 @@ formatting, run/debug and build tool windows: none, by design.
 | | [Dotenv](#configuration-and-data-formats) | yes | yes | .env files support |
 | | [INI](#configuration-and-data-formats) | — | — | Ini |
 | | [JSON5](#configuration-and-data-formats) | — | — | — |
+| | [ARB](#dart) (Flutter messages) | `@key`, Dart getters | yes | Flutter Intl (third-party) |
 | | [KDL](#configuration-and-data-formats) | — | — | KDL |
 | | [Properties](#configuration-and-data-formats) | yes | yes | Properties |
-| | [TOML](#configuration-and-data-formats) | — | — | Toml |
+| | [TOML](#configuration-and-data-formats) | `Cargo.toml`, Gradle version catalogs | yes | Toml |
 | | [CODEOWNERS](#configuration-and-data-formats) | paths | — | — |
 | | [Ignore files](#configuration-and-data-formats) | paths | — | .ignore |
 | **Styles** | [CSS](#configuration-and-data-formats) | yes | yes | CSS |
@@ -115,6 +117,9 @@ parsed language. Nothing to click, no description of the schedule.
 - **Inheritance**: Go to Implementation (Cmd/Ctrl+Alt+B, Cmd/Ctrl+Alt+Click) lists the Kotlin subclasses of a class or
   interface (Kotlin or Java) and the overrides of a member; Cmd/Ctrl+Click on an `override` name goes to the member it
   overrides. Usages of a member include its overrides, and renaming a member renames its whole override chain.
+- **Version catalog**: in a `*.gradle.kts` script, `libs.foo.bar` → the entry `foo-bar` (or `foo_bar`, `foo.bar`) of
+  `gradle/libs.versions.toml`, beside the script or above it; `libs.versions.x`, `libs.plugins.x`, `libs.bundles.x` the
+  same. Find Usages of an entry lists the scripts; renaming it updates an accessor only when its last segment alone changes.
 - **Dependencies**: the JDK, Java sources, and the jars **already in** `~/.gradle/caches` (nothing is downloaded): the
   file's `build.gradle(.kts)` (+ `gradle/libs.versions.toml`) → declared coordinates, `kotlin("x")` and their POM
   dependencies. Without a build script (or a declared Kotlin version) the newest cached `kotlin-stdlib` is used, read
@@ -203,6 +208,58 @@ Scala 2 and the common Scala 3 syntax: `.scala`, `.sc`, `.sbt`.
   implicits or givens; a class of another package needs an import; in a Maven multi-module build lookups stop at the
   nearest `pom.xml`; symbolic names (`+`, `::`) are not renamed or listed; XML literals and a few rare Scala 3
   layouts are reported as errors.
+
+### Dart
+
+`.dart`, parsed with the grammar of the official Dart plugin (Dart 3: records, patterns, class modifiers, extension types).
+
+- **Click**: locals declared before the use, local functions, parameters, closure parameters, `for` / `for in` and
+  `catch` variables, the variables a pattern binds (`final (a, b) = …`, `case int n when …`, `if (x case final T v)`),
+  type parameters, names inside strings (`'$name ${expr}'`); `this.x` and `super.x` parameters → the field or the
+  parameter of the superclass.
+- **Members**: fields, methods, getters and setters, named and factory constructors, enum values, static members,
+  inherited ones through `extends` / `with` / `implements` / `on`, extension methods. `a.b` follows the type of `a`:
+  declared, or read from its value (`var a = A();`, `A.named()`, `const A()`, a call and its return type, a field or a
+  getter, `await`, `as`, `!`, a cascade `a..b()`), with type arguments (`Box<A>().value`, the element of a `List<A>`,
+  the variable of a `for in`).
+- **Operators and literals**: `a + b`, `-a`, `a[i]` give what the operator of the type of `a` returns (`int + int` is
+  an `int`, with a `double` a `double`); comparisons, `is`, `!`, `&&` and `||` a `bool`; `{k: v}` is a `Map`, `{a}` a
+  `Set`; an assignment and a `switch` expression have the type of their value.
+- **Records and patterns**: `r.$1` and `r.name` of a record → the field of its type or of its literal, with its type;
+  the variables of a pattern take the type of what they match: `final (a, n: b) = r`, `for (final (k, v) in pairs)`,
+  `case Circle(:final radius)`, `case [var first, ...]`, `case {'k': final v}`, `if (x case final y)`. The label of a
+  pattern field (`Circle(radius: var r)`) → the member or the record field.
+- **Closures and generic calls**: the parameters of a closure take the types of the function type it is given to
+  (`xs.map((e) => e.name)`, `then((value) => …)`, `itemBuilder: (context, index) => …`), written on the parameter,
+  behind a `typedef` or on the field of `this.x`. The type parameters of a method or a constructor are read from its
+  arguments and from what its closures return (`xs.map((e) => e.shape).first`, `Box(a).value`), or written (`f<A>()`).
+  An `async` closure returns a `Future` of its value.
+- **Named arguments**: `Text(style: …)`, `f(size: 1)`, `super(x: 1)`, `@Tag(label: 'x')` → the parameter, or the field
+  of a `this.x` parameter.
+- **Libraries**: `import` (relative, `package:`, `dart:`), `show` / `hide`, `as prefix`, `export` chains, `part` and
+  `part of`; the string of a directive → the file. Names starting with `_` stay inside their library.
+- **Dependencies**: read from `.dart_tool/package_config.json`, which `dart pub get` / `flutter pub get` writes (the
+  nearest one above the file): the pub cache, path and workspace packages, and the SDK (`flutterRoot` there, else
+  `DART_SDK`, else the `dart` of the `PATH`). Nothing is indexed: a library is opened when a name leads to it, and a
+  file whose text lacks the name is not parsed. Without that file, the packages of the project are still found by the
+  `name:` of their `pubspec.yaml`.
+- **Rename / Usages**: a renamed class renames its constructors; a renamed field renames its `this.x` parameters and
+  named arguments; a renamed file updates the directives naming it.
+- **Localization**: a member of a localizations class (`AppLocalizations.of(context)!.helloWorld`, a class named
+  `…Localizations` or `S`) → the message in the `.arb` files, one target per locale, instead of the generated getter.
+  The key matches whatever its case and underscores (`Button_Cancel` for `buttonCancel`). The bundles are those of
+  the package of the class, else of the project, narrowed to the ones named like the class (`app_en.arb` or a folder
+  `app` for `AppLocalizations`). Without the generated code, a receiver named `l10n`, `…Localizations` or `S.of(…)` is
+  enough. In an `.arb` file, `@key` → its message; renaming a message renames it in every locale, its `@key` and its
+  getter in Dart (the generated code is to be generated again); Find Usages of a message lists the Dart code reading
+  it.
+- **`pubspec.yaml`** (and `pubspec_overrides.yaml`): `path:` of a dependency, the members of a `workspace:`, and under
+  `flutter:` the `assets:` and the `asset:` of a font → the folder or file.
+- **Limits**: no types for a closure that is not an argument or the value of a typed variable, nor for the elements
+  of a collection built with `if` / `for` / spreads; a record field has no Rename or Find Usages; the placeholders of
+  a message are not linked; an unnamed constructor call leads to the class; extensions are not chosen by their `on`
+  type and cannot be named; conditional imports take the default URI; the first resolve through a large library
+  (Flutter's `material.dart`) takes a few seconds.
 
 ### Lua
 
@@ -320,8 +377,20 @@ An inline `template: \`…\`` of a `@Component` is read the same way, the rest o
 - Template variables → where they are declared: the item and the `let` of a `@for`, `@let`, `; as alias`, `#ref`,
   `let-row`, `*matCellDef="let row"`.
 - A pipe → its class (`@Pipe({ name: 'money' })`), for the pipes of the project.
+- A custom element (`<app-card>`) → the component whose `selector` names it, for the components of the project;
+  `section[appCard]` asks for the attribute too. An attribute a directive's selector names (`appTip`, `*appIf`) → the
+  directive.
+- `[size]`, `size="…"`, `(closed)`, `[(value)]`, `bind-` / `on-` / `bindon-` → the input or output of the element's
+  component or of its directives: `@Input()`, `@Output()`, `input()`, `input.required()`, `model()` (also the event
+  `valueChange`), `output()`, an alias (`@Input('kind')`, `{ alias: 'kind' }`), a setter, an inherited member; the
+  `inputs: ['size', 'shade: tint']` / `outputs: […]` of the decorator, and those a `hostDirectives` entry exposes
+  (`{ directive: Tip, inputs: ['tipDelay: delay'] }`).
+- Rename / Usages: a renamed input or output renames its attributes (an alias stays as written); Find Usages of a
+  component or a directive lists its elements and attributes. Renaming the class leaves the selector alone.
 - Not covered: templates not named `*.component.html`, an inline template holding `${…}`, the microsyntax of
-  `*directive` values, pipes of libraries, selectors and inputs of other components (`<app-x [input]>` → the component).
+  `*directive` values, pipes, components and directives of libraries, selectors by class (`.x`); the strings of
+  `inputs: […]` do not follow a rename of the member; an element name without a dash is only matched through its
+  attributes.
 
 ### Handlebars and Mustache
 
@@ -537,7 +606,7 @@ One short declaration each (`formats` module). Click, rename and Find Usages onl
 
 | Format | Files | Click |
 |---|---|---|
-| YAML | `.yaml`, `.yml` | `*alias` → `&anchor`; [`$ref`](#openapi-asyncapi-json-schema); [GitHub Actions](#github-actions) names; [Serverless and CloudFormation](#serverless-and-cloudformation) references. The body of a block scalar (`run: \|`) is plain text; anchors, aliases, quotes, numbers and constants only count at the start of a value |
+| YAML | `.yaml`, `.yml` | `*alias` → `&anchor`; `pubspec.yaml` paths (see [Dart](#dart)); [`$ref`](#openapi-asyncapi-json-schema); [GitHub Actions](#github-actions) names; [Serverless and CloudFormation](#serverless-and-cloudformation) references. The body of a block scalar (`run: \|`) is plain text; anchors, aliases, quotes, numbers and constants only count at the start of a value |
 | HOCON | `.hocon`, `.conf` | each segment of `${a.b.c}` → the key of that level (nested blocks, dotted keys): the file, its includes, then every HOCON file of the project; `include "x"`, `include classpath("x")` → file (`.conf` optional); `a."b.c"` is a two-level path |
 | Dotenv | `.env`, `.env.*` | `${VAR}` / `$VAR` → `VAR=` (keys may hold `-`; ` # comment` after a value) |
 | Properties | `.properties` | `${key}`, `${key:default}` → `key=` in the file or a `.properties` file beside it; `=`, `:` or blank separators, `#`/`!` comments, values continued by a trailing `\` |
@@ -546,12 +615,27 @@ One short declaration each (`formats` module). Click, rename and Find Usages onl
 | CSS, SCSS, Sass | `.css`, `.scss`, `.sass` (indented syntax) | `var(--x)` → `--x:` (any stylesheet of the project), `$x`, `@include`/`+mixin` → `@mixin`/`=mixin`, `@import`/`@use`/`url()` → file (partials `_x.scss`/`_x.sass`) |
 | CODEOWNERS | `CODEOWNERS` | literal patterns (`/deploy/`, `src/main.rs`) → the file or folder, from the repository root (the file may sit in `.github/`, `.gitlab/` or `docs/`) |
 | Ignore files | `.gitignore`, `.dockerignore`, `.npmignore`, `.helmignore`, `.prettierignore`, `.gitattributes`… | literal patterns (`/build/`, `config.local.json`) → the file or folder |
-| TOML | `.toml`, `Cargo.lock`, `Pipfile` | — (the `run` of a mise task is [Shell](#shell)) |
+| TOML | `.toml`, `Cargo.lock`, `Pipfile` | see [Cargo.toml and version catalogs](#cargotoml-and-version-catalogs); the `run` of a mise task is [Shell](#shell); any other TOML file: — |
 | INI and relatives | `.ini`, `.cfg`, `.editorconfig`, `.gitconfig`, systemd units, `.desktop` | — |
 | KDL | `.kdl` | — |
 | JSON5 | `.json5` | — |
+| ARB (Flutter messages) | `.arb` | `@key` → its message; rename in every locale; see [Dart](#dart) |
 | SQL | `.sql` | — (would need the database schema) |
 | CSV, TSV | `.csv`, `.tsv` | — (one color per column, delimiter guessed). Opens as editor + table: the first line names the columns, a click on a header sorts, quoted cells are unquoted, updated as you type; read-only, the first 20 000 lines |
+
+### Cargo.toml and version catalogs
+
+- **`Cargo.toml`**: a dependency written `x = { workspace = true }`, `x.workspace = true` or `[dependencies.x]` with
+  `workspace = true` → `x` under `[workspace.dependencies]` of the workspace root (the nearest `Cargo.toml` above with a
+  `[workspace]` table); `version.workspace = true` under `[package]` → the key of `[workspace.package]`. In `[features]`,
+  `"a"` → the feature, else the optional dependency; `"dep:a"`, `"a/f"` and `"a?/f"` → the dependency `a`.
+  `path = "…"` (dependencies, `[lib]`, `[[bin]]`), `build`, `readme`, `license-file` and the literal `members` of a
+  workspace → the file or folder.
+- **Version catalog** (`*.versions.toml`): `version.ref = "x"` and `version = { ref = "x" }` → `x` under `[versions]`; the
+  items of a `[bundles]` list → the library. From a build script, see [Kotlin](#kotlin).
+- **Rename / Usages**: a renamed workspace dependency, feature or version renames its uses, in the crates of the workspace too.
+- **Limits**: features of another crate (`features = ["derive"]`, the `f` of `"a/f"`), glob members (`crates/*`),
+  `[patch]` and `[lints]` tables, a catalog declared in `settings.gradle(.kts)` under another name or path.
 
 ### Terraform and Terragrunt
 
@@ -581,7 +665,7 @@ A Terraform module is a folder: its `.tf`/`.tfvars` files share their names. A T
 
 ## Install
 
-1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.36.1.zip`.
+1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.41.0.zip`.
 2. Disable the plugins in the *Replaces* column of [the table above](#supported-languages-and-formats): they register
    the same file extensions. [`tools/ide_diet.py`](tools/ide_diet.py) does it, together with every other non-essential
    plugin.
@@ -591,7 +675,7 @@ A Terraform module is a folder: its `.tf`/`.tfvars` files share their names. A T
 
 Name lookups never leave the file's project: nearest manifest (`Cargo.toml`; `settings.gradle(.kts)` then
 `build.gradle(.kts)`; `pyproject.toml`/`setup.py`/`setup.cfg`/`requirements.txt`; a lock file, else `package.json`/
-`tsconfig.json`; for Scala `build.sbt` or `settings.gradle(.kts)`, else the nearest `pom.xml` / `build.gradle(.kts)`), else the highest folder with `src/` or `.git` below the workspace root, else the workspace root.
+`tsconfig.json`; for Scala `build.sbt` or `settings.gradle(.kts)`, else the nearest `pom.xml` / `build.gradle(.kts)`), else the highest folder with `src/` or `.git` (a folder, or the file of a worktree or submodule) below the workspace root, else the workspace root.
 Build outputs are ignored (`target/`; `bin/`, `build/`, `out/`; `build/`, `dist/`, `__pycache__/`…; `node_modules/`,
 `dist/`, `.next/`…); libraries are always visible. Implemented once in `core`
 (`ProjectLayout`, `LiteProjectScope`); each language only declares its manifests and output dirs.
@@ -610,6 +694,10 @@ typescript/ TypeScript + JavaScript (one language): hand-written lexer/parser (J
             Angular templates: a template language over HTML (with the XML/HTML plugin), expressions injected as TypeScript
 qml/        QML (+ `.qmltypes`): object/binding parser extending the JavaScript one, Qt import paths, qmldir/qmltypes,
             resolve (types, bindings, attached properties, JavaScript names); depends on core and typescript
+dart/       Dart: PSI over the imported grammar, lexical and member resolve, types (written, read from values, inferred
+            for closures and generic calls), libraries (imports, exports, parts), packages and SDK from
+            `.dart_tool/package_config.json`
+            dart/src/upstream/java + src/main/grammars: lexer/grammar imported from the official Dart plugin (do not edit)
 scala/      Scala 2 and 3 (sources, scripts, sbt files): string-aware lexer (interpolation, nested comments), tolerant
             recursive-descent parser (line breaks, Scala 3 indentation regions), lexical resolve, name index
 groovy/     Groovy (scripts, classes, Gradle build scripts, Jenkinsfiles): string-aware lexer (GString interpolation,
@@ -621,8 +709,9 @@ markdown/   Markdown: line lexer, links/anchors/definitions, code blocks injecte
 protobuf/   Protocol Buffers: PSI over the imported grammar, protoc-style package/scope resolution, imports
             protobuf/src/upstream/java + src/main/grammars: lexer/grammar imported from protoeditor (do not edit)
 terminal/   Cmd+arrows by word in the IDE's terminal (macOS): a key listener on the Terminal plugin's views
-formats/    configuration and data formats: a rule-based lexer and a generic declaration/reference linker, one short
-            declaration per format (also Makefile, just); `$ref` JSON pointers (YAML here, JSON with the JSON plugin);
+formats/    configuration and data formats: a rule-based lexer and a generic declaration/reference linker (the engine,
+            at the root of the package), one short declaration per format in a sub-package per family: `config`,
+            `infra`, `build`, `template`, `diagram`, `spec`, `data`; `$ref` JSON pointers (YAML here, JSON with the JSON plugin);
             HTML `<script>`/`<style>` injection (with the XML/HTML plugin);
             CSV / TSV table preview (Swing, beside the editor);
             cron expressions: a small language (lexer, parser) injected into YAML and HCL values;
@@ -636,8 +725,8 @@ tools/      import scripts for the upstream grammars, plugin diet script
 
 Each language module depends on `core` only (QML also on `typescript`, for the JavaScript it embeds); adding a
 language = a new module + one `xi:include` line. The larger modules (`kotlin`, `protobuf`, `python`, `qml`, `rust`,
-`typescript`) split their package by role (`ide`, `lexer`, `parser`, `psi`, `resolve`, `types`…); the others are one
-flat package (`me.kevinlot.lite.<module>`).
+`typescript`) split their package by role (`ide`, `lexer`, `parser`, `psi`, `resolve`, `types`…), `formats` by family
+of formats; the others are one flat package (`me.kevinlot.lite.<module>`).
 
 ## Upstream code
 
@@ -652,6 +741,9 @@ flat package (`me.kevinlot.lite.<module>`).
   (Apache 2.0) via [`tools/import_protoeditor.py`](tools/import_protoeditor.py): their PSI dropped, aggregate option
   values `{ … }` skipped as a balanced block; Google's well-known types (BSD-3) copied as is. Licenses:
   `protobuf/THIRD_PARTY_LICENSE-protoeditor.txt`, `protobuf/THIRD_PARTY_LICENSE-protobuf.txt`.
+- Dart lexer/grammar: the [official Dart plugin](https://github.com/flutter/dart-intellij-third-party) (`third_party`,
+  Apache 2.0) via [`tools/import_dart.py`](tools/import_dart.py): their PSI dropped, a documentation comment kept as one
+  token, four rules patched for forms the grammar rejects (see `dart/src/upstream/README.md`). License: `dart/THIRD_PARTY_LICENSE-dart-intellij.txt`.
 - Checked against, without copied code: the grammars of the official or reference projects, each read under its
   license — Rego ([opa-idea-plugin](https://github.com/open-policy-agent/opa-idea-plugin), MIT), Shell, YAML, TOML and
   Markdown (intellij-community, Apache 2.0), Makefile (MIT), Handlebars, Gherkin and Terraform (Apache 2.0) in
@@ -694,6 +786,7 @@ Optional real-world inputs (read-only; run with `--rerun --no-configuration-cach
 | `LITE_NG_CORPUS=<dir>` | typescript | expressions of every `*.component.html` and inline template without syntax error; resolution rate |
 | `LITE_QML_CORPUS=<dir:dir>`, `LITE_QML_PROJECT=<dir>` | qml | parsing; resolution rate |
 | `LITE_SCALA_CORPUS=<dir:dir>` | scala | lexing and parsing (≤ 2% of files with errors, per directory); share of names resolved; the most missed names |
+| `LITE_DART_CORPUS=<dir:dir>`, `LITE_DART_SDK=<flutter root>` | dart | parsing (≤ 2% of files with errors), share of names resolved; names of a Flutter widget through the real SDK |
 | `LITE_GROOVY_CORPUS=<dir:dir>` | groovy | lexing and parsing (≤ 2% of files with errors); share of references resolved |
 | `LITE_LUA_CORPUS=<dir:dir>` | lua | parsing; names and fields resolved |
 | `LITE_SH_CORPUS=<dir:dir>` | shell | parsing |

@@ -59,7 +59,12 @@ The first build creates `.intellijPlatform/` (~4 GB, gitignored).
   hand: change the script and re-run it on a fresh clone (the clone commands are in each script's docstring).
 - `kotlin`, `protobuf`, `python`, `qml`, `rust` and `typescript` keep one sub-package per role (`ide`, `lexer`, `parser`,
   `psi`, `resolve`, `types`…) or feature (`typescript/angular`); the other modules are one flat package.
-- `formats`: one file per format (`<Name>Format.kt`); the engine is `Fmt.kt` (model), `FmtLanguage.kt`, `FmtPsi.kt`, `FmtIde.kt`.
+- `formats`: the engine at the root of the package (`Fmt.kt` the model, `FmtLanguage.kt`, `FmtPsi.kt`, `FmtIde.kt`,
+  `Registrations.kt`, `Scripts.kt`, `Pointers.kt`), one file per format (`<Name>Format.kt`) in the sub-package of its
+  family: `config` (TOML, YAML, INI, HOCON…), `infra` (HCL, Dockerfile, GitHub Actions, Serverless, cron), `build`
+  (Makefile, just, fish), `template` (Jinja, Handlebars, CSS, HTML injection), `diagram`, `spec` (Gherkin, JFlex, Rego,
+  Bruno), `data` (CSV, SQL). What a format carries beyond its rules sits beside it (`TomlLinks.kt`, `Pubspec.kt`).
+  Tests stay in the root package.
 - Commits: English, Conventional Commits, only when the user asks.
 - Read-only outside this repo: the user's IDE config, plugins and other projects are inspected, never changed, unless
   the user asks.
@@ -67,7 +72,7 @@ The first build creates `.intellijPlatform/` (~4 GB, gitignored).
 ## Manual test project
 
 `playground/` holds one small project per language and format: rust, kotlin, python, web (TS/JS),
-qml, pipeline (groovy), loadtest (scala), .github (workflows), service (serverless), scripts (shell), docs (markdown), proto, infra (terraform/terragrunt), config, docker, styles, Makefile, ignore
+qml, pipeline (groovy), loadtest (scala), mobile (dart), .github (workflows), service (serverless), scripts (shell), docs (markdown), proto, infra (terraform/terragrunt), config, docker, styles, Makefile, ignore
 files. Open `playground/` itself as the project (each part has its own manifest, and Lite keeps lookups inside it)
 in the sandbox IDE (`./gradlew runIde`) or the real one, to check highlighting and navigation by hand. After a clone:
 `npm install` in `playground/web` (TypeScript lib, `@types/node`). `playground/.env` is a committed fixture, not a
