@@ -232,13 +232,16 @@ Scala 2 and the common Scala 3 syntax: `.scala`, `.sc`, `.sbt`.
   pattern field (`Circle(radius: var r)`) → the member or the record field. The label of a record literal (`(n: a)`)
   → the field of the record type the literal is given to: a typed variable, the result of its function, a parameter.
 - **Extensions**: a member no class declares comes from the extensions the file sees, the ones whose `on` type the
-  receiver is (a supertype, `on List<T>` with `T` read from the receiver, `on T`); all of them when the type is
-  unknown or none fits. `Ext(x).m()` and `Ext.staticMember` name the extension.
+  receiver is (a supertype, `on List<T>` with `T` read from the receiver, `on T`), the most specific first (`on Sub`
+  before `on Base`, a class before `on T`); all of them when the type is unknown or none fits. `Ext(x).m()` and `Ext.staticMember` name the extension.
 - **Closures and generic calls**: the parameters of a closure take the types of the function type it is given to
   (`xs.map((e) => e.name)`, `then((value) => …)`, `itemBuilder: (context, index) => …`), written on the parameter,
   behind a `typedef` or on the field of `this.x`. The type parameters of a method or a constructor are read from its
   arguments and from what its closures return (`xs.map((e) => e.shape).first`, `Box(a).value`), or written (`f<A>()`).
-  An `async` closure returns a `Future` of its value.
+  An `async` closure returns a `Future` of its value. A closure is also typed by the variable or field it is assigned
+  to, the result of the function returning it, and the type arguments of the collection it is in.
+- **Constructors**: `A()`, `new A()`, `const A()` → the unnamed constructor when the class writes one, else the class;
+  Find Usages and Rename of the class still reach those calls.
 - **Named arguments**: `Text(style: …)`, `f(size: 1)`, `super(x: 1)`, `@Tag(label: 'x')` → the parameter, or the field
   of a `this.x` parameter.
 - **Libraries**: `import` (relative, `package:`, `dart:`), `show` / `hide`, `as prefix`, `export` chains, `part` and
@@ -261,11 +264,10 @@ Scala 2 and the common Scala 3 syntax: `.scala`, `.sc`, `.sbt`.
   it.
 - **`pubspec.yaml`** (and `pubspec_overrides.yaml`): `path:` of a dependency, the members of a `workspace:`, and under
   `flutter:` the `assets:` and the `asset:` of a font → the folder or file.
-- **Limits**: no types for a closure that is not an argument or the value of a typed variable; record types are
-  structural, so a field is followed from one written type (a `typedef` reaches every use), not across two types
-  written alike, and `:n` in a pattern does not follow a rename; among several fitting extensions the most specific
-  is not picked; the placeholders of a message are not linked; an unnamed constructor call leads to the class;
-  conditional imports take the default URI; the first resolve through a large library (Flutter's `material.dart`)
+- **Limits**: no types for the parameters of a closure nothing gives a function type to (`final f = (x) => …`, a
+  closure returned by a closure); record types are structural, so a field is followed from one written type (a
+  `typedef` reaches every use), not across two types written alike, and `:n` in a pattern does not follow a rename;
+  the placeholders of a message are not linked; conditional imports take the default URI; the first resolve through a large library (Flutter's `material.dart`)
   takes a few seconds.
 
 ### Lua
@@ -383,7 +385,8 @@ An inline `template: \`…\`` of a `@Component` is read the same way, the rest o
   types: `item.name` → the property of the item's type. Rename and Find Usages of a member reach its templates.
 - Template variables → where they are declared: the item and the `let` of a `@for`, `@let`, `; as alias`, `#ref`,
   `let-row`, `*matCellDef="let row"`.
-- A pipe → its class (`@Pipe({ name: 'money' })`), for the pipes of the project.
+- A pipe → its class (`@Pipe({ name: 'money' })`), for the pipes of the project; Find Usages of the class lists the
+  templates using the pipe, and renaming the class leaves its name alone.
 - A custom element (`<app-card>`) → the component whose `selector` names it, for the components of the project;
   `section[appCard]` asks for the attribute too. An attribute a directive's selector names (`appTip`, `*appIf`) → the
   directive.
@@ -391,13 +394,12 @@ An inline `template: \`…\`` of a `@Component` is read the same way, the rest o
   component or of its directives: `@Input()`, `@Output()`, `input()`, `input.required()`, `model()` (also the event
   `valueChange`), `output()`, an alias (`@Input('kind')`, `{ alias: 'kind' }`), a setter, an inherited member; the
   `inputs: ['size', 'shade: tint']` / `outputs: […]` of the decorator, and those a `hostDirectives` entry exposes
-  (`{ directive: Tip, inputs: ['tipDelay: delay'] }`).
+  (`{ directive: Tip, inputs: ['tipDelay: delay'] }`). Those strings follow a rename of the member.
 - Rename / Usages: a renamed input or output renames its attributes (an alias stays as written); Find Usages of a
   component or a directive lists its elements and attributes. Renaming the class leaves the selector alone.
 - Not covered: templates not named `*.component.html`, an inline template holding `${…}`, the microsyntax of
-  `*directive` values, pipes, components and directives of libraries, selectors by class (`.x`); the strings of
-  `inputs: […]` do not follow a rename of the member; an element name without a dash is only matched through its
-  attributes.
+  `*directive` values, pipes, components and directives of libraries, selectors by class (`.x`); renaming the name
+  of a pipe; an element name without a dash is only matched through its attributes.
 
 ### Handlebars and Mustache
 
@@ -672,7 +674,7 @@ A Terraform module is a folder: its `.tf`/`.tfvars` files share their names. A T
 
 ## Install
 
-1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.42.0.zip`.
+1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.43.0.zip`.
 2. Disable the plugins in the *Replaces* column of [the table above](#supported-languages-and-formats): they register
    the same file extensions. [`tools/ide_diet.py`](tools/ide_diet.py) does it, together with every other non-essential
    plugin.
