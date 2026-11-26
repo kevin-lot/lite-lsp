@@ -1,0 +1,9 @@
+<!-- Test-only descriptor: loads this language module, and the formats for `.arb` files. -->
+<idea-plugin xmlns:xi="http://www.w3.org/2001/XInclude">
+    <id>me.kevinlot.lite.dart.test</id>
+    <name>Lite dart (tests)</name>
+    <depends>com.intellij.modules.platform</depends>
+    <xi:include href="/META-INF/lite-core.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-dart.xml" xpointer="xpointer(/idea-plugin/*)"/>
+    <xi:include href="/META-INF/lite-formats.xml" xpointer="xpointer(/idea-plugin/*)"/>
+</idea-plugin>

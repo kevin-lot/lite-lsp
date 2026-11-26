@@ -7,7 +7,7 @@ plugins {
 
 allprojects {
     group = "me.kevinlot"
-    version = "0.36.1"
+    version = "0.41.0"
 }
 
 repositories {
@@ -29,6 +29,7 @@ dependencies {
         pluginComposedModule(implementation(project(":lua")))
         pluginComposedModule(implementation(project(":groovy")))
         pluginComposedModule(implementation(project(":scala")))
+        pluginComposedModule(implementation(project(":dart")))
         pluginComposedModule(implementation(project(":markdown")))
         pluginComposedModule(implementation(project(":formats")))
         pluginComposedModule(implementation(project(":protobuf")))

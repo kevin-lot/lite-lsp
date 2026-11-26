@@ -1,0 +1,6 @@
+name: playground_mobile
+environment:
+  sdk: ^3.5.0
+flutter:
+  assets:
+    - assets/shapes.json

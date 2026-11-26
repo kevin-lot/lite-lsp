@@ -1,0 +1,13 @@
+{
+  "@@locale": "en",
+  "appTitle": "Shapes",
+  "@appTitle": {
+    "description": "Title of the home page"
+  },
+  "shapeCount": "{count} shapes",
+  "@shapeCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+<!-- Dart support: included by the plugin descriptor. -->
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Dart (Lite)" implementationClass="me.kevinlot.lite.dart.DartFileType" fieldName="INSTANCE" language="LiteDart" extensions="dart"/>
+        <lang.parserDefinition language="LiteDart" implementationClass="me.kevinlot.lite.dart.DartParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteDart" implementationClass="me.kevinlot.lite.dart.DartSyntaxHighlighterFactory"/>
+        <annotator language="LiteDart" implementationClass="me.kevinlot.lite.dart.DartHighlightingAnnotator"/>
+        <lang.braceMatcher language="LiteDart" implementationClass="me.kevinlot.lite.dart.DartBraceMatcher"/>
+        <lang.commenter language="LiteDart" implementationClass="me.kevinlot.lite.dart.DartCommenter"/>
+        <lang.findUsagesProvider language="LiteDart" implementationClass="me.kevinlot.lite.dart.DartFindUsagesProvider"/>
+        <lang.refactoringSupport language="LiteDart" implementationClass="me.kevinlot.lite.dart.DartRefactoringSupportProvider"/>
+        <lang.namesValidator language="LiteDart" implementationClass="me.kevinlot.lite.dart.DartNamesValidator"/>
+        <referencesSearch implementation="me.kevinlot.lite.dart.DartLocalizationSearcher"/>
+        <renamePsiElementProcessor implementation="me.kevinlot.lite.dart.DartRenameProcessor"/>
+    </extensions>
+</idea-plugin>
