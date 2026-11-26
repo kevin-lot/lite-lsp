@@ -145,7 +145,25 @@ object DartResolver {
         val found = libraries.filter { name in it.text }.flatMap { it.children.filter { declaration -> declaration.isA(T.EXTENSION_DECLARATION) } }
             .flatMap { extension -> declaredMembers(extension).filter { it.text == name }.map { it to extension } }
         val applied = found.mapNotNull { (member, extension) -> type?.let { DartTypes.applied(extension, it) }?.let { member to it } }
-        return applied.ifEmpty { found.map { it.first to null } }
+        val specific = applied.filter { (_, own) -> applied.none { (_, other) -> DartTypes.isMoreSpecific(other.declaration, own.declaration) } }
+        return specific.ifEmpty { found.map { it.first to null } }
+    }
+
+    // ---------------------------------------------------------------- constructors
+
+    /** `A()` runs the unnamed constructor of `A`: where a click leads when one is written, the class staying what the name means. */
+    fun constructed(ref: DartRef, found: List<PsiElement>): List<PsiElement> {
+        if (!isCreation(ref)) return found
+        return found.map { target -> target.parent.takeIf { it.elementType in CLASSES }?.let { constructor(it, null) }?.child(T.COMPONENT_NAME) ?: target }
+    }
+
+    /** [ref] is the name called by `A()`, `p.A()`, `new A()` or `const A()`. */
+    private fun isCreation(ref: DartRef): Boolean {
+        val top = generateSequence<PsiElement>(ref) { e -> e.parent.takeIf { it.isA(T.REFERENCE_EXPRESSION) && it.lastChild == e } }.last()
+        val holder = top.parent
+        if (holder.isA(T.CALL_EXPRESSION)) return holder.firstChild == top
+        val creation = holder.takeIf { it.isA(T.SIMPLE_TYPE) }?.parent?.parent?.takeIf { it.isA(T.NEW_EXPRESSION) || it.isA(T.CONST_OBJECT_EXPRESSION) }
+        return creation != null && creation.children.none { it is DartRef && it.prevSibling.isA(T.DOT) }
     }
 
     fun variables(list: PsiElement): List<DartName> =

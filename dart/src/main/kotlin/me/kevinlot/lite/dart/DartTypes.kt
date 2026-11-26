@@ -112,13 +112,23 @@ object DartTypes {
     /** [extension] as it applies to [receiver]: with the type arguments its `on` type takes there, or null when it is another type. */
     fun applied(extension: PsiElement, receiver: DartType): DartType? {
         val open = DartResolver.typeParameters(extension)
-        val on = extension.child(T.TYPE)
-        val head = on?.child(T.SIMPLE_TYPE)?.let { DartResolver.lastName(it.firstChild) }?.let(DartResolver::resolve)?.firstOrNull()
-        val known = head == null || head in open || head.parent.elementType !in DartResolver.CLASSES
-        if (!known && asInstanceOf(receiver, head?.parent) == null) return null
+        if (extendedClass(extension)?.let { asInstanceOf(receiver, it) == null } == true) return null
         val bound = HashMap<PsiElement, DartType?>()
-        DartCalls.unify(on, receiver, bound, open)
+        DartCalls.unify(extension.child(T.TYPE), receiver, bound, open)
         return DartType(extension, open.map(bound::get))
+    }
+
+    /** The class [extension] is `on`; none for a type parameter (`on T`), a function or a record type. */
+    private fun extendedClass(extension: PsiElement): PsiElement? {
+        val head = extension.child(T.TYPE)?.child(T.SIMPLE_TYPE)?.let { DartResolver.lastName(it.firstChild) }?.let(DartResolver::resolve)?.firstOrNull()
+        return head?.parent?.takeIf { it.elementType in DartResolver.CLASSES }
+    }
+
+    /** [extension] is `on` a subtype of what [other] is on: it wins when both apply. */
+    fun isMoreSpecific(extension: PsiElement, other: PsiElement): Boolean {
+        val own = extendedClass(extension) ?: return false
+        val theirs = extendedClass(other) ?: return true
+        return own != theirs && asInstanceOf(DartType(own), theirs) != null
     }
 
     /** The type [expression] is given to, when one is written: the variable it initializes, the result of its function, its parameter. */
@@ -134,12 +144,14 @@ object DartTypes {
         }
     }
 
-    /** The return type of the function around [place], the value of its `Future` when it is `async`; none inside a closure. */
-    private fun returned(place: PsiElement): DartType? {
+    private fun returned(place: PsiElement): DartType? = resolve(returnType(place), emptyMap())
+
+    /** The return type of the function around [place], as written, the value of its `Future` when it is one; none inside a closure. */
+    fun returnType(place: PsiElement): PsiElement? {
         val function = PsiTreeUtil.findFirstParent(place) { it.elementType in RETURNING || it.isA(T.FUNCTION_EXPRESSION) }
         val written = function?.takeIf { it.elementType in RETURNING }?.child(T.RETURN_TYPE)?.child(T.TYPE)
         val future = written?.child(T.SIMPLE_TYPE)?.takeIf { it.firstChild?.text in FUTURES }
-        return resolve(future?.child(T.TYPE_ARGUMENTS)?.child(T.TYPE_LIST)?.child(T.TYPE) ?: written, emptyMap())
+        return future?.child(T.TYPE_ARGUMENTS)?.child(T.TYPE_LIST)?.child(T.TYPE) ?: written
     }
 
     private fun isConstructor(declaration: PsiElement): Boolean =

@@ -2,6 +2,7 @@ package me.kevinlot.lite.dart
 
 import com.intellij.extapi.psi.ASTWrapperPsiElement
 import com.intellij.lang.ASTNode
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFileFactory
@@ -76,10 +77,28 @@ class DartRef(node: ASTNode) : DartElement(node) {
 }
 
 class DartReference(element: DartRef) : LiteReference<DartRef>(element, { PsiTreeUtil.getDeepestFirst(element) }) {
-    override fun resolveTargets(): List<PsiElement> = DartResolver.resolve(element)
+    override fun resolveTargets(): List<PsiElement> = DartResolver.constructed(element, DartResolver.resolve(element))
+
+    /**
+     * `A()` leads to the constructor and is a use of the class all the same. A use of a message is noted when it is found:
+     * a rename then moves the key it is resolved by.
+     */
+    override fun isReferenceTo(element: PsiElement): Boolean {
+        val found = super.isReferenceTo(element) || element in DartResolver.resolve(this.element)
+        if (found && DartLocalizations.isEntry(element)) this.element.putUserData(MESSAGE, true)
+        return found
+    }
+
     /** A message is read through its getter, whose name may differ from the key. */
-    override fun renameIdentifier(nameToken: PsiElement, newName: String): PsiElement? =
-        DartPsi.identifier(element, newName.takeIf { resolveTargets().none(DartLocalizations::isEntry) } ?: DartLocalizations.getter(newName))
+    override fun renameIdentifier(nameToken: PsiElement, newName: String): PsiElement? {
+        val message = element.getUserData(MESSAGE) == true || resolveTargets().any(DartLocalizations::isEntry)
+        element.putUserData(MESSAGE, null)
+        return DartPsi.identifier(element, DartLocalizations.getter(newName).takeIf { message } ?: newName)
+    }
+
+    private companion object {
+        val MESSAGE = Key.create<Boolean>("lite.dart.message")
+    }
 }
 
 /** The string of `import`, `export`, `part` and `part of`: the file it names. */

@@ -91,7 +91,6 @@ class DartTest : BasePlatformTestCase() {
     // ---------------------------------------------------------------- classes and members
 
     fun `test class in a type`() = one("class <def>A {} void f(<ref>A a) {}")
-    fun `test constructor call names the class`() = one("class <def>A { A(); } void f() { <ref>A(); }")
     fun `test named constructor`() = one("class A { A.<def>empty(); } void f() { A.<ref>empty(); }")
     fun `test factory constructor`() = one("class A { A(); factory A.<def>make() => A(); } void f() { A.<ref>make(); }")
     fun `test named constructor after new`() = one("class A { A.<def>empty(); } void f() { new A.<ref>empty(); }")
@@ -318,6 +317,47 @@ class DartTest : BasePlatformTestCase() {
         myFixture.renameElement(named(file, "Ext"), "Moves")
         assertEquals("class V {} extension Moves on V { void go() {} } void f(V a) { Moves(a).go(); }", file.text)
     }
+
+    // ---------------------------------------------------------------- constructors, closures by context
+
+    fun `test call of a written constructor`() = one("class A { <def>A(int x); } void f() { <ref>A(1); }")
+    fun `test call of a written factory`() = one("class A { A._(); factory <def>A() => A._(); } void f() { <ref>A(); }")
+    fun `test call without a written constructor leads to the class`() = one("class <def>A {} void f() { <ref>A(); }")
+    fun `test new with a written constructor`() = one("class A { <def>A(); } void f() { new <ref>A(); }")
+    fun `test const with a written constructor`() = one("class A { const <def>A(); } void f() { const <ref>A(); }")
+    fun `test type of a variable leads to the class`() = one("class <def>A { A(); } void f(<ref>A a) {}")
+    fun `test named constructor call keeps the class`() = one("class <def>A { A(); A.named(); } void f() { <ref>A.named(); }")
+    fun `test constructed value keeps its type`() = one("class A { A(); void <def>m() {} } void f() { A().<ref>m(); }")
+
+    fun `test usages and rename of a class reach its constructor calls`() {
+        val file = myFixture.configureByText("main.dart", "class A { A(int x); } void f(A a) { A(1); new A(2); }")
+        assertEquals(3, myFixture.findUsages(named(file, "A")).size)
+        myFixture.renameElement(named(file, "A"), "B")
+        assertEquals("class B { B(int x); } void f(B a) { B(1); new B(2); }", file.text)
+    }
+
+    fun `test closure returned by a function`() = one("$a void Function(A) make() => (x) => x.<ref>m();")
+    fun `test closure returned by a statement`() = one("$a void Function(A) make() { return (x) { x.<ref>m(); }; }")
+    fun `test closure returned by an async function`() = typed("$v Future<void Function(V)> make() async => (x) => x.<ref>m();")
+    fun `test closure assigned to a typed variable`() = one("$a void f() { void Function(A)? g; g = (x) => x.<ref>m(); }")
+    fun `test closure assigned to a field`() = one("$a class W { void Function(A)? cb; void set() { cb = (x) => x.<ref>m(); } }")
+    fun `test closure in parentheses`() = one("$a void each(void Function(A) action) {} void f() { each(((x) => x.<ref>m())); }")
+    fun `test closure of a ternary`() = one("$a void f(bool c) { final void Function(A) g = c ? (x) => x.<ref>m() : (x) {}; }")
+    fun `test closure in a typed list`() = one("$a void f() { final l = <void Function(A)>[(x) => x.<ref>m()]; }")
+    fun `test closure in a typed map`() = one("$a void f() { final l = <String, void Function(A)>{'k': (x) => x.<ref>m()}; }")
+    fun `test closure returned by a closure has no members`() = none("$a void f() { final g = () => (x) => x.<ref>m(); }")
+
+    fun `test most specific extension`() = assertEquals(
+        listOf("extension OnSub on Sub"),
+        owners("class V {} class Sub extends V {} extension OnV on V { void go() {} } extension OnSub on Sub { void go() {} } void f(Sub s) { s.<ref>go(); }"),
+    )
+    fun `test extension on a class wins over one on a type parameter`() = assertEquals(
+        listOf("extension OnV on V"),
+        owners("class V {} extension Any<T> on T { void go() {} } extension OnV on V { void go() {} } void f(V v) { v.<ref>go(); }"),
+    )
+    fun `test extensions on unrelated fitting types are all kept`() = assertEquals(
+        2, owners("class I {} class J {} class V implements I, J {} extension OnI on I { void go() {} } extension OnJ on J { void go() {} } void f(V v) { v.<ref>go(); }").size,
+    )
 
     // ---------------------------------------------------------------- localization
 

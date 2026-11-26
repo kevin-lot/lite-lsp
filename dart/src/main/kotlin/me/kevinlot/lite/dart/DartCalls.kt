@@ -131,14 +131,35 @@ object DartCalls {
         return DartTypes.resolve(expected.parameters.getOrNull(index), expected.bindings)
     }
 
-    /** The function type [closure] must have: that of the parameter it is an argument of, or of the variable it initializes. */
+    /**
+     * The function type [closure] must have: that of the parameter it is an argument of, of the variable it initializes or is
+     * assigned to, of the result of its function, or of the elements of the typed collection it is in.
+     */
     private fun expected(closure: PsiElement): DartSignature? {
         val holder = closure.parent ?: return null
-        if (holder.isA(T.VAR_INIT)) return holder.parent?.child(T.VAR_ACCESS_DECLARATION)?.let { signatureOf(it.child(T.TYPE), emptyMap()) }
+        return when (holder.elementType) {
+            T.ARGUMENT_LIST, T.NAMED_ARGUMENT -> argument(closure)
+            T.ASSIGN_EXPRESSION -> DartResolver.lastName(holder.firstChild.takeIf { it != closure })?.let(DartResolver::targets)?.firstOrNull()
+                ?.let { (target, owner) -> signature(target, DartTypes.bindings(owner)) }
+            T.ELEMENT, T.MAP_ENTRY -> element(holder)
+            T.FUNCTION_BODY, T.RETURN_STATEMENT -> signatureOf(DartTypes.returnType(holder), emptyMap())
+            T.IF_NULL_EXPRESSION, T.PARENTHESIZED_EXPRESSION, T.TERNARY_EXPRESSION -> expected(holder)
+            T.VAR_INIT -> holder.parent?.child(T.VAR_ACCESS_DECLARATION)?.let { signatureOf(it.child(T.TYPE), emptyMap()) }
+            else -> null
+        }
+    }
+
+    private fun argument(closure: PsiElement): DartSignature? {
         val call = PsiTreeUtil.findFirstParent(closure) { it.isA(T.ARGUMENTS) }?.parent ?: return null
         val callee = callee(call) ?: return null
         val parameter = filled(call, callee.function).firstOrNull { it.second == closure }?.first ?: return null
         return signature(parameter, DartTypes.bindings(callee.owner) + inferred(call, callee, closures = false))
+    }
+
+    /** `<void Function(A)>[(a) => …]`, `<String, void Function(A)>{'k': (a) => …}`: the last type argument of the literal. */
+    private fun element(holder: PsiElement): DartSignature? {
+        val literal = PsiTreeUtil.findFirstParent(holder) { it.isA(T.LIST_LITERAL_EXPRESSION) || it.isA(T.SET_OR_MAP_LITERAL_EXPRESSION) }
+        return signatureOf(literal?.child(T.TYPE_ARGUMENTS)?.child(T.TYPE_LIST)?.childrenOf(T.TYPE)?.lastOrNull(), emptyMap())
     }
 
     /** What a closure returns: the expression after `=>`, or the first `return` of its block; a `Future` of it when it is `async`. */
