@@ -12,6 +12,10 @@ class KtSimpleNameReference(element: KtNameReferenceExpression) : LiteReference<
 
     override fun renameIdentifier(nameToken: PsiElement, newName: String): PsiElement? {
         if (nameToken.node.elementType != KtTokens.IDENTIFIER) return null
-        return KtPsiFactory(element.project).createIdentifier(newName)
+        val name = when {
+            KtCatalog.isEntry(resolve()) -> KtCatalog.renamed(element, newName) ?: return null
+            else -> newName
+        }
+        return KtPsiFactory(element.project).createIdentifier(name)
     }
 }

@@ -61,6 +61,7 @@ object KtResolver {
         val name = ref.referencedName ?: return emptyList()
         val parent = ref.parent ?: return emptyList()
         directiveSegment(ref)?.let { return it }
+        KtCatalog.resolve(ref, name)?.let { return it }
         if (parent.node.elementType == N.VALUE_ARGUMENT_NAME) return namedArgument(ref, name)
         if (parent.node.elementType == N.USER_TYPE) {
             val qualifier = parent.children.firstOrNull { it.node.elementType == N.USER_TYPE }

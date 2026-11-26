@@ -1,0 +1,9 @@
+[versions]
+junit = "5.11.0"
+
+[libraries]
+junit-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
+junit-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
+
+[bundles]
+testing = ["junit-api", "junit-engine"]
