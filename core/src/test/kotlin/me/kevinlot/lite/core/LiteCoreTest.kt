@@ -232,6 +232,8 @@ class LiteCoreTest : BasePlatformTestCase() {
         assertEquals("/src/mod", layout.rootOf(project, file("mod/deep/a.txt")))
         assertEquals("/src/marked", layout.rootOf(project, file("marked/src/pkg/src/b.txt")))
         assertEquals("/src/repo", layout.rootOf(project, file("repo/lib/c.txt")))
+        myFixture.tempDirFixture.createFile("tree/.git")
+        assertEquals("/src/tree", layout.rootOf(project, file("tree/lib/e.txt")))
         assertEquals("/src", layout.rootOf(project, file("plain/d.txt")))
     }
 

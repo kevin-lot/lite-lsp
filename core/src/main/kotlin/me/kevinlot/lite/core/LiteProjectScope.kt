@@ -16,7 +16,7 @@ import com.intellij.psi.util.PsiModificationTracker
 /**
  * How a language recognises "a project" on disk. The same rule is used by every language:
  * nearest [rootManifests] (returned at once), else nearest [moduleManifests], else the highest folder
- * with `src/` or `.git` below the content root, else the content root itself (a project opened directly).
+ * with `src/` or `.git` (a folder, or the file of a worktree or submodule) below the content root, else the content root itself (a project opened directly).
  * Never above the attached content root, so sibling projects of a workspace stay apart.
  */
 data class ProjectLayout(
@@ -33,7 +33,7 @@ data class ProjectLayout(
             .takeWhile { bound == null || it.path == bound || it.path.startsWith("$bound/") }.toList()
         val root = dirs.firstOrNull { dir -> rootManifests.any { dir.findChild(it) != null } }
         val module = dirs.firstOrNull { dir -> moduleManifests.any { dir.findChild(it) != null } }
-        val marked = dirs.lastOrNull { dir -> dir.path != bound && MARKERS.any { dir.findChild(it)?.isDirectory == true } }
+        val marked = dirs.lastOrNull { dir -> dir.path != bound && (dir.findChild("src")?.isDirectory == true || dir.findChild(".git") != null) }
         return (root ?: module ?: marked)?.path ?: bound
     }
 
@@ -49,10 +49,6 @@ data class ProjectLayout(
             val deps = listOfNotNull(PsiModificationTracker.MODIFICATION_COUNT, oracle?.tracker(file)).toTypedArray()
             CachedValueProvider.Result.create(LiteProjectScope.create(file.project, this, file.virtualFile, extra), *deps)
         }
-    }
-
-    private companion object {
-        val MARKERS = listOf("src", ".git")
     }
 }
 
