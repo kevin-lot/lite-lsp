@@ -25,4 +25,8 @@ void main() {
   final pair = (shapes.first, count: shapes.length);
   final (first, count: n) = pair;
   print('${pair.$1.name} ${first.area + n}');
+
+  final Sized best = (shape: card.shape, rank: 1);
+  final ranked = [best, for (final shape in shapes) (shape: shape, rank: 2)];
+  print('${ranked.first.shape.summary} ${best.rank}');
 }

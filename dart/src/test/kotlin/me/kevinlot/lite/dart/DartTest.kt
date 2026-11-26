@@ -232,6 +232,93 @@ class DartTest : BasePlatformTestCase() {
     fun `test async closure returning a future is not wrapped twice`() =
         typed("$v Future<V> load() => throw 0; void f() async { final g = () async => load(); (await g()).<ref>m(); }")
 
+    // ---------------------------------------------------------------- record fields, collections, extensions
+
+    /** The reference at `<ref>` (any kind) leads to `<def>`. */
+    private fun leads(text: String) {
+        val marked = text.replace("<def>", "")
+        myFixture.configureByText("main.dart", marked.replace("<ref>", ""))
+        val target = myFixture.file.findReferenceAt(marked.indexOf("<ref>"))?.resolve()
+        assertEquals(text.replace("<ref>", "").indexOf("<def>"), target?.textOffset)
+    }
+
+    private val shape = "class V {} typedef P = ({V n, int m});"
+
+    fun `test record literal label of a typed variable`() = leads("$shape void f(V a) { final ({V <def>n}) r = (<ref>n: a); }")
+    fun `test record literal label of a result`() = leads("class V {} ({V <def>n}) make(V a) => (<ref>n: a);")
+    fun `test record literal label of a returned value`() = leads("class V {} ({V <def>n}) make(V a) { return (<ref>n: a); }")
+    fun `test record literal label of an async result`() = leads("class V {} Future<({V <def>n})> make(V a) async => (<ref>n: a);")
+    fun `test record literal label of an argument`() = leads("class V {} void take(int i, ({V <def>n}) r) {} void f(V a) { take(1, (<ref>n: a)); }")
+    fun `test record literal label of a named argument`() = leads("class V {} void take({({V <def>n})? r}) {} void f(V a) { take(r: (<ref>n: a)); }")
+    fun `test record literal label of an assignment`() = leads("class V {} void f(V a, ({V <def>n}) r) { r = (<ref>n: a); }")
+    fun `test record literal label behind a typedef`() = leads("class V {} typedef P = ({V <def>n, int m}); P make(V a) => (<ref>n: a, m: 1);")
+
+    fun `test record literal label alone names nothing else`() {
+        myFixture.configureByText("main.dart", "void f() { final r = (n: 1); }")
+        assertNull(myFixture.file.findReferenceAt(myFixture.file.text.indexOf("n: 1"))?.resolve())
+    }
+
+    private val fields = "$shape void f(P p) { p.n; final P q = (n: p.n, m: 1); if (p case (n: final x, m: _)) {} }"
+
+    fun `test usages of a record field`() {
+        val file = myFixture.configureByText("main.dart", fields)
+        assertEquals(4, myFixture.findUsages(named(file, "n")).size)
+    }
+
+    fun `test rename of a record field`() {
+        val file = myFixture.configureByText("main.dart", fields)
+        myFixture.renameElement(named(file, "n"), "node")
+        assertEquals("class V {} typedef P = ({V node, int m}); void f(P p) { p.node; final P q = (node: p.node, m: 1); if (p case (node: final x, m: _)) {} }", file.text)
+    }
+
+    fun `test rename from the label of a literal renames the field of its type`() {
+        myFixture.configureByText("main.dart", "$shape void f(P p) { p.n; final P q = (<caret>n: p.n, m: 1); }")
+        myFixture.renameElementAtCaret("node")
+        assertEquals("class V {} typedef P = ({V node, int m}); void f(P p) { p.node; final P q = (node: p.node, m: 1); }", myFixture.file.text)
+    }
+
+    fun `test rename of the field of a record literal`() {
+        myFixture.configureByText("main.dart", "void f() { final r = (<caret>n: 1, 2); print(r.n); }")
+        myFixture.renameElementAtCaret("node")
+        assertEquals("void f() { final r = (node: 1, 2); print(r.node); }", myFixture.file.text)
+    }
+
+    fun `test a record field is no variable of a pattern`() = none("void f(Object o) { if (o case ({int n}) r) { <ref>n; } }")
+
+    fun `test element of an if`() = typed("$v void f(V a, bool c) { final l = [if (c) a]; l.first.<ref>m(); }")
+    fun `test element of an else`() = typed("$v void f(V a, bool c) { final l = [if (c) null else a]; l.first.<ref>m(); }")
+    fun `test element of a for`() = typed("$v void f(List<V> xs) { final l = [for (final x in xs) x]; l.first.<ref>m(); }")
+    fun `test elements of a spread`() = typed("$v void f(List<V> xs) { final l = [...xs]; l.first.<ref>m(); }")
+    fun `test elements of a null aware spread after another element`() = typed("$v void f(List<V>? xs) { final l = [null, ...?xs]; l.first.<ref>m(); }")
+    fun `test spread inside an if`() = typed("$v void f(List<V> xs, bool c) { final l = [if (c) ...xs]; l.first.<ref>m(); }")
+    fun `test set built with a for`() = typed("$v void f(List<V> xs) { final s = {for (final x in xs) x}; s.first.<ref>m(); }")
+    fun `test map built with an if`() = typed("$v void f(V a, bool c) { final m = {if (c) 'k': a}; m['k'].<ref>m(); }")
+    fun `test map built with a for`() = typed("$v void f(List<V> xs) { final m = {for (final x in xs) 'k': x}; m['k'].<ref>m(); }")
+    fun `test map built with a spread`() = typed("$v void f(Map<String, V> o) { final m = {...o}; m['k'].<ref>m(); }")
+
+    private val two = "class V {} class W {} extension OnV on V { void go() {} } extension OnW on W { void go() {} }"
+
+    private fun owners(text: String): List<String> = resolve("main.dart" to text, *sdk).map { it.parent.parent.parent.parent.text.substringBefore(" {") }
+
+    fun `test extension chosen by its type`() = assertEquals(listOf("extension OnW on W"), owners("$two void f(W w) { w.<ref>go(); }"))
+    fun `test extension on a supertype`() = assertEquals(listOf("extension OnV on V"), owners("$two class Sub extends V {} void f(Sub s) { s.<ref>go(); }"))
+    fun `test extensions of an unknown receiver are all kept`() = assertEquals(2, owners("$two void f(dynamic d) { d.<ref>go(); }").size)
+    fun `test extensions of another type are kept when none fits`() = assertEquals(2, owners("$two class X {} void f(X x) { x.<ref>go(); }").size)
+    fun `test extension on a generic type`() = typed("$v extension Firsts<T> on List<T> { T get one => this[0]; } void f(List<V> xs) { xs.one.<ref>m(); }")
+    fun `test extension on a type parameter`() = one("$v extension Any<T> on T { T get self => this; } void f(V a) { a.self.<ref>m(); }")
+    fun `test extension on an enum`() = one("enum Color { red } extension Named on Color { String get <def>label => ''; } void f() { Color.red.<ref>label; }")
+    fun `test extension name`() = one("class V {} extension <def>Ext on V { void go() {} } void f(V a) { <ref>Ext(a).go(); }")
+    fun `test member of a named extension`() = one("class V {} extension Ext on V { void <def>go() {} } extension Other on V { void go() {} } void f(V a) { Ext(a).<ref>go(); }")
+    fun `test named generic extension`() = typed("$v extension Firsts<T> on List<T> { T get one => this[0]; } void f(List<V> xs) { Firsts(xs).one.<ref>m(); }")
+    fun `test static member of an extension`() = one("class V {} extension Ext on V { static int <def>count = 0; } void f() { Ext.<ref>count; }")
+    fun `test extension name of an import`() = check("ext.dart" to "extension <def>Ext on String {}", "main.dart" to "import 'ext.dart';\nvoid f(String s) { <ref>Ext(s); }")
+
+    fun `test rename of an extension`() {
+        val file = myFixture.configureByText("main.dart", "class V {} extension Ext on V { void go() {} } void f(V a) { Ext(a).go(); }")
+        myFixture.renameElement(named(file, "Ext"), "Moves")
+        assertEquals("class V {} extension Moves on V { void go() {} } void f(V a) { Moves(a).go(); }", file.text)
+    }
+
     // ---------------------------------------------------------------- localization
 
     private val generated = "abstract class AppLocalizations { static AppLocalizations of(Object context) => throw 0; " +

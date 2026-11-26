@@ -43,7 +43,8 @@ object DartPatterns {
     fun target(field: PsiElement): Pair<PsiElement, DartType?>? {
         val container = field.parent ?: return null
         val named = field.child(T.COLON) != null
-        val name = ((field.firstChild as? DartRef) ?: PsiTreeUtil.findChildOfType(field, DartName::class.java))?.text.takeIf { named }
+        val bound = PsiTreeUtil.findChildrenOfType(field, DartName::class.java).firstOrNull { !it.isLabel }
+        val name = ((field.firstChild as? DartRef) ?: bound)?.text.takeIf { named }
         if (container.isA(T.OBJECT_PATTERN)) return objectType(container)?.let { type -> DartResolver.members(type, name ?: return null).firstOrNull() }
         val record = matched(container)?.takeIf { container.isA(T.RECORD_PATTERN) } ?: return null
         val key = name ?: "$${container.childrenOf(T.PATTERN_FIELD).filter { it.child(T.COLON) == null }.indexOf(field) + 1}"

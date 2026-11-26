@@ -18,4 +18,10 @@ class Circle extends Shape {
   double get area => 3.14159 * radius * radius;
 }
 
+extension Described on Shape {
+  String get summary => '$name of $area';
+}
+
+typedef Sized = ({Shape shape, int rank});
+
 Shape largest(List<Shape> shapes) => shapes.reduce((a, b) => a.area > b.area ? a : b);

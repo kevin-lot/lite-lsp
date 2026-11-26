@@ -5,6 +5,7 @@ import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.refactoring.RefactoringSupportProvider
 import com.intellij.lexer.Lexer
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.colors.TextAttributesKey.createTextAttributesKey
 import com.intellij.openapi.fileTypes.SyntaxHighlighter
@@ -87,7 +88,7 @@ class DartHighlightingAnnotator : Annotator {
     }
 
     private fun declarationColor(name: DartName): TextAttributesKey? = when (name.declaration.elementType) {
-        in DartResolver.CLASSES, T.FUNCTION_TYPE_ALIAS, T.TYPE_PARAMETER -> DartColors.CLASS
+        in DartResolver.CLASSES, T.EXTENSION_DECLARATION, T.FUNCTION_TYPE_ALIAS, T.TYPE_PARAMETER -> DartColors.CLASS
         T.ENUM_CONSTANT_DECLARATION -> DartColors.CONSTANT
         in FUNCTIONS -> DartColors.FUNCTION_DECL
         T.SIMPLE_FORMAL_PARAMETER, T.FUNCTION_FORMAL_PARAMETER -> DartColors.PARAMETER
@@ -125,8 +126,10 @@ class DartFindUsagesProvider : LiteFindUsagesProvider(::DartLexer, TokenSet.crea
         T.CLASS_DEFINITION -> "class"
         T.ENUM_DEFINITION -> "enum"
         T.ENUM_CONSTANT_DECLARATION -> "enum value"
+        T.EXTENSION_DECLARATION -> "extension"
         T.EXTENSION_TYPE_DECLARATION -> "extension type"
         T.MIXIN_DECLARATION -> "mixin"
+        T.RECORD_FIELD, T.RECORD_TYPE_NAMED_FIELD -> "record field"
         T.FUNCTION_TYPE_ALIAS -> "typedef"
         T.TYPE_PARAMETER -> "type parameter"
         T.IMPORT_STATEMENT -> "import prefix"
@@ -145,9 +148,12 @@ class DartRefactoringSupportProvider : RefactoringSupportProvider() {
     override fun isMemberInplaceRenameAvailable(element: PsiElement, context: PsiElement?) = element is DartName
 }
 
-/** The constructors of a class bear its name: they are renamed with it. */
+/** The constructors of a class bear its name: they are renamed with it. The label of a record literal renames the field of its type. */
 class DartRenameProcessor : RenamePsiElementProcessor() {
-    override fun canProcessElement(element: PsiElement): Boolean = element is DartName && element.declaration.elementType in DartResolver.CLASSES
+    override fun canProcessElement(element: PsiElement): Boolean =
+        element is DartName && (element.declaration.elementType in DartResolver.CLASSES || element.declaration.isA(T.RECORD_FIELD))
+
+    override fun substituteElementToRename(element: PsiElement, editor: Editor?): PsiElement = (element as? DartName)?.reference?.resolve() ?: element
 
     override fun prepareRenaming(element: PsiElement, newName: String, allRenames: MutableMap<PsiElement, String>, scope: SearchScope) {
         val owner = (element as? DartName)?.declaration ?: return

@@ -224,11 +224,16 @@ Scala 2 and the common Scala 3 syntax: `.scala`, `.sc`, `.sbt`.
   the variable of a `for in`).
 - **Operators and literals**: `a + b`, `-a`, `a[i]` give what the operator of the type of `a` returns (`int + int` is
   an `int`, with a `double` a `double`); comparisons, `is`, `!`, `&&` and `||` a `bool`; `{k: v}` is a `Map`, `{a}` a
-  `Set`; an assignment and a `switch` expression have the type of their value.
+  `Set`; an assignment and a `switch` expression have the type of their value. The elements of a collection are read
+  through `if`, `for` and spreads (`[if (c) a]`, `[...xs]`, `{for (final x in xs) k: x}`).
 - **Records and patterns**: `r.$1` and `r.name` of a record → the field of its type or of its literal, with its type;
   the variables of a pattern take the type of what they match: `final (a, n: b) = r`, `for (final (k, v) in pairs)`,
   `case Circle(:final radius)`, `case [var first, ...]`, `case {'k': final v}`, `if (x case final y)`. The label of a
-  pattern field (`Circle(radius: var r)`) → the member or the record field.
+  pattern field (`Circle(radius: var r)`) → the member or the record field. The label of a record literal (`(n: a)`)
+  → the field of the record type the literal is given to: a typed variable, the result of its function, a parameter.
+- **Extensions**: a member no class declares comes from the extensions the file sees, the ones whose `on` type the
+  receiver is (a supertype, `on List<T>` with `T` read from the receiver, `on T`); all of them when the type is
+  unknown or none fits. `Ext(x).m()` and `Ext.staticMember` name the extension.
 - **Closures and generic calls**: the parameters of a closure take the types of the function type it is given to
   (`xs.map((e) => e.name)`, `then((value) => …)`, `itemBuilder: (context, index) => …`), written on the parameter,
   behind a `typedef` or on the field of `this.x`. The type parameters of a method or a constructor are read from its
@@ -244,7 +249,8 @@ Scala 2 and the common Scala 3 syntax: `.scala`, `.sc`, `.sbt`.
   file whose text lacks the name is not parsed. Without that file, the packages of the project are still found by the
   `name:` of their `pubspec.yaml`.
 - **Rename / Usages**: a renamed class renames its constructors; a renamed field renames its `this.x` parameters and
-  named arguments; a renamed file updates the directives naming it.
+  named arguments; a renamed file updates the directives naming it; a named record field is renamed in its type, its
+  accesses (`r.n`), the literals given to that type and the labels of patterns; an extension by its name.
 - **Localization**: a member of a localizations class (`AppLocalizations.of(context)!.helloWorld`, a class named
   `…Localizations` or `S`) → the message in the `.arb` files, one target per locale, instead of the generated getter.
   The key matches whatever its case and underscores (`Button_Cancel` for `buttonCancel`). The bundles are those of
@@ -255,11 +261,12 @@ Scala 2 and the common Scala 3 syntax: `.scala`, `.sc`, `.sbt`.
   it.
 - **`pubspec.yaml`** (and `pubspec_overrides.yaml`): `path:` of a dependency, the members of a `workspace:`, and under
   `flutter:` the `assets:` and the `asset:` of a font → the folder or file.
-- **Limits**: no types for a closure that is not an argument or the value of a typed variable, nor for the elements
-  of a collection built with `if` / `for` / spreads; a record field has no Rename or Find Usages; the placeholders of
-  a message are not linked; an unnamed constructor call leads to the class; extensions are not chosen by their `on`
-  type and cannot be named; conditional imports take the default URI; the first resolve through a large library
-  (Flutter's `material.dart`) takes a few seconds.
+- **Limits**: no types for a closure that is not an argument or the value of a typed variable; record types are
+  structural, so a field is followed from one written type (a `typedef` reaches every use), not across two types
+  written alike, and `:n` in a pattern does not follow a rename; among several fitting extensions the most specific
+  is not picked; the placeholders of a message are not linked; an unnamed constructor call leads to the class;
+  conditional imports take the default URI; the first resolve through a large library (Flutter's `material.dart`)
+  takes a few seconds.
 
 ### Lua
 
@@ -665,7 +672,7 @@ A Terraform module is a folder: its `.tf`/`.tfvars` files share their names. A T
 
 ## Install
 
-1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.41.0.zip`.
+1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.42.0.zip`.
 2. Disable the plugins in the *Replaces* column of [the table above](#supported-languages-and-formats): they register
    the same file extensions. [`tools/ide_diet.py`](tools/ide_diet.py) does it, together with every other non-essential
    plugin.

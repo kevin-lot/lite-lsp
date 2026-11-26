@@ -72,7 +72,8 @@ object DartResolver {
     private fun memberOf(receiver: PsiElement, ref: DartRef, name: String, file: DartFile): List<Pair<PsiElement, DartType?>> {
         val prefix = (receiver as? DartRef)?.takeIf { it.isName }?.let(::resolve)?.firstOrNull { it.parent.isA(T.IMPORT_STATEMENT) }
         if (prefix != null) return DartLibraries.imported(file, name, prefix.text).map { it to null }
-        return DartTypes.of(receiver)?.let { members(it, name) }.orEmpty().ifEmpty { extensions(file, name) }
+        val type = DartTypes.of(receiver)
+        return type?.let { members(it, name) }.orEmpty().ifEmpty { extensions(file, name, type) }
     }
 
     /** `new A.named()`, `const A.named()`, `A<int>.named()`: the name after the type of an instance creation. */
@@ -134,12 +135,17 @@ object DartResolver {
         }
     }
 
-    /** `x.name` when the type of `x` has no such member: the extensions the file sees that declare it. */
-    private fun extensions(file: DartFile, name: String): List<Pair<PsiElement, DartType?>> {
+    /**
+     * `x.name` when the type of `x` has no such member: the extensions the file sees that declare it. Those whose `on` type
+     * the receiver [type] is win, with the type arguments it gives them; when none does, or the type is unknown, all are kept.
+     */
+    private fun extensions(file: DartFile, name: String, type: DartType?): List<Pair<PsiElement, DartType?>> {
         val libraries = DartLibraries.library(file) + DartLibraries.directives(DartLibraries.library(file).first()).filter { it.kind == "import" }
             .mapNotNull { DartLibraries.resolveUri(file, it.uri) }
-        return libraries.filter { name in it.text }.flatMap { it.children.filter { declaration -> declaration.isA(T.EXTENSION_DECLARATION) } }
-            .flatMap(::declaredMembers).filter { it.text == name }.map { it to null }
+        val found = libraries.filter { name in it.text }.flatMap { it.children.filter { declaration -> declaration.isA(T.EXTENSION_DECLARATION) } }
+            .flatMap { extension -> declaredMembers(extension).filter { it.text == name }.map { it to extension } }
+        val applied = found.mapNotNull { (member, extension) -> type?.let { DartTypes.applied(extension, it) }?.let { member to it } }
+        return applied.ifEmpty { found.map { it.first to null } }
     }
 
     fun variables(list: PsiElement): List<DartName> =
@@ -202,7 +208,7 @@ object DartResolver {
         owner.children.filter { !it.isA(T.STATEMENTS) && !it.isA(T.BLOCK) }.flatMap(::bound).filter { it.text == name }
 
     private fun bound(pattern: PsiElement?): List<DartName> =
-        PsiTreeUtil.collectElementsOfType(pattern, DartName::class.java).filter { !it.isA(T.COMPONENT_NAME) }
+        PsiTreeUtil.collectElementsOfType(pattern, DartName::class.java).filter { !it.isA(T.COMPONENT_NAME) && !it.isLabel }
 
     private fun typeParameters(owner: PsiElement, name: String): List<PsiElement> = typeParameters(owner).filter { it.text == name }
 

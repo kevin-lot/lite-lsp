@@ -77,6 +77,7 @@ object DartLibraries {
             when (declaration.elementType) {
                 T.VAR_DECLARATION_LIST -> DartResolver.variables(declaration)
                 in CONTAINERS -> listOfNotNull(declaration.child(T.COMPONENT_NAME) as? DartName)
+                T.EXTENSION_DECLARATION -> listOfNotNull(declaration.child(T.ID) as? DartName)
                 else -> emptyList()
             }
         }

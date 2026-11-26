@@ -7,7 +7,7 @@ plugins {
 
 allprojects {
     group = "me.kevinlot"
-    version = "0.41.0"
+    version = "0.42.0"
 }
 
 repositories {

@@ -63,6 +63,7 @@ object DartTypes {
         val expression = generateSequence<PsiElement>(ref) { it.parent.takeIf { p -> p.isA(T.REFERENCE_EXPRESSION) } }.last().parent.takeIf { call }
         val callee = expression?.let(DartCalls::callee)
         val given = callee?.let { DartCalls.inferred(expression, it) }.orEmpty()
+        if (declaration.isA(T.EXTENSION_DECLARATION)) return extended(declaration, expression)
         if (declaration.elementType in DartResolver.CLASSES || (call && isConstructor(declaration))) {
             val owning = PsiTreeUtil.findFirstParent(declaration, false) { it.elementType in DartResolver.CLASSES } ?: return null
             val read = DartResolver.typeParameters(owning).map(given::get).takeIf { arguments -> arguments.any { it != null } }.orEmpty()
@@ -96,11 +97,49 @@ object DartTypes {
     /** `{a}` is a `Set`, `{k: v}` and `{}` a `Map`, unless the type arguments say otherwise. */
     private fun braces(e: PsiElement): DartType? {
         val written = arguments(e.child(T.TYPE_ARGUMENTS), emptyMap())
-        val first = e.child(T.ELEMENT)?.firstChild
-        val entry = first?.takeIf { it.isA(T.MAP_ENTRY) }
-        val set = written.size == 1 || (written.isEmpty() && first != null && entry == null)
-        if (set) return core(e, "Set")?.copy(arguments = written.ifEmpty { listOf(of(first)) })
-        return core(e, "Map")?.copy(arguments = written.ifEmpty { listOfNotNull(entry).flatMap { listOf(of(it.firstChild), of(it.lastChild)) } })
+        val types = written.ifEmpty { items(e).orEmpty() }
+        val first = leading(e.child(T.ELEMENT))
+        val set = types.size == 1 || (types.isEmpty() && first != null && !first.isA(T.MAP_ENTRY))
+        return core(e, "Set".takeIf { set } ?: "Map")?.copy(arguments = types)
+    }
+
+    /** `Ext(x)` is the extension applied to `x`, `Ext` alone the holder of its static members. */
+    private fun extended(extension: PsiElement, call: PsiElement?): DartType {
+        val receiver = call?.child(T.ARGUMENTS)?.child(T.ARGUMENT_LIST)?.children?.firstOrNull()?.let(::of)
+        return receiver?.let { applied(extension, it) } ?: DartType(extension)
+    }
+
+    /** [extension] as it applies to [receiver]: with the type arguments its `on` type takes there, or null when it is another type. */
+    fun applied(extension: PsiElement, receiver: DartType): DartType? {
+        val open = DartResolver.typeParameters(extension)
+        val on = extension.child(T.TYPE)
+        val head = on?.child(T.SIMPLE_TYPE)?.let { DartResolver.lastName(it.firstChild) }?.let(DartResolver::resolve)?.firstOrNull()
+        val known = head == null || head in open || head.parent.elementType !in DartResolver.CLASSES
+        if (!known && asInstanceOf(receiver, head?.parent) == null) return null
+        val bound = HashMap<PsiElement, DartType?>()
+        DartCalls.unify(on, receiver, bound, open)
+        return DartType(extension, open.map(bound::get))
+    }
+
+    /** The type [expression] is given to, when one is written: the variable it initializes, the result of its function, its parameter. */
+    fun expected(expression: PsiElement?): DartType? {
+        val holder = expression?.parent ?: return null
+        return when (holder.elementType) {
+            T.ARGUMENT_LIST, T.NAMED_ARGUMENT -> DartCalls.parameterType(expression)
+            T.ASSIGN_EXPRESSION -> of(holder.firstChild).takeIf { holder.firstChild != expression }
+            T.FUNCTION_BODY, T.RETURN_STATEMENT -> returned(holder)
+            T.PARENTHESIZED_EXPRESSION -> expected(holder)
+            T.VAR_INIT -> resolve(holder.parent?.child(T.VAR_ACCESS_DECLARATION)?.child(T.TYPE), emptyMap())
+            else -> null
+        }
+    }
+
+    /** The return type of the function around [place], the value of its `Future` when it is `async`; none inside a closure. */
+    private fun returned(place: PsiElement): DartType? {
+        val function = PsiTreeUtil.findFirstParent(place) { it.elementType in RETURNING || it.isA(T.FUNCTION_EXPRESSION) }
+        val written = function?.takeIf { it.elementType in RETURNING }?.child(T.RETURN_TYPE)?.child(T.TYPE)
+        val future = written?.child(T.SIMPLE_TYPE)?.takeIf { it.firstChild?.text in FUTURES }
+        return resolve(future?.child(T.TYPE_ARGUMENTS)?.child(T.TYPE_LIST)?.child(T.TYPE) ?: written, emptyMap())
     }
 
     private fun isConstructor(declaration: PsiElement): Boolean =
@@ -149,8 +188,29 @@ object DartTypes {
 
     private fun iterated(loop: PsiElement): DartType? = of(loop.lastChild)?.arguments?.firstOrNull()
 
-    private fun elementType(list: PsiElement): DartType? =
-        arguments(list.child(T.TYPE_ARGUMENTS), emptyMap()).firstOrNull() ?: of(list.child(T.ELEMENT)?.firstChild)
+    private fun elementType(list: PsiElement): DartType? = arguments(list.child(T.TYPE_ARGUMENTS), emptyMap()).firstOrNull() ?: items(list)?.firstOrNull()
+
+    /** The types the elements of a collection literal have: one, or a key and a value. The first element that tells gives them. */
+    private fun items(literal: PsiElement): List<DartType?>? =
+        literal.childrenOf(T.ELEMENT).firstNotNullOfOrNull { element -> item(element)?.takeIf { types -> types.any { it != null } } }
+
+    /** What an element adds: itself, an entry, the elements of a spread, those of the branches of an `if` or of the body of a `for`. */
+    private fun item(element: PsiElement): List<DartType?>? {
+        val content = element.firstChild ?: return null
+        return when (content.elementType) {
+            T.FOR_ELEMENT, T.IF_ELEMENT -> items(content)
+            T.MAP_ENTRY -> listOf(of(content.firstChild), of(content.lastChild))
+            T.SPREAD_ELEMENT -> of(content.lastChild)?.let(::iterated)?.arguments
+            else -> listOf(of(content))
+        }
+    }
+
+    /** A spread collection as the `Iterable` it is, for its element type; a `Map` stays one, for its key and value. */
+    private fun iterated(spread: DartType): DartType = core(spread.declaration, "Iterable")?.let { asInstanceOf(spread, it.declaration) } ?: spread
+
+    /** The first thing [element] adds, through the `if` and `for` around it. */
+    private fun leading(element: PsiElement?): PsiElement? =
+        generateSequence(element?.firstChild) { it.takeIf { e -> e.isA(T.FOR_ELEMENT) || e.isA(T.IF_ELEMENT) }?.child(T.ELEMENT)?.firstChild }.lastOrNull()
 
     private fun literal(e: PsiElement): DartType? = when (e.firstChild?.elementType) {
         T.FALSE, T.TRUE -> core(e, "bool")

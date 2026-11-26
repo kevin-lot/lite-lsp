@@ -81,6 +81,14 @@ object DartCalls {
         }
     }
 
+    /** The type written on the parameter [argument] fills. */
+    fun parameterType(argument: PsiElement): DartType? {
+        val call = PsiTreeUtil.findFirstParent(argument) { it.isA(T.ARGUMENTS) }?.parent ?: return null
+        val callee = callee(call) ?: return null
+        val parameter = filled(call, callee.function).firstOrNull { it.second == argument }?.first ?: return null
+        return DartTypes.resolve(typeOf(parameter), DartTypes.bindings(callee.owner))
+    }
+
     // ---------------------------------------------------------------- function types
 
     /** The function type of [parameter] (the name of a parameter): written on it, behind a `typedef`, or that of the field of `this.x`. */
@@ -174,7 +182,7 @@ object DartCalls {
     }
 
     /** Binds the [open] type parameters [written] names to what [actual] holds there: `List<T>` against a `List<Shape>` gives `T`. */
-    private fun unify(written: PsiElement?, actual: DartType?, known: MutableMap<PsiElement, DartType?>, open: List<PsiElement>) {
+    fun unify(written: PsiElement?, actual: DartType?, known: MutableMap<PsiElement, DartType?>, open: List<PsiElement>) {
         actual ?: return
         val simple = written?.child(T.SIMPLE_TYPE) ?: written?.takeIf { it.isA(T.SIMPLE_TYPE) } ?: return
         val target = DartResolver.lastName(simple.firstChild)?.let(DartResolver::resolve)?.firstOrNull() ?: return
