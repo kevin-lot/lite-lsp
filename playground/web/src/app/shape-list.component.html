@@ -11,4 +11,5 @@
 } @else {
     <p>{{ busy ? 'Loading…' : 'No shape' }}</p>
 }
+<app-shape-badge [label]="title" (toggled)="busy = $event"></app-shape-badge>
 <footer>{{ count }} shapes, {{ updated | date: 'short' }}</footer>

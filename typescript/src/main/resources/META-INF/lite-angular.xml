@@ -9,6 +9,8 @@
         <lang.syntaxHighlighterFactory language="LiteAngular" implementationClass="me.kevinlot.lite.typescript.angular.AngularHighlighterFactory"/>
         <multiHostInjector implementation="me.kevinlot.lite.typescript.angular.AngularInjector"/>
         <multiHostInjector implementation="me.kevinlot.lite.typescript.angular.AngularInlineInjector"/>
+        <psi.referenceContributor language="HTML" implementation="me.kevinlot.lite.typescript.angular.AngularReferenceContributor"/>
+        <referencesSearch implementation="me.kevinlot.lite.typescript.angular.AngularSelectorSearcher"/>
     </extensions>
     <extensions defaultExtensionNs="me.kevinlot.lite">
         <tsInjectionScope implementation="me.kevinlot.lite.typescript.angular.AngularScope"/>

@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 @Component({
     selector: 'app-shape-badge',
@@ -10,10 +10,12 @@ import { Component } from '@angular/core';
     `,
 })
 export class ShapeBadgeComponent {
-    label = 'circle';
+    @Input() label = 'circle';
     large = false;
+    @Output() toggled = new EventEmitter<boolean>();
 
     toggle(): void {
         this.large = !this.large;
+        this.toggled.emit(this.large);
     }
 }
