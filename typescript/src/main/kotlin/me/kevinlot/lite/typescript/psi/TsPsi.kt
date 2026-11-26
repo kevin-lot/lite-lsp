@@ -18,6 +18,8 @@ import com.intellij.util.IncorrectOperationException
 import me.kevinlot.lite.core.localUseScope
 import me.kevinlot.lite.typescript.TsFile
 import me.kevinlot.lite.typescript.TsFileType
+import me.kevinlot.lite.typescript.angular.AngularListedReference
+import me.kevinlot.lite.typescript.angular.AngularMetadata
 import me.kevinlot.lite.typescript.lexer.TsTokens as T
 import me.kevinlot.lite.typescript.parser.TsElementTypes as E
 import me.kevinlot.lite.typescript.resolve.TsMemberKeyReference
@@ -144,6 +146,8 @@ class TsReferenceExpr(node: ASTNode) : TsElement(node) {
 
 /** A literal; a string without `${…}` can hold another language (an Angular template). */
 class TsStringLiteral(node: ASTNode) : TsElement(node), PsiLanguageInjectionHost {
+    /** A string of `inputs: […]` in an Angular decorator names a member. */
+    override fun getReference(): PsiReference? = AngularMetadata.listed(this)?.let { (member, range) -> AngularListedReference(this, range, member) }
     override fun isValidHost(): Boolean = node.firstChildNode == node.lastChildNode && node.firstChildNode?.elementType in HOSTS
     override fun createLiteralTextEscaper(): LiteralTextEscaper<TsStringLiteral> = LiteralTextEscaper.createSimple(this)
     override fun updateText(text: String): PsiLanguageInjectionHost {

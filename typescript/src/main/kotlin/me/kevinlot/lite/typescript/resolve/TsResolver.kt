@@ -35,8 +35,11 @@ import me.kevinlot.lite.typescript.psi.TsSpecifier
 
 class TsNameReference(element: TsReferenceExpr) : LiteReference<TsReferenceExpr>(element, { element.nameElement }) {
     override fun resolveTargets(): List<PsiElement> = TsResolver.resolve(element)
-    override fun renameIdentifier(nameToken: PsiElement, newName: String): PsiElement? =
-        nameToken.takeIf { it.node.elementType == T.IDENTIFIER }?.let { TsPsiFactory(element.project).identifier(newName) }
+    /** A class used under another name (an Angular pipe, by the name its decorator gives) keeps it. */
+    override fun renameIdentifier(nameToken: PsiElement, newName: String): PsiElement? {
+        if (resolveTargets().any { it is TsClass && it.name != nameToken.text }) return null
+        return nameToken.takeIf { it.node.elementType == T.IDENTIFIER }?.let { TsPsiFactory(element.project).identifier(newName) }
+    }
 }
 
 /** `{ x }`: the variable `x`. */

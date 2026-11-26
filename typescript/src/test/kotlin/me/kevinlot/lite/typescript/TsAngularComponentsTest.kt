@@ -177,4 +177,35 @@ class TsAngularComponentsTest : BasePlatformTestCase() {
         myFixture.renameElement(cls, "PanelComponent")
         assertEquals("<app-card></app-card>\n<section appCard></section>\n<button appHint></button>\n", html.text)
     }
+
+    private fun text(path: String): String = checkNotNull(psiManager.findFile(myFixture.findFileInTempDir(path))).text
+
+    fun `test rename of an input listed in the decorator`() {
+        sources()
+        val html = myFixture.configureByText("page.component.html", "<app-panel [depth]=\"1\" [tint]=\"name\"></app-panel>\n")
+        myFixture.renameElement(member("panel.component.ts", "depth"), "level")
+        myFixture.renameElement(member("panel.component.ts", "shade"), "color")
+        assertTrue(text("panel.component.ts"), "inputs: ['level', 'color: tint']" in text("panel.component.ts"))
+        assertEquals("<app-panel [level]=\"1\" [tint]=\"name\"></app-panel>\n", html.text)
+    }
+
+    fun `test rename of an input a host directive exposes`() {
+        sources()
+        myFixture.configureByText("page.component.html", "<app-panel [delay]=\"3\" (tipShown)=\"done()\"></app-panel>\n")
+        myFixture.renameElement(member("tip.directive.ts", "tipDelay"), "tipWait")
+        myFixture.renameElement(member("tip.directive.ts", "tipShown"), "tipOpened")
+        val panel = text("panel.component.ts")
+        assertTrue(panel, "inputs: ['tipWait: delay'], outputs: ['tipOpened']" in panel)
+        assertEquals("<app-panel [delay]=\"3\" (tipOpened)=\"done()\"></app-panel>\n", myFixture.file.text)
+    }
+
+    fun `test usages of a pipe and rename of its class`() {
+        myFixture.addFileToProject("money.pipe.ts", "@Pipe({ name: 'money' })\nexport class MoneyPipe { transform(value: number): string { return '' } }")
+        myFixture.addFileToProject("page.component.ts", host)
+        val html = myFixture.configureByText("page.component.html", "<p>{{ name | money }}</p>\n")
+        val pipe = member("money.pipe.ts", "MoneyPipe")
+        assertEquals(1, ReferencesSearch.search(pipe).findAll().size)
+        myFixture.renameElement(pipe, "CashPipe")
+        assertEquals("<p>{{ name | money }}</p>\n", html.text)
+    }
 }
