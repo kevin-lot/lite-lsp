@@ -772,14 +772,13 @@ of formats; the others are one flat package (`me.kevinlot.lite.<module>`).
 ./gradlew runIde                     # sandbox IDE
 ```
 
-The plugin compiles against a local IDE (nothing downloaded) and Gradle runs on its JBR 25. Two environment variables
-say where it is, per machine; a git-ignored `mise.local.toml` holds them (then `mise exec -- ./gradlew …`):
+Gradle runs on Java 25, which is also the toolchain: the committed [`mise.toml`](mise.toml) pins it (Temurin 25;
+`mise install` once). With mise active in the shell, `./gradlew …` works as is; otherwise run
+`mise exec -- ./gradlew …`. Without mise: `JAVA_HOME` = any JDK 25.
 
-```toml
-[env]
-JAVA_HOME = "<IDE>/jbr"                       # macOS: "<IDE>.app/Contents/jbr/Contents/Home"
-ORG_GRADLE_PROJECT_localIdePath = "<IDE>"     # macOS: "<IDE>.app"
-```
+The plugin compiles and is tested against IntelliJ IDEA `platformVersion` (`gradle.properties`): Gradle downloads it
+on the first build (~1.5 GB) and caches it in `~/.gradle/caches`: nothing depends on the machine, and CI runs the
+same build.
 
 Offline (`--offline`), when the Gradle cache lacks what the IDE build asks for:
 `ORG_GRADLE_PROJECT_testFrameworkVersion = "<cached version>"` pins the platform test framework, and

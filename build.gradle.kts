@@ -17,7 +17,8 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        local(providers.gradleProperty("localIdePath"))
+        // The IntelliJ IDEA the plugin compiles and is tested against: `platformVersion`, downloaded once and cached by Gradle.
+        intellijIdea(providers.gradleProperty("platformVersion"))
         bundledPlugin("com.intellij.java")
         pluginComposedModule(implementation(project(":core")))
         pluginComposedModule(implementation(project(":rust")))

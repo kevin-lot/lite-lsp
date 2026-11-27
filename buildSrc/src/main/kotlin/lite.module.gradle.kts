@@ -1,4 +1,4 @@
-// Convention for every module (core and languages): Kotlin on the local IDE, platform test framework.
+// Convention for every module (core and languages): Kotlin on IntelliJ IDEA, platform test framework.
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
@@ -13,7 +13,8 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        local(providers.gradleProperty("localIdePath"))
+        // The IntelliJ IDEA the plugin compiles and is tested against: `platformVersion`, downloaded once and cached by Gradle.
+        intellijIdea(providers.gradleProperty("platformVersion"))
         providers.gradleProperty("testFrameworkVersion").orNull?.let { testFramework(TestFrameworkType.Platform, it) }
             ?: testFramework(TestFrameworkType.Platform)
     }

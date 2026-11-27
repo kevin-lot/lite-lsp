@@ -1,0 +1,5 @@
+# Tools of this project (https://mise.jdx.dev): `mise install` once, then Gradle as usual.
+# Java 25 runs Gradle and is the toolchain. The IntelliJ IDEA the plugin compiles against is per machine:
+# set it in a git-ignored mise.local.toml (see README.md, "Develop").
+[tools]
+java = "temurin-25"

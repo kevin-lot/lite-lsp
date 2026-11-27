@@ -37,10 +37,10 @@ environment variables are not task inputs and the run would otherwise be up to d
 
 ## New machine
 
-No machine path is committed. Two environment variables say where the local IntelliJ IDEA Ultimate is (the plugin
-compiles and runs against it, nothing is downloaded): `JAVA_HOME` (that IDE's JBR, Java 25: it runs Gradle and is the
-toolchain) and `ORG_GRADLE_PROJECT_localIdePath`. They live in a git-ignored `mise.local.toml`, so run Gradle as
-`mise exec -- ./gradlew …`. Offline pins (`testFrameworkVersion`, `instrumentCode`) are in README.md, "Develop".
+No machine path is committed. The committed `mise.toml` pins Java 25 (Temurin; it runs Gradle and is the
+toolchain): `mise install` once. The IntelliJ IDEA the plugin compiles and is tested against is `platformVersion` in
+`gradle.properties`, downloaded by Gradle on the first build and cached (`~/.gradle/caches`); CI runs the same build.
+Run Gradle as `mise exec -- ./gradlew …` (or plain `./gradlew` when mise is active in the shell). Offline pins (`testFrameworkVersion`, `instrumentCode`) are in README.md, "Develop".
 
 The first build creates `.intellijPlatform/` (~4 GB, gitignored).
 
