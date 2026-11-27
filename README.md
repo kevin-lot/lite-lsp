@@ -64,6 +64,7 @@ formatting, run/debug and build tool windows: none, by design.
 | | [Sass (indented syntax)](#configuration-and-data-formats) | yes | yes | Sass |
 | | [SCSS](#configuration-and-data-formats) | yes | yes | Sass |
 | **Data** | [CSV, TSV](#configuration-and-data-formats), with a table preview | — | — | — |
+| | [Log files](#configuration-and-data-formats) | stack frames, `path:line` | — | Ideolog (reading and click; not its filters) |
 | | [SQL](#configuration-and-data-formats) | — | — | Database Tools and SQL (language part) |
 
 Plugin size: ~2 MB (official Rust plugin ~150 MB, official Kotlin plugin ~500 MB, official Python plugins ~325 MB,
@@ -631,6 +632,7 @@ One short declaration each (`formats` module). Click, rename and Find Usages onl
 | ARB (Flutter messages) | `.arb` | `@key` → its message; rename in every locale; see [Dart](#dart) |
 | SQL | `.sql` | — (would need the database schema) |
 | CSV, TSV | `.csv`, `.tsv` | — (one color per column, delimiter guessed). Opens as editor + table: the first line names the columns, a click on a header sorts, quoted cells are unquoted, updated as you type; read-only, the first 20 000 lines |
+| Log | `.log`, `*.log.*` | Each line takes the color of the first level it names (`ERROR`, `level=warn`, `"level":"info"`, `[debug]`, `error:`; the console colors of the IDE); the lines of a stack trace keep the level of their event. Click: JVM frames (`at com.foo.Bar.run(Bar.kt:42)`, the package choosing among files of that name), Python frames (`File "app.py", line 3`), and any `path:line`, `path:line:col` or `path(line,col)` (Rust, Node, compilers) → that line. A path is tried as written, from the folders above the log, then against the files of the project of that name (a log written on another machine still leads home). No filters, no folding of events, no custom formats; disable Ideolog for `.log` to be read by Lite |
 
 ### Cargo.toml and version catalogs
 
@@ -674,7 +676,7 @@ A Terraform module is a folder: its `.tf`/`.tfvars` files share their names. A T
 
 ## Install
 
-1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.43.0.zip`.
+1. `./gradlew buildPlugin` → Settings → Plugins → ⚙ → *Install Plugin from Disk…* → `build/distributions/lite-0.44.0.zip`.
 2. Disable the plugins in the *Replaces* column of [the table above](#supported-languages-and-formats): they register
    the same file extensions. [`tools/ide_diet.py`](tools/ide_diet.py) does it, together with every other non-essential
    plugin.

@@ -15,6 +15,7 @@ import me.kevinlot.lite.formats.config.Properties
 import me.kevinlot.lite.formats.config.Toml
 import me.kevinlot.lite.formats.config.Yaml
 import me.kevinlot.lite.formats.data.Csv
+import me.kevinlot.lite.formats.data.Log
 import me.kevinlot.lite.formats.data.Sql
 import me.kevinlot.lite.formats.diagram.D2
 import me.kevinlot.lite.formats.diagram.Mermaid
@@ -91,6 +92,11 @@ class CsvParserDefinition : FmtParserDefinition(Csv)
 class CsvHighlighterFactory : FmtHighlighterFactory(Csv)
 class CsvCommenter : FmtCommenter(Csv)
 class CsvBraceMatcher : FmtBraceMatcher(Csv)
+
+object LogLanguage : FmtLanguage("Log", "Log")
+object LogFileType : FmtFileType(Log)
+class LogParserDefinition : FmtParserDefinition(Log)
+class LogHighlighterFactory : FmtHighlighterFactory(Log)
 
 object SqlLanguage : FmtLanguage("Sql", "SQL")
 object SqlFileType : FmtFileType(Sql)
@@ -271,7 +277,7 @@ val ALL_FILE_TYPES: List<FmtFileType> by lazy {
         TomlFileType, YamlFileType, KdlFileType, IniFileType, EnvFileType, Json5FileType, CsvFileType, SqlFileType, HoconFileType, DockerfileFileType,
         CssFileType, ScssFileType, SassFileType, IgnoreFileType, MakeFileType, JustFileType, HclFileType, FishFileType, BrunoFileType, CodeownersFileType,
         D2FileType, GherkinFileType, HandlebarsFileType, JFlexFileType, JinjaFileType, MermaidFileType, MustacheFileType, PropertiesFileType, RegoFileType,
-        ArbFileType,
+        ArbFileType, LogFileType,
     )
 }
 val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy {
@@ -279,7 +285,7 @@ val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy {
         TomlLanguage, YamlLanguage, KdlLanguage, IniLanguage, EnvLanguage, Json5Language, CsvLanguage, SqlLanguage, HoconLanguage, DockerfileLanguage,
         CssLanguage, ScssLanguage, SassLanguage, IgnoreLanguage, MakeLanguage, JustLanguage, HclLanguage, FishLanguage, BrunoLanguage, CodeownersLanguage,
         D2Language, GherkinLanguage, HandlebarsLanguage, JFlexLanguage, JinjaLanguage, MermaidLanguage, MustacheLanguage, PropertiesLanguage, RegoLanguage,
-        ArbLanguage,
+        ArbLanguage, LogLanguage,
     ).associateBy { it.id.removePrefix("Lite") }
 }
 

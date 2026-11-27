@@ -72,7 +72,7 @@ The first build creates `.intellijPlatform/` (~4 GB, gitignored).
 ## Manual test project
 
 `playground/` holds one small project per language and format: rust, kotlin, python, web (TS/JS),
-qml, pipeline (groovy), loadtest (scala), mobile (dart), .github (workflows), service (serverless), scripts (shell), docs (markdown), proto, infra (terraform/terragrunt), config, docker, styles, Makefile, ignore
+qml, pipeline (groovy), loadtest (scala), mobile (dart), .github (workflows), service (serverless), scripts (shell), docs (markdown), proto, infra (terraform/terragrunt), config, docker, logs, styles, Makefile, ignore
 files. Open `playground/` itself as the project (each part has its own manifest, and Lite keeps lookups inside it)
 in the sandbox IDE (`./gradlew runIde`) or the real one, to check highlighting and navigation by hand. After a clone:
 `npm install` in `playground/web` (TypeScript lib, `@types/node`). `playground/.env` is a committed fixture, not a

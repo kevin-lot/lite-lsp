@@ -1,5 +1,6 @@
 package me.kevinlot.lite.formats
 
+import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.lang.Language
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors as C
 import com.intellij.openapi.editor.colors.TextAttributesKey
@@ -39,6 +40,8 @@ enum class Cat(val key: TextAttributesKey?) {
     WORD(null), PUNCT(null), TEXT(null), LBRACE(C.BRACES), RBRACE(C.BRACES), LBRACKET(C.BRACKETS), RBRACKET(C.BRACKETS),
     LPAREN(C.PARENTHESES), RPAREN(C.PARENTHESES),
     COL0(C.KEYWORD), COL1(C.STRING), COL2(C.NUMBER), COL3(C.INSTANCE_FIELD), COL4(C.FUNCTION_CALL), COL5(C.METADATA),
+    LOG_DEBUG(ConsoleViewContentType.LOG_DEBUG_OUTPUT_KEY), LOG_ERROR(ConsoleViewContentType.LOG_ERROR_OUTPUT_KEY),
+    LOG_INFO(ConsoleViewContentType.LOG_INFO_OUTPUT_KEY), LOG_LINE(null), LOG_WARNING(ConsoleViewContentType.LOG_WARNING_OUTPUT_KEY),
 }
 
 /** A lexing rule: [regex] tried at the current position (only after indentation when [lineStart]). */

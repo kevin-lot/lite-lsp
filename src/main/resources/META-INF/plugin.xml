@@ -68,6 +68,7 @@
   <tr><td>Gherkin (.feature)</td><td>step &rarr; its definition (Cucumber for Rust, JVM, JavaScript, Go, .NET; behave, pytest-bdd); &lt;placeholder&gt; &rarr; Examples column</td><td>Gherkin, Cucumber plugins</td></tr>
   <tr><td>Handlebars (.hbs, .handlebars)</td><td>{{&gt; partial}} &rarr; inline partial or partial file, block parameters (as |x i|)</td><td>Handlebars/Mustache</td></tr>
   <tr><td>HCL: Terraform, Terragrunt</td><td>var., local., module., data., resources, dependency., include.; module outputs and arguments, Terragrunt inputs, dependency outputs and included locals across modules; .tfvars; source paths, find_in_parent_folders, modules downloaded by terraform init</td><td>Terraform and HCL</td></tr>
+  <tr><td>Log files (.log)</td><td>lines colored by level; JVM and Python stack frames, path:line, path:line:col &rarr; the line of the source</td><td>Ideolog (reading and click)</td></tr>
   <tr><td>CSV, TSV</td><td>&ndash; (a color per column; table preview beside the editor)</td><td>&ndash;</td></tr>
   <tr><td>.gitignore, .dockerignore, .gitattributes&hellip;</td><td>literal patterns &rarr; file or folder</td><td>.ignore</td></tr>
   <tr><td>HTML &lt;script&gt; / &lt;style&gt;, style= / on…=</td><td>as Lite JavaScript / CSS</td><td>JavaScript and CSS inside HTML (HTML itself stays with XML and HTML)</td></tr>

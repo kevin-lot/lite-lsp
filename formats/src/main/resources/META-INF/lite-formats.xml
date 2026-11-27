@@ -52,6 +52,10 @@
         <lang.syntaxHighlighterFactory language="LiteJson5" implementationClass="me.kevinlot.lite.formats.Json5HighlighterFactory"/>
         <lang.commenter language="LiteJson5" implementationClass="me.kevinlot.lite.formats.Json5Commenter"/>
         <lang.braceMatcher language="LiteJson5" implementationClass="me.kevinlot.lite.formats.Json5BraceMatcher"/>
+        <fileType name="Log (Lite)" implementationClass="me.kevinlot.lite.formats.LogFileType" fieldName="INSTANCE" language="LiteLog" extensions="log"
+                  patterns="*.log.*"/>
+        <lang.parserDefinition language="LiteLog" implementationClass="me.kevinlot.lite.formats.LogParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteLog" implementationClass="me.kevinlot.lite.formats.LogHighlighterFactory"/>
         <fileType name="CSV (Lite)" implementationClass="me.kevinlot.lite.formats.CsvFileType" fieldName="INSTANCE" language="LiteCsv"
                   extensions="csv;tsv"/>
         <lang.parserDefinition language="LiteCsv" implementationClass="me.kevinlot.lite.formats.CsvParserDefinition"/>

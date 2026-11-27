@@ -4,6 +4,7 @@
 /web/node_modules/
 /web/dist/
 *.log
+!/logs/app.log
 
 # Local settings
 .env

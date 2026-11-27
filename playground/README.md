@@ -52,6 +52,7 @@ real repositories. Everything below is a **Ctrl+Click** target.
 | [.env](.env) | Dotenv | `${APP_PORT}` → `APP_PORT=` |
 | [web/styles](web/styles/components.scss) | CSS, SCSS, Sass | `var(--brand)` → theme.css, `@include card` → `_mixins.scss`, `+rounded` → `=rounded` (legacy.sass) |
 | [.gitignore](.gitignore), [.dockerignore](.dockerignore) | Ignore files | `/web/node_modules/`, `backend/rust/target` → the folders |
+| [logs](logs/app.log) | Log | lines colored by level, the stack trace in the color of its `ERROR`; `Main.kt:6` and `Shapes.kt:8` → backend/kotlin, `backend/rust/src/shapes.rs:5:8` and `lib.rs:3:5` → the Rust sources, `/srv/app/web/…/shape-list.component.ts:4:3` → web (a path of another machine), `area.pipe.ts(3,1)` → the pipe; `Thread.java` and `report.py` lead nowhere (not in the project) |
 | [config](config/settings.toml) | TOML, INI/.properties, KDL, JSON5, CSV, SQL | coloring only: settings.toml, app.properties, layout.kdl, data.json5, users.csv (a color per column), schema.sql |
 
 ## Checks

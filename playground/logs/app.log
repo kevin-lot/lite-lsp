@@ -1,0 +1,19 @@
+2026-11-27 09:00:01.120 INFO  [main] playground.Main - starting with 2 shapes
+2026-11-27 09:00:01.340 DEBUG [main] playground.Shapes - scaled circle by 2.0
+2026-11-27 09:00:02.005 WARN  [main] playground.Main - largest shape took 412 ms
+2026-11-27 09:00:02.870 ERROR [main] playground.Main - cannot print the shapes
+java.lang.IllegalStateException: no shape
+	at playground.MainKt.main(Main.kt:6)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Caused by: java.lang.ArithmeticException: / by zero
+	at playground.Circle.area(Shapes.kt:8)
+	... 2 more
+{"level":"error","ts":"2026-11-27T09:00:03Z","msg":"area failed","at":"backend/rust/src/shapes.rs:5:8"}
+{"level":"info","ts":"2026-11-27T09:00:04Z","msg":"retrying"}
+thread 'main' panicked at backend/rust/src/lib.rs:3:5:
+called `Option::unwrap()` on a `None` value
+Traceback (most recent call last):
+  File "scripts/report.py", line 2, in <module>
+ValueError: bad shape
+    at render (/srv/app/web/src/app/shape-list.component.ts:4:3)
+web/src/app/area.pipe.ts(3,1): error TS2322: Type 'string' is not assignable to type 'number'.
