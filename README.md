@@ -45,6 +45,7 @@ formatting, run/debug and build tool windows: none, by design.
 | | [OpenAPI v1, v2, v3 (YAML, JSON)](#openapi-asyncapi-json-schema) | `$ref` | yes | OpenAPI Specifications |
 | **Specifications** | [Gherkin](#gherkin) | steps → definitions, `<placeholders>` | columns | Gherkin, Cucumber plugins |
 | | [JFlex](#jflex) | macros, states | yes | Grammar-Kit (its JFlex part) |
+| | [Grammar-Kit BNF](#grammar-kit-bnf) | rules, tokens, token texts | yes | Grammar-Kit (its BNF part) |
 | **Build and tasks** | [Makefile](#makefile) | yes | yes | Makefile Language |
 | | [just](#just) | yes | yes | Just (third-party) |
 | | [Dockerfile](#configuration-and-data-formats) | yes | yes | Docker (language part) |
@@ -125,7 +126,13 @@ parsed language. Nothing to click, no description of the schedule.
   file's `build.gradle(.kts)` (+ `gradle/libs.versions.toml`) → declared coordinates, `kotlin("x")` and their POM
   dependencies. Without a build script (or a declared Kotlin version) the newest cached `kotlin-stdlib` is used, read
   from its compiled facade classes (`CollectionsKt`, `StandardKt__StandardKt`…).
-- **Limits**: no full overload resolution (filtered by argument count, overrides included), no smart casts, generic inference only for
+- **Overloads**: chosen by argument count, then by argument types (positional and named, `vararg`, Java primitives as their
+  boxes, an integer literal also fits `Long`): the most specific parameter wins, and unknown types keep every candidate.
+- **Smart casts**: an `is` check narrows a parameter, a `val`, a local `var`, `it` or a destructured entry where it holds:
+  `if (x is T)`, the guard `if (x !is T) return` (or `throw`, `break`, `continue`), `x is T && …`, `x !is T || …`,
+  `when (x) { is T -> … }`, `when (val s = …)`, `when { x is T -> … }`, `require(x is T)` / `check(x is T)`.
+- **Limits**: no implicit conversions, no lambda types in overload choice; smart casts do not see assignments after the
+  check, several `is` conditions of one `when` entry or null checks; generic inference only for
   declared types, compiled extensions (`toList`, `map`…) and common collection/scope functions. Libraries open as
   decompiled classes (no sources jars are downloaded). Kotlin built-ins (`Int`, `String`, `List`…) navigate to their
   Java counterparts.
@@ -586,6 +593,20 @@ OpenAPI v1 (Swagger 1.2), v2 (Swagger 2.0) and v3.x, in YAML and JSON files: eve
 - **Limits**: the Java code is colored, not resolved (token types, methods); `YYINITIAL` is built in, so it has no
   target.
 
+### Grammar-Kit BNF
+
+`.bnf`: the parser grammars of Grammar-Kit (the `*/src/main/grammars/*.bnf` files of this repository).
+
+- **Colors**: rule names where they are defined, modifiers (`private`, `external`, `meta`, `left`, `inner`, `upper`,
+  `fake`), `::=`, attribute keys and token names (`pin`, `recoverWhile`, `LBRACE`), `<<` `>>`, strings, numbers, comments.
+- **Click**: a rule → its `Name ::=` line, also inside `<<meta_rule Arg>>` and in a quoted attribute value
+  (`recoverWhile="Item_recover"`, `extends(".*Expr")="Expr"`); a token name → its line in `tokens=[…]`; a quoted token
+  text (`'{'`, `'class'`) → the token that spells it.
+- **Rename**: rules and tokens, inside the file (quoted uses included).
+- **Limits**: the generated Java (`parserClass`, `psiImplUtilClass`, methods) and external rules (`<<parseX>>`) have no
+  target; tokens that only appear as quoted texts in the rules, without a line in `tokens=[…]`, name nothing; `regexp:`
+  values are colored as strings.
+
 ## Build and tasks
 
 ### Makefile
@@ -762,7 +783,7 @@ of formats; the others are one flat package (`me.kevinlot.lite.<module>`).
   Apache 2.0), JFlex (Grammar-Kit, Apache 2.0), D2 (keyword list of d2, MPL-2.0), Mermaid (MIT), Bruno (MIT), Jinja (BSD-3), just (CC0), Dotenv (MIT), Properties (intellij-community, Apache 2.0), ignore files
   (Apache 2.0), KDL (intellij-kdl, MIT), CSV (intellij-csv-validator, Apache 2.0), QML (intellij-qml, MIT). The French
   and English Gherkin keywords come from Cucumber's `gherkin-languages.json` (MIT).
-- Everything else (TypeScript/JavaScript, QML, Scala, Groovy, Lua, Shell, fish, Markdown, Rego, Handlebars/Mustache, Jinja2, D2, Mermaid, Bruno, Gherkin, JFlex, the formats) is written for this plugin.
+- Everything else (TypeScript/JavaScript, QML, Scala, Groovy, Lua, Shell, fish, Markdown, Rego, Handlebars/Mustache, Jinja2, D2, Mermaid, Bruno, Gherkin, JFlex, Grammar-Kit BNF, the formats) is written for this plugin.
 
 ## Develop
 

@@ -240,4 +240,73 @@ class KtResolveTest : LightJavaCodeInsightFixtureTestCase() {
     )
     fun `test java lang default import`() = java("fun f() = <ref>System.currentTimeMillis()", "java.lang.System.System")
     fun `test kotlin String maps to java`() = java("fun f(s: String) = s.<ref>length", "java.lang.String.length")
+
+    // ---------------------------------------------------------------- smart casts and overloads
+
+    /** Like [one], and the reference has no other target. */
+    private fun only(code: String) {
+        one(code)
+        val ref = myFixture.file.findReferenceAt(code.trimIndent().replace("<def>", "").indexOf("<ref>")) as PsiPolyVariantReference
+        assertEquals(ref.multiResolve(false).map { it.element?.text?.take(40) }.toString(), 1, ref.multiResolve(false).size)
+    }
+
+    private val shapes = "sealed interface Shape\nclass Circle(val r: Int) : Shape { fun <def>area() = r }\nclass Square(val s: Int) : Shape { fun area() = s }\n"
+
+    fun `test smart cast in the then branch`() = one(shapes + "fun f(x: Shape) { if (x is Circle) x.<ref>area() }")
+    fun `test smart cast after an early return`() = one(shapes + "fun f(x: Shape) {\n  if (x !is Circle) return\n  x.<ref>area()\n}")
+    fun `test smart cast after an early throw in a block`() =
+        one(shapes + "fun f(x: Shape) {\n  if (x !is Circle) { log(); throw IllegalStateException() }\n  x.<ref>area()\n}")
+    fun `test smart cast on the right of and`() = one(shapes + "fun f(x: Shape) = x is Circle && x.<ref>area() > 0")
+    fun `test smart cast on the right of or`() = one(shapes + "fun f(x: Shape) = x !is Circle || x.<ref>area() > 0")
+    fun `test smart cast in the else of a negated check`() = one(shapes + "fun f(x: Shape) { if (x !is Circle) {} else x.<ref>area() }")
+    fun `test smart cast by when subject`() = one(shapes + "fun f(x: Shape) = when (x) { is Square -> 0\n is Circle -> x.<ref>area() }")
+    fun `test smart cast by when subject variable`() = one(shapes + "fun g(): Shape = TODO()\nfun f() = when (val s = g()) { is Circle -> s.<ref>area()\n else -> 0 }")
+    fun `test smart cast by when without subject`() = one(shapes + "fun f(x: Shape) = when { x is Circle -> x.<ref>area()\n else -> 0 }")
+    fun `test smart cast by require`() = one(shapes + "fun f(x: Shape) {\n  require(x is Circle)\n  x.<ref>area()\n}")
+    fun `test smart cast of it`() = one(shapes + "fun f(xs: List<Shape>) = xs.forEach { if (it is Circle) it.<ref>area() }")
+    fun `test smart cast with a negated parenthesized check`() = one(shapes + "fun f(x: Shape) { if (!(x !is Circle)) x.<ref>area() }")
+    fun `test smart cast picks the checked class among two`() = only(
+        "class Circle { fun <def>area() = 1 }\nclass Square { fun area() = 2 }\nfun f(x: Any) { if (x is Square) return\n if (x is Circle) x.<ref>area() }",
+    )
+    fun `test no smart cast outside the checked branch`() {
+        myFixture.configureByText("main.kt", shapes + "fun f(x: Shape) { if (x is Circle) {}\n x.ar<caret>ea() }")
+        assertEmpty((myFixture.file.findReferenceAt(myFixture.caretOffset) as PsiPolyVariantReference).multiResolve(false))
+    }
+    fun `test no smart cast of a member var`() {
+        myFixture.configureByText("main.kt", shapes + "class H(var x: Shape) { fun f() { if (x is Circle) x.ar<caret>ea() } }")
+        assertEmpty((myFixture.file.findReferenceAt(myFixture.caretOffset) as PsiPolyVariantReference).multiResolve(false))
+    }
+    fun `test smart cast gives the type of a chained call`() = one(
+        "class R { fun <def>go() {} }\ninterface A\nclass B : A { fun r() = R() }\nfun f(a: A) { if (a is B) a.r().<ref>go() }",
+    )
+
+    fun `test overload by argument type`() = only("fun g(a: String) {}\nfun <def>g(a: Int) {}\nfun f() = <ref>g(1)")
+    fun `test overload by string argument`() = only("fun <def>g(a: String) {}\nfun g(a: Int) {}\nfun f() = <ref>g(\"x\")")
+    fun `test overload by class argument`() = only(
+        "class A\nclass B\nfun g(a: A) {}\nfun <def>g(b: B) {}\nfun f() = <ref>g(B())",
+    )
+    fun `test overload prefers the most specific parameter`() = only(
+        "open class A\nclass B : A()\nfun g(a: A) {}\nfun <def>g(b: B) {}\nfun f(b: B) = <ref>g(b)",
+    )
+    fun `test overload accepts a subtype`() = only(
+        "open class A\nclass B : A()\nclass C\nfun <def>g(a: A) {}\nfun g(c: C) {}\nfun f(b: B) = <ref>g(b)",
+    )
+    fun `test overload by named argument`() = only("fun g(a: Int, b: String = \"\") {}\nfun <def>g(a: Int, c: Int = 0) {}\nfun f() = <ref>g(1, c = 2)")
+    fun `test overload of a method by argument type`() = only(
+        "class P {\n  fun put(k: String) {}\n  fun <def>put(k: Long) {}\n}\nfun f(p: P) = p.<ref>put(2L)",
+    )
+    fun `test integer literal fits a Long parameter`() = only("fun <def>g(a: Long) {}\nfun g(a: String) {}\nfun f() = <ref>g(1)")
+    fun `test overload by vararg element type`() = only("fun g(vararg a: String) {}\nfun <def>g(vararg a: Int) {}\nfun f() = <ref>g(1, 2, 3)")
+    fun `test overload by smart cast argument`() = only(
+        "class A\nclass B\nfun g(a: A) {}\nfun <def>g(b: B) {}\nfun f(x: Any) { if (x is B) <ref>g(x) }",
+    )
+    fun `test unknown argument types keep every overload`() {
+        myFixture.configureByText("main.kt", "fun g(a: String) {}\nfun g(a: Int) {}\nfun f() = <caret>g(unknown())")
+        assertEquals(2, (myFixture.file.findReferenceAt(myFixture.caretOffset) as PsiPolyVariantReference).multiResolve(false).size)
+    }
+    fun `test overload of a java method by argument type`() =
+        java("fun f(b: StringBuilder) = b.<ref>indexOf(\"x\")", "java.lang.StringBuilder.indexOf")
+    fun `test return type follows the chosen overload`() = one(
+        "class R { fun <def>go() {} }\nclass S\nfun g(a: String): S = S()\nfun g(a: Int): R = R()\nfun f() = g(1).<ref>go()",
+    )
 }

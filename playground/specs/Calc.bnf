@@ -1,0 +1,23 @@
+// The parser of the calculator lexed by Calc.flex (Grammar-Kit).
+{
+  parserClass="playground.calc.CalcParser"
+  extends(".*Expr")="Expr"
+  tokens = [
+    PLUS = '+'
+    TIMES = '*'
+    LPAREN = '('
+    RPAREN = ')'
+    NUMBER = "regexp:\d+"
+    LET = "let"
+  ]
+}
+
+File ::= Statement*
+private Statement ::= Binding | Expr { recoverWhile="Statement_recover" }
+private Statement_recover ::= !(LET | NUMBER | '(')
+Binding ::= 'let' ID '=' Expr { pin = 1 }
+Expr ::= Sum
+Sum ::= Product <<repeat PLUS Product>>
+Product ::= Atom <<repeat TIMES Atom>>
+private Atom ::= NUMBER | ID | '(' Expr ')'
+meta repeat ::= (<<op>> <<item>>)*

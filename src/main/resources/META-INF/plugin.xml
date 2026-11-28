@@ -20,7 +20,7 @@
 <table>
   <tr><th>Language</th><th>Highlighting</th><th>Ctrl+Click</th><th>Rename / Usages</th><th>Replaces</th></tr>
   <tr><td>Rust</td><td>yes</td><td>yes, with types (std, Cargo crates)</td><td>yes</td><td>Rust (RustRover plugin)</td></tr>
-  <tr><td>Kotlin</td><td>yes</td><td>yes, with types (JDK, Gradle-cache jars); Go to Implementation, override → overridden member</td><td>yes</td><td>Kotlin</td></tr>
+  <tr><td>Kotlin</td><td>yes</td><td>yes, with types (JDK, Gradle-cache jars), smart casts, overloads by argument types; Go to Implementation, override → overridden member</td><td>yes</td><td>Kotlin</td></tr>
   <tr><td>Python</td><td>yes</td><td>yes, with annotation types (venv, stdlib)</td><td>yes</td><td>Python / Python Community</td></tr>
   <tr><td>TypeScript, JavaScript, JSX/TSX</td><td>yes</td><td>yes, with types (node_modules, @types, lib.d.ts, tsconfig paths)</td><td>yes</td><td>JavaScript and TypeScript</td></tr>
   <tr><td>Angular templates (*.component.html, inline template:)</td><td>yes</td><td>yes: component members with types, template variables, pipes; &lt;app-x&gt; &rarr; its component, [input] / (output) / [(model)] &rarr; the member</td><td>yes</td><td>Angular and AngularJS</td></tr>
@@ -43,6 +43,7 @@
   <tr><td>YAML</td><td>*alias &rarr; &amp;anchor, $ref</td><td>YAML</td></tr>
   <tr><td>Serverless Framework and CloudFormation (YAML)</td><td>${self:a.b.c} &rarr; the key of each level, through ${file(&hellip;)} values; ${file(x):a.b}, ${param:x}; !Ref, !GetAtt, !Sub, DependsOn, Condition, !If, !FindInMap &rarr; resource, parameter, condition, mapping, across the files a service includes</td><td>Serverless Framework, AWS CloudFormation</td></tr>
   <tr><td>GitHub Actions workflows and actions (YAML)</td><td>in ${{ &hellip; }} and if: &mdash; needs / jobs / steps / inputs / env / matrix / secrets &rarr; job, step id, output, input, env key; needs: &rarr; job; local uses: &rarr; file, its with: / secrets: keys &rarr; the inputs it declares; run: scripts read as Shell</td><td>GitHub Actions Manager (third-party)</td></tr>
+  <tr><td>Grammar-Kit BNF (.bnf)</td><td>rules (also in &lt;&lt;meta&gt;&gt; and quoted attributes) &rarr; Name ::=; tokens and their texts ('{') &rarr; tokens=[…]</td><td>Grammar-Kit (BNF part)</td></tr>
   <tr><td>JFlex (.flex, .jflex)</td><td>{MACRO} &rarr; its definition; states in &lt;A, B&gt;, yybegin(A) and Java code &rarr; %state</td><td>Grammar-Kit (JFlex part)</td></tr>
   <tr><td>Jinja2 (.j2, .jinja, .jinja2)</td><td>variables (set, for, macro parameters), macros, imported macros, include/import/extends &rarr; file; default or &lt;% %&gt; / &lt;&lt; &gt;&gt; delimiters; surrounding text colored as the generated format</td><td>&ndash;</td></tr>
   <tr><td>Mermaid (.mermaid, .mmd, Markdown blocks)</td><td>identifiers of flowchart, sequence, state, class and ER diagrams &rarr; first appearance; :::name &rarr; classDef; drawn in the Markdown preview only</td><td>Mermaid</td></tr>

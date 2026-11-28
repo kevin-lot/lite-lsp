@@ -117,14 +117,21 @@ object KtTypes {
     }
 
     private fun infer(e: PsiElement): KtTy = when (e.node.elementType) {
-        N.REFERENCE_EXPRESSION -> valueType(KtResolver.resolve(e as KtNameReferenceExpression).firstOrNull(), receiverSubst(e))
+        N.REFERENCE_EXPRESSION -> {
+            val target = KtResolver.resolve(e as KtNameReferenceExpression).firstOrNull()
+            KtSmartCasts.castOf(e, target) ?: valueType(target, receiverSubst(e))
+        }
         N.CALL_EXPRESSION -> callType(e as KtElement)
         N.DOT_QUALIFIED_EXPRESSION, N.SAFE_ACCESS_EXPRESSION -> inferType(e.children.lastOrNull())
         N.PARENTHESIZED, N.ANNOTATED_EXPRESSION, N.LABELED_EXPRESSION -> inferType(e.children.lastOrNull { it is KtElement })
         N.POSTFIX_EXPRESSION -> inferType(e.children.firstOrNull { it is KtElement })
         N.BINARY_WITH_TYPE -> typeOf((e as KtElement).child(N.TYPE_REFERENCE))
         N.THIS_EXPRESSION -> thisType(e)
-        N.STRING_TEMPLATE -> KtJava.builtin(e, "String")?.let { KtTy.Cls(it) } ?: KtTy.Unknown
+        N.STRING_TEMPLATE -> builtin(e, "String")
+        N.INTEGER_CONSTANT -> integerType(e)
+        N.FLOAT_CONSTANT -> builtin(e, if (e.text.endsWith('f') || e.text.endsWith('F')) "Float" else "Double")
+        N.BOOLEAN_CONSTANT -> builtin(e, "Boolean")
+        N.CHARACTER_CONSTANT -> builtin(e, "Char")
         N.IF -> inferType((e as KtElement).child(N.THEN)?.children?.firstOrNull())
         N.WHEN -> inferType((e as KtElement).child(N.WHEN_ENTRY)?.children?.lastOrNull { it is KtElement })
         N.TRY -> inferType((e as KtElement).child(N.BLOCK))
@@ -132,6 +139,18 @@ object KtTypes {
         N.ARRAY_ACCESS_EXPRESSION -> indexedType(inferType(e.children.firstOrNull { it is KtElement }))
         else -> KtTy.Unknown
     }
+
+    /** `1` is an `Int`, `1L` a `Long`; unsigned literals (`1u`) have no Java counterpart. */
+    private fun integerType(literal: PsiElement): KtTy {
+        val suffix = literal.text.lowercase().takeLastWhile { it == 'u' || it == 'l' }
+        return when (suffix) {
+            "" -> builtin(literal, "Int")
+            "l" -> builtin(literal, "Long")
+            else -> KtTy.Unknown
+        }
+    }
+
+    private fun builtin(place: PsiElement, name: String): KtTy = KtJava.builtin(place, name)?.let { KtTy.Cls(it) } ?: KtTy.Unknown
 
     /** `map[key]` is the value type, `list[i]` the element type. */
     private fun indexedType(container: KtTy): KtTy =

@@ -170,6 +170,13 @@
         <lang.commenter language="LiteHandlebars" implementationClass="me.kevinlot.lite.formats.HandlebarsCommenter"/>
         <lang.braceMatcher language="LiteHandlebars" implementationClass="me.kevinlot.lite.formats.HandlebarsBraceMatcher"/>
         <lang.findUsagesProvider language="LiteHandlebars" implementationClass="me.kevinlot.lite.formats.HandlebarsFindUsagesProvider"/>
+        <fileType name="Grammar-Kit BNF (Lite)" implementationClass="me.kevinlot.lite.formats.BnfFileType" fieldName="INSTANCE" language="LiteBnf"
+                  extensions="bnf"/>
+        <lang.parserDefinition language="LiteBnf" implementationClass="me.kevinlot.lite.formats.BnfParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="LiteBnf" implementationClass="me.kevinlot.lite.formats.BnfHighlighterFactory"/>
+        <lang.commenter language="LiteBnf" implementationClass="me.kevinlot.lite.formats.BnfCommenter"/>
+        <lang.braceMatcher language="LiteBnf" implementationClass="me.kevinlot.lite.formats.BnfBraceMatcher"/>
+        <lang.findUsagesProvider language="LiteBnf" implementationClass="me.kevinlot.lite.formats.BnfFindUsagesProvider"/>
         <fileType name="JFlex (Lite)" implementationClass="me.kevinlot.lite.formats.JFlexFileType" fieldName="INSTANCE" language="LiteJFlex"
                   extensions="flex;jflex"/>
         <lang.parserDefinition language="LiteJFlex" implementationClass="me.kevinlot.lite.formats.JFlexParserDefinition"/>

@@ -62,8 +62,8 @@ The first build creates `.intellijPlatform/` (~4 GB, gitignored).
 - `formats`: the engine at the root of the package (`Fmt.kt` the model, `FmtLanguage.kt`, `FmtPsi.kt`, `FmtIde.kt`,
   `Registrations.kt`, `Scripts.kt`, `Pointers.kt`), one file per format (`<Name>Format.kt`) in the sub-package of its
   family: `config` (TOML, YAML, INI, HOCON…), `infra` (HCL, Dockerfile, GitHub Actions, Serverless, cron), `build`
-  (Makefile, just, fish), `template` (Jinja, Handlebars, CSS, HTML injection), `diagram`, `spec` (Gherkin, JFlex, Rego,
-  Bruno), `data` (CSV, SQL). What a format carries beyond its rules sits beside it (`TomlLinks.kt`, `Pubspec.kt`).
+  (Makefile, just, fish), `template` (Jinja, Handlebars, CSS, HTML injection), `diagram`, `spec` (Gherkin, JFlex, Grammar-Kit BNF,
+  Rego, Bruno), `data` (CSV, SQL). What a format carries beyond its rules sits beside it (`TomlLinks.kt`, `Pubspec.kt`).
   Tests stay in the root package.
 - Commits: English, Conventional Commits, only when the user asks.
 - Read-only outside this repo: the user's IDE config, plugins and other projects are inspected, never changed, unless

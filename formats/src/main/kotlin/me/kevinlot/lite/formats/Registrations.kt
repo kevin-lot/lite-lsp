@@ -23,6 +23,7 @@ import me.kevinlot.lite.formats.infra.Dockerfile
 import me.kevinlot.lite.formats.infra.Hcl
 import me.kevinlot.lite.formats.spec.Bruno
 import me.kevinlot.lite.formats.spec.Gherkin
+import me.kevinlot.lite.formats.spec.Bnf
 import me.kevinlot.lite.formats.spec.JFlex
 import me.kevinlot.lite.formats.spec.Rego
 import me.kevinlot.lite.formats.template.Css
@@ -225,6 +226,14 @@ class HandlebarsCommenter : FmtCommenter(Handlebars)
 class HandlebarsBraceMatcher : FmtBraceMatcher(Handlebars)
 class HandlebarsFindUsagesProvider : FmtFindUsagesProvider(Handlebars)
 
+object BnfLanguage : FmtLanguage("Bnf", "Grammar-Kit BNF")
+object BnfFileType : FmtFileType(Bnf)
+class BnfParserDefinition : FmtParserDefinition(Bnf)
+class BnfHighlighterFactory : FmtHighlighterFactory(Bnf)
+class BnfCommenter : FmtCommenter(Bnf)
+class BnfBraceMatcher : FmtBraceMatcher(Bnf)
+class BnfFindUsagesProvider : FmtFindUsagesProvider(Bnf)
+
 object JFlexLanguage : FmtLanguage("JFlex", "JFlex")
 object JFlexFileType : FmtFileType(JFlex)
 class JFlexParserDefinition : FmtParserDefinition(JFlex)
@@ -277,7 +286,7 @@ val ALL_FILE_TYPES: List<FmtFileType> by lazy {
         TomlFileType, YamlFileType, KdlFileType, IniFileType, EnvFileType, Json5FileType, CsvFileType, SqlFileType, HoconFileType, DockerfileFileType,
         CssFileType, ScssFileType, SassFileType, IgnoreFileType, MakeFileType, JustFileType, HclFileType, FishFileType, BrunoFileType, CodeownersFileType,
         D2FileType, GherkinFileType, HandlebarsFileType, JFlexFileType, JinjaFileType, MermaidFileType, MustacheFileType, PropertiesFileType, RegoFileType,
-        ArbFileType, LogFileType,
+        ArbFileType, LogFileType, BnfFileType,
     )
 }
 val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy {
@@ -285,7 +294,7 @@ val FMT_LANGUAGES: Map<String, FmtLanguage> by lazy {
         TomlLanguage, YamlLanguage, KdlLanguage, IniLanguage, EnvLanguage, Json5Language, CsvLanguage, SqlLanguage, HoconLanguage, DockerfileLanguage,
         CssLanguage, ScssLanguage, SassLanguage, IgnoreLanguage, MakeLanguage, JustLanguage, HclLanguage, FishLanguage, BrunoLanguage, CodeownersLanguage,
         D2Language, GherkinLanguage, HandlebarsLanguage, JFlexLanguage, JinjaLanguage, MermaidLanguage, MustacheLanguage, PropertiesLanguage, RegoLanguage,
-        ArbLanguage, LogLanguage,
+        ArbLanguage, LogLanguage, BnfLanguage,
     ).associateBy { it.id.removePrefix("Lite") }
 }
 

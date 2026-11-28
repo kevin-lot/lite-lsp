@@ -41,8 +41,9 @@ sealed class Namespace {
  * members and supertypes, companion objects, extension functions, imports (explicit, star, alias),
  * same-package and default imports, Java classes (JDK, project, library jars).
  *
- * Not modelled (on purpose): full overload resolution (calls are filtered by argument count only),
- * smart casts, generic inference beyond declared types and common collection/scope functions.
+ * Overloads are chosen by argument count, then by argument types ([KtOverloads]); `is` checks narrow a value ([KtSmartCasts]).
+ * Not modelled (on purpose): generic inference beyond declared types and common collection/scope functions, implicit
+ * conversions, lambda argument types in overload choice.
  */
 object KtResolver {
     private val GUARD = RecursionGuard(48)
@@ -313,7 +314,8 @@ object KtResolver {
         }
     }
 
-    private fun supertypes(ty: KtTy, kotlin: MutableSet<PsiElement>, java: MutableSet<String>) {
+    /** The Kotlin declarations and the Java class names [ty] is a subtype of (itself included). */
+    internal fun supertypes(ty: KtTy, kotlin: MutableSet<PsiElement>, java: MutableSet<String>) {
         val cls = ty as? KtTy.Cls ?: return
         when (val d = cls.decl) {
             is KtClass -> if (kotlin.add(d)) {
@@ -495,7 +497,7 @@ object KtResolver {
         }
     }
 
-    /** Keeps the overloads whose parameter count accepts the call's argument count (all if none does). */
+    /** Keeps the overloads whose parameter count accepts the call's argument count (all if none does), then the best by argument types. */
     private fun filterOverloads(targets: List<PsiElement>, ref: KtNameReferenceExpression): List<PsiElement> {
         if (targets.size < 2 || ref.parent?.node?.elementType != N.CALL_EXPRESSION) return targets
         val call = ref.parent as KtElement
@@ -514,6 +516,6 @@ object KtResolver {
                 else -> true
             }
         }
-        return fitting.ifEmpty { targets }
+        return KtOverloads.byArgumentTypes(fitting.ifEmpty { targets }, call)
     }
 }
